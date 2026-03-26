@@ -55,6 +55,8 @@ final class PlatformsViewModel {
         let platformData: PlatformData
 
         switch platform {
+        case .amazon:
+            platformData = try AmazonKDPImporter().parse(data: rawData)
         case .substack:
             platformData = try SubstackImporter().parse(data: rawData)
         default:

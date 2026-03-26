@@ -33,11 +33,11 @@ public enum Platform: String, CaseIterable, Codable, Sendable, Identifiable {
 
     public var authType: AuthType {
         switch self {
-        case .buttondown, .goatCounter, .vercel, .calendly, .amazon:
+        case .buttondown, .goatCounter, .vercel, .calendly:
             return .apiKey
         case .mastodon, .jetpack, .bluesky:
             return .oauthToken
-        case .linkedin, .oreilly, .substack:
+        case .amazon, .linkedin, .oreilly, .substack:
             return .fileExport
         }
     }
