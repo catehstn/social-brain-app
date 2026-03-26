@@ -101,10 +101,13 @@ struct RunView: View {
     }
 
     private var idlePlaceholder: some View {
-        ContentUnavailableView(
-            "Ready to collect",
-            systemImage: "chart.bar.doc.horizontal",
-            description: Text("Press Run to fetch analytics from all configured platforms.")
+        let hasPlatforms = !CollectorRegistry.configured().isEmpty
+        return ContentUnavailableView(
+            hasPlatforms ? "Ready to collect" : "No platforms configured",
+            systemImage: hasPlatforms ? "chart.bar.doc.horizontal" : "square.grid.2x2",
+            description: Text(hasPlatforms
+                ? "Press Run to fetch analytics from all configured platforms."
+                : "Open Platforms in the sidebar to add credentials for your analytics platforms.")
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

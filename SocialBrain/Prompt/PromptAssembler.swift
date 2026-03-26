@@ -22,8 +22,7 @@ struct PromptAssembler {
 
         let dateFmt = DateFormatter()
         dateFmt.locale = Locale(identifier: "en_US_POSIX")
-        dateFmt.dateStyle = .long
-        dateFmt.timeStyle = .none
+        dateFmt.dateFormat = "MMMM d, yyyy"
 
         lines.append("# Social Media & Publishing Analytics Report")
         lines.append("Date: \(dateFmt.string(from: input.reportDate))")

@@ -1,7 +1,8 @@
 import Foundation
 
 /// All supported analytics platforms.
-public enum Platform: String, CaseIterable, Codable, Sendable {
+public enum Platform: String, CaseIterable, Codable, Sendable, Identifiable {
+    public var id: String { rawValue }
     case buttondown
     case goatCounter = "goat_counter"
     case vercel
