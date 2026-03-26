@@ -111,6 +111,17 @@ struct PlatformCredentialSheet: View {
                 buttonLabel: "Import CSV"
             )
 
+        case .oreilly:
+            importSection(
+                instructions: """
+                    1. Save your monthly O'Reilly author report email as a plain-text .txt file
+                       (in Mail.app: File → Save As → Plain Text, or copy the email body to a text file)
+                    2. Click Import TXT below to load it
+                    """,
+                extensions: ["txt", "text", "eml"],
+                buttonLabel: "Import TXT"
+            )
+
         case .substack:
             importSection(
                 instructions: """
@@ -217,8 +228,8 @@ struct PlatformCredentialSheet: View {
 
     private var isFileImportPlatform: Bool {
         switch platform {
-        case .amazon, .linkedin, .substack: true
-        default:                            false
+        case .amazon, .linkedin, .oreilly, .substack: true
+        default:                                      false
         }
     }
 

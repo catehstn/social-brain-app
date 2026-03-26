@@ -124,6 +124,9 @@ final class DashboardViewModel {
             return [("total_impressions", "Impressions"),
                     ("total_likes", "Likes"),
                     ("total_comments", "Comments")]
+        case .oreilly:
+            return [("total_page_views", "Page Views"),
+                    ("total_unique_users", "Unique Users")]
         case .substack:
             return [("posts_published", "Posts Published"),
                     ("avg_open_rate", "Avg Open Rate")]

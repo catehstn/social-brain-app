@@ -212,9 +212,10 @@ struct PromptAssembler {
 
     private func oreillyLines(_ data: PlatformData) -> [String] {
         var lines: [String] = []
-        if let v = data.intMetric("page_views")  { lines.append("Page views: \(formatted(v))") }
-        if let v = data.intMetric("unique_users") { lines.append("Unique users: \(formatted(v))") }
-        if let v = data.intMetric("completions") { lines.append("Course completions: \(v)") }
+        if let titles = data.intMetric("titles_count") { lines.append("Titles: \(titles)") }
+        if let v = data.intMetric("total_page_views")   { lines.append("Page views: \(formatted(v))") }
+        if let v = data.intMetric("total_unique_users")  { lines.append("Unique users: \(formatted(v))") }
+        if let v = data.intMetric("total_completions")  { lines.append("Course completions: \(formatted(v))") }
         return lines
     }
 
