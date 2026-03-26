@@ -116,6 +116,10 @@ final class DashboardViewModel {
         case .calendly:
             return [("events_count", "Events"),
                     ("unique_invitees", "Invitees")]
+        case .jetpack:
+            return [("followers_blog", "Followers"),
+                    ("total_views", "Views"),
+                    ("total_visitors", "Visitors")]
         case .amazon:
             return [("units_sold", "Units Sold"),
                     ("royalties_usd", "Royalties (USD)"),
