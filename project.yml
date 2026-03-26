@@ -65,6 +65,7 @@ targets:
     settings:
       base:
         SWIFT_VERSION: "6.3"
+        GENERATE_INFOPLIST_FILE: YES
 
   SocialBrainUITests:
     type: bundle.ui-testing
@@ -77,3 +78,4 @@ targets:
     settings:
       base:
         SWIFT_VERSION: "6.3"
+        GENERATE_INFOPLIST_FILE: YES
