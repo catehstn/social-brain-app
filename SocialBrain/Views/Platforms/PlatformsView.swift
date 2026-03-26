@@ -1,14 +1,20 @@
 import SwiftUI
 
 struct PlatformsView: View {
-    @State private var viewModel = PlatformsViewModel()
+    @State private var viewModel: PlatformsViewModel
     @State private var editingPlatform: Platform?
 
     // Platforms with live API collectors
-    private let apiKeyPlatforms: [Platform]     = [.buttondown, .goatCounter, .vercel, .calendly]
-    private let tokenPlatforms: [Platform]      = [.mastodon, .bluesky]
-    // No collectors yet — shown as read-only rows
-    private let comingSoonPlatforms: [Platform] = [.amazon, .jetpack, .linkedin, .oreilly, .substack]
+    private let apiKeyPlatforms: [Platform]    = [.buttondown, .goatCounter, .vercel, .calendly]
+    private let tokenPlatforms: [Platform]     = [.mastodon, .bluesky]
+    // File-export platforms that can be imported from a local file
+    private let importPlatforms: [Platform]    = [.substack]
+    // Platforms with no support yet
+    private let comingSoonPlatforms: [Platform] = [.amazon, .jetpack, .linkedin, .oreilly]
+
+    init(database: AppDatabase) {
+        _viewModel = State(wrappedValue: PlatformsViewModel(database: database))
+    }
 
     var body: some View {
         List {
@@ -19,6 +25,11 @@ struct PlatformsView: View {
             }
             Section("Token / App Password") {
                 ForEach(tokenPlatforms) { platform in
+                    platformRow(platform)
+                }
+            }
+            Section("File Export") {
+                ForEach(importPlatforms) { platform in
                     platformRow(platform)
                 }
             }
@@ -62,5 +73,5 @@ struct PlatformsView: View {
 }
 
 #Preview {
-    PlatformsView()
+    PlatformsView(database: try! AppDatabase.makeInMemory())
 }

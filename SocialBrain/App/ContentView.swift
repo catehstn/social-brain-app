@@ -22,7 +22,7 @@ struct ContentView: View {
             case .history:
                 HistoryView(database: database)
             case .platforms:
-                PlatformsView()
+                PlatformsView(database: database)
             }
         }
         .navigationTitle("Social Brain")

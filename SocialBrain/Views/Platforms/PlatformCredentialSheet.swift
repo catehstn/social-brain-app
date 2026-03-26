@@ -88,9 +88,43 @@ struct PlatformCredentialSheet: View {
             field("App Password", key: "password", secure: true,
                   help: "Create one in Settings → Privacy and Security → App Passwords")
 
+        case .substack:
+            importSection(
+                instructions: """
+                    1. Go to your Substack dashboard → Settings → Exports
+                    2. Under "Email analytics", download the CSV export
+                    3. Click Import CSV below to load it
+                    """,
+                extensions: ["csv"]
+            )
+
         default:
             Text("This platform is not yet supported.")
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private func importSection(instructions: String, extensions: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(instructions)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            Button {
+                Task {
+                    do {
+                        try await viewModel.importFile(for: platform, allowedExtensions: extensions)
+                        dismiss()
+                    } catch ImportError.cancelled {
+                        // User dismissed the panel — no-op
+                    } catch {
+                        errorMessage = error.localizedDescription
+                    }
+                }
+            } label: {
+                Label("Import CSV", systemImage: "doc.badge.plus")
+            }
+            .buttonStyle(.borderedProminent)
         }
     }
 
@@ -142,12 +176,22 @@ struct PlatformCredentialSheet: View {
                 }
             }
             Spacer()
-            Button("Save") { save() }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .disabled(!canSave)
+            // File-import platforms complete via the Import button in the form body.
+            if !isFileImportPlatform {
+                Button("Save") { save() }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!canSave)
+            }
         }
         .padding()
+    }
+
+    private var isFileImportPlatform: Bool {
+        switch platform {
+        case .substack: true
+        default:        false
+        }
     }
 
     private var canSave: Bool {
