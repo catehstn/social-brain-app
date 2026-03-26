@@ -41,8 +41,6 @@ targets:
         NSSupportsAutomaticTermination: false
         NSQuitAlwaysKeepWindows: false
         NSUserNotificationAlertStyle: alert
-        BGTaskSchedulerPermittedIdentifiers:
-          - com.catehuston.SocialBrain.refresh
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.catehuston.SocialBrain
