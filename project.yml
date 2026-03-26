@@ -39,6 +39,7 @@ targets:
         LSMinimumSystemVersion: "14.0"
         NSPrincipalClass: NSApplication
         NSSupportsAutomaticTermination: false
+        NSQuitAlwaysKeepWindows: false
         NSUserNotificationAlertStyle: alert
         BGTaskSchedulerPermittedIdentifiers:
           - com.catehuston.SocialBrain.refresh
