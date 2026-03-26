@@ -116,6 +116,13 @@ final class DashboardViewModel {
         case .calendly:
             return [("events_count", "Events"),
                     ("unique_invitees", "Invitees")]
+        case .amazon:
+            return [("units_sold", "Units Sold"),
+                    ("royalties_usd", "Royalties (USD)"),
+                    ("kenp_pages_read", "KENP Pages Read")]
+        case .substack:
+            return [("posts_published", "Posts Published"),
+                    ("avg_open_rate", "Avg Open Rate")]
         default:
             return []
         }
