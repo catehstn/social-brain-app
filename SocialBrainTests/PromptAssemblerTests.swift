@@ -180,4 +180,82 @@ struct PromptAssemblerTests {
         #expect(prompt.contains("Deployments: 12 (4 production)"))
         #expect(prompt.contains("Failed deployments: 1"))
     }
+
+    @Test("Calendly section formats events and invitees")
+    func calendlySection() {
+        let data = PlatformData(
+            platform: .calendly,
+            metrics: [
+                "events_count":    .int(18),
+                "cancelled_count": .int(2),
+                "unique_invitees": .int(15),
+                "top_event_type_1": .string("30-Minute Meeting"),
+                "top_event_type_2": .string("Coffee Chat")
+            ]
+        )
+        let prompt = assembler.assemble(makeInput(snapshots: [data]))
+        #expect(prompt.contains("## Calendly"))
+        #expect(prompt.contains("Scheduled events: 18 (2 cancelled)"))
+        #expect(prompt.contains("Unique invitees: 15"))
+        #expect(prompt.contains("30-Minute Meeting"))
+    }
+
+    @Test("Jetpack section formats followers, views and visitors")
+    func jetpackSection() {
+        let data = PlatformData(
+            platform: .jetpack,
+            metrics: [
+                "followers_blog":    .int(1240),
+                "followers_comment": .int(85),
+                "total_views":       .int(500),
+                "total_visitors":    .int(135),
+                "total_likes":       .int(12),
+                "total_comments":    .int(342)
+            ]
+        )
+        let prompt = assembler.assemble(makeInput(snapshots: [data]))
+        #expect(prompt.contains("## Jetpack"))
+        #expect(prompt.contains("Followers: 1,240 (85 comment subscribers)"))
+        #expect(prompt.contains("Views: 500"))
+        #expect(prompt.contains("Visitors: 135"))
+    }
+
+    @Test("LinkedIn section formats impressions and engagement")
+    func linkedinSection() {
+        let data = PlatformData(
+            platform: .linkedin,
+            metrics: [
+                "posts_published":  .int(5),
+                "total_impressions": .int(4200),
+                "total_likes":      .int(310),
+                "total_comments":   .int(42),
+                "total_shares":     .int(18),
+                "avg_ctr":          .double(0.028)
+            ]
+        )
+        let prompt = assembler.assemble(makeInput(snapshots: [data]))
+        #expect(prompt.contains("## LinkedIn"))
+        #expect(prompt.contains("Posts: 5, 4,200 impressions"))
+        #expect(prompt.contains("310 likes"))
+        #expect(prompt.contains("2.8%"))
+    }
+
+    @Test("O'Reilly section formats page views and unique users")
+    func oreillySection() {
+        let data = PlatformData(
+            platform: .oreilly,
+            metrics: [
+                "titles_count":      .int(2),
+                "total_page_views":  .int(9432),
+                "total_unique_users": .int(3210),
+                "total_completions": .int(87)
+            ]
+        )
+        let prompt = assembler.assemble(makeInput(snapshots: [data]))
+        #expect(prompt.contains("## O'Reilly"))
+        #expect(prompt.contains("Titles: 2"))
+        #expect(prompt.contains("Page views: 9,432"))
+        #expect(prompt.contains("Unique users: 3,210"))
+        #expect(prompt.contains("Course completions: 87"))
+    }
 }
