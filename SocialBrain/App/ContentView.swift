@@ -3,6 +3,7 @@ import SwiftUI
 struct ContentView: View {
     let database: AppDatabase
 
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var selection: SidebarItem = .run
 
     var body: some View {
@@ -26,6 +27,12 @@ struct ContentView: View {
             }
         }
         .navigationTitle("Social Brain")
+        .sheet(isPresented: Binding(
+            get: { !hasCompletedOnboarding },
+            set: { if !$0 { hasCompletedOnboarding = true } }
+        )) {
+            OnboardingView { hasCompletedOnboarding = true }
+        }
     }
 }
 
