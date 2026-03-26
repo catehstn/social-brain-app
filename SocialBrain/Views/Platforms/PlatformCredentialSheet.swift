@@ -99,6 +99,18 @@ struct PlatformCredentialSheet: View {
                 buttonLabel: "Import TSV"
             )
 
+        case .linkedin:
+            importSection(
+                instructions: """
+                    1. Go to LinkedIn Settings → Data Privacy → Get a copy of your data
+                    2. Request an archive and wait for the download email (usually minutes)
+                    3. Extract the ZIP — find "Share Statistics.csv" inside
+                    4. Click Import CSV below to load it
+                    """,
+                extensions: ["csv"],
+                buttonLabel: "Import CSV"
+            )
+
         case .substack:
             importSection(
                 instructions: """
@@ -205,8 +217,8 @@ struct PlatformCredentialSheet: View {
 
     private var isFileImportPlatform: Bool {
         switch platform {
-        case .amazon, .substack: true
-        default:                 false
+        case .amazon, .linkedin, .substack: true
+        default:                            false
         }
     }
 

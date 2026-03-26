@@ -7,7 +7,7 @@ struct DashboardView: View {
     // All platforms that can produce chart data (API collectors + file-import platforms)
     private let chartablePlatforms: [Platform] = [
         .mastodon, .bluesky, .buttondown, .goatCounter, .vercel, .calendly,
-        .amazon, .substack
+        .amazon, .linkedin, .substack
     ]
 
     init(database: AppDatabase) {

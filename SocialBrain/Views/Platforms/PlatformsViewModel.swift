@@ -57,6 +57,8 @@ final class PlatformsViewModel {
         switch platform {
         case .amazon:
             platformData = try AmazonKDPImporter().parse(data: rawData)
+        case .linkedin:
+            platformData = try LinkedInImporter().parse(data: rawData)
         case .substack:
             platformData = try SubstackImporter().parse(data: rawData)
         default:

@@ -1,0 +1,162 @@
+import Foundation
+
+/// Parses a LinkedIn `Share Statistics.csv` export into a `PlatformData` snapshot.
+///
+/// LinkedIn's personal data export (Settings → Data Privacy → Get a copy of your data)
+/// includes a ZIP archive. Inside is `Share Statistics.csv` with per-post analytics.
+/// The user should extract this file and import it directly.
+///
+/// Expected columns (order-independent, case-insensitive):
+///   Date, ShareLink, ShareCommentary, Impressions, Clicks, CTR (%), Likes, Comments, Shares
+///
+/// Key metrics produced:
+/// - `posts_published`    – total number of posts in the file
+/// - `total_impressions`  – sum of impressions across all posts
+/// - `total_clicks`       – sum of clicks
+/// - `total_likes`        – sum of likes / reactions
+/// - `total_comments`     – sum of comments
+/// - `total_shares`       – sum of shares
+/// - `avg_ctr`            – mean click-through rate, normalised to 0–1
+struct LinkedInImporter {
+
+    enum ImportError: LocalizedError {
+        case emptyFile
+        case unrecognisedFormat
+
+        var errorDescription: String? {
+            switch self {
+            case .emptyFile:          "The selected CSV file contains no data."
+            case .unrecognisedFormat: "The file does not look like a LinkedIn Share Statistics export."
+            }
+        }
+    }
+
+    func parse(data: Data) throws -> PlatformData {
+        guard let csv = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) else {
+            throw ImportError.emptyFile
+        }
+        let rows = parseCSV(csv)
+        guard rows.count >= 2 else { throw ImportError.emptyFile }
+
+        let header = rows[0].map { $0.lowercased().trimmingCharacters(in: .whitespaces) }
+
+        // Require at least "impressions" to consider this a LinkedIn share stats file.
+        guard header.contains("impressions") else { throw ImportError.unrecognisedFormat }
+
+        let col = columnIndex(header)
+        let dataRows = Array(rows.dropFirst()).filter { !$0.allSatisfy(\.isEmpty) }
+        guard !dataRows.isEmpty else { throw ImportError.emptyFile }
+
+        var totalImpressions = 0
+        var totalClicks      = 0
+        var totalLikes       = 0
+        var totalComments    = 0
+        var totalShares      = 0
+        var ctrs: [Double]   = []
+
+        for row in dataRows {
+            if let v = intValue(row[safe: col("impressions")])  { totalImpressions += v }
+            if let v = intValue(row[safe: col("clicks")])       { totalClicks      += v }
+            if let v = intValue(row[safe: col("likes")])        { totalLikes       += v }
+            if let v = intValue(row[safe: col("comments")])     { totalComments    += v }
+            if let v = intValue(row[safe: col("shares")])       { totalShares      += v }
+            if let v = ctrValue(row[safe: col("ctr (%)") ?? col("ctr")]) { ctrs.append(v) }
+        }
+
+        var metrics: [String: MetricValue] = [
+            "posts_published":   .int(dataRows.count),
+            "total_impressions": .int(totalImpressions),
+        ]
+        if totalClicks   > 0 { metrics["total_clicks"]   = .int(totalClicks) }
+        if totalLikes    > 0 { metrics["total_likes"]    = .int(totalLikes) }
+        if totalComments > 0 { metrics["total_comments"] = .int(totalComments) }
+        if totalShares   > 0 { metrics["total_shares"]   = .int(totalShares) }
+        if !ctrs.isEmpty {
+            metrics["avg_ctr"] = .double(ctrs.reduce(0, +) / Double(ctrs.count))
+        }
+
+        return PlatformData(platform: .linkedin, metrics: metrics)
+    }
+
+    // MARK: - Helpers
+
+    private func columnIndex(_ header: [String]) -> (String) -> Int? {
+        { name in header.firstIndex(of: name) }
+    }
+
+    private func intValue(_ raw: String?) -> Int? {
+        guard let raw = raw?.trimmingCharacters(in: .whitespaces) else { return nil }
+        return Int(raw)
+    }
+
+    /// Parses CTR as "2.72" or "2.72%" → 0–1 Double.
+    private func ctrValue(_ raw: String?) -> Double? {
+        guard let raw = raw?.trimmingCharacters(in: .whitespaces)
+                                .replacingOccurrences(of: "%", with: ""),
+              let v = Double(raw) else { return nil }
+        return v > 1 ? v / 100 : v
+    }
+
+    // MARK: - RFC 4180 CSV parser (shared with SubstackImporter)
+
+    private func parseCSV(_ input: String) -> [[String]] {
+        var rows: [[String]] = []
+        var fields: [String] = []
+        var field = ""
+        var inQuotes = false
+        let chars = Array(input)
+        var i = chars.startIndex
+
+        while i < chars.endIndex {
+            let c = chars[i]
+            if inQuotes {
+                if c == "\"" {
+                    let next = chars.index(after: i)
+                    if next < chars.endIndex && chars[next] == "\"" {
+                        field.append("\"")
+                        i = chars.index(after: next)
+                        continue
+                    } else {
+                        inQuotes = false
+                    }
+                } else {
+                    field.append(c)
+                }
+            } else {
+                switch c {
+                case "\"": inQuotes = true
+                case ",":
+                    fields.append(field); field = ""
+                case "\r": break
+                case "\n":
+                    fields.append(field)
+                    rows.append(fields)
+                    fields = []; field = ""
+                default: field.append(c)
+                }
+            }
+            i = chars.index(after: i)
+        }
+
+        if !field.isEmpty || !fields.isEmpty {
+            fields.append(field)
+            rows.append(fields)
+        }
+
+        return rows.filter { !($0.count == 1 && $0[0].isEmpty) }
+    }
+}
+
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
+    }
+}
+
+// Overload for optional index from columnIndex returning Int?
+private extension Array {
+    subscript(safe index: Int?) -> Element? {
+        guard let index else { return nil }
+        return indices.contains(index) ? self[index] : nil
+    }
+}

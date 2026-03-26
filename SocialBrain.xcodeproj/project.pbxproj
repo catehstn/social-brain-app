@@ -18,6 +18,7 @@
 		2AA7A263FEB665A1D2EB9D5E /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B29234355DF861534D71C3B8 /* SettingsView.swift */; };
 		33AFDAD2603FD51B00CA689A /* AppDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C010F1ED965D1458B4430A8 /* AppDatabase.swift */; };
 		407889F33573100C2D412A63 /* GoatCounterCollectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F47A8E8E119F792F87DE78BB /* GoatCounterCollectorTests.swift */; };
+		41808A9E3EBDEB021C6F0356 /* LinkedInImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAAAC8C465952D5111BCE709 /* LinkedInImporterTests.swift */; };
 		447B075F2FC34BAC77627E6F /* SocialBrainApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC44EC6EF398FFC22CB3058 /* SocialBrainApp.swift */; };
 		494C0A95A67C0967ACDDC47A /* PlatformSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15440D67BA5E83700B165BF /* PlatformSnapshot.swift */; };
 		4DCF8F8574D64F757C791756 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D3D458C2796763AC8AFCC88 /* NotificationManager.swift */; };
@@ -40,6 +41,7 @@
 		838D6D171EF7E59B2806F289 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6FE51BE4FDDF2853CCDE343 /* ContentView.swift */; };
 		85D3921C27997386AF05423D /* VercelCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2128E07069D06A4F85D58B9B /* VercelCollector.swift */; };
 		89C769B555A5A38972AEC683 /* DatabaseMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D72B5277A4EB60AACEB252E /* DatabaseMigrationTests.swift */; };
+		8BA84A18D549C699BF91CF05 /* LinkedInImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EF7CDD83F7795AF4221844C /* LinkedInImporter.swift */; };
 		8F85A9F319B4EF2680BB8523 /* PlatformCredentialSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7070B55F5A655D85ED8B2D69 /* PlatformCredentialSheet.swift */; };
 		900651ABFF265A05959EB848 /* CalendlyCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D02CD4FB1AACFCAB9CDC5A0 /* CalendlyCollector.swift */; };
 		9354A382ADCA63501A491527 /* VercelCollectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 887C88E6C71E01161679B3B2 /* VercelCollectorTests.swift */; };
@@ -103,6 +105,7 @@
 		859D5802079DEAF815EA07E2 /* CollectionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionEngine.swift; sourceTree = "<group>"; };
 		887C88E6C71E01161679B3B2 /* VercelCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VercelCollectorTests.swift; sourceTree = "<group>"; };
 		8D2C781BEE3E368AAD52A071 /* SubstackImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubstackImporter.swift; sourceTree = "<group>"; };
+		8EF7CDD83F7795AF4221844C /* LinkedInImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedInImporter.swift; sourceTree = "<group>"; };
 		9586342EA6BD306DA372AC3A /* PlatformsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformsViewModel.swift; sourceTree = "<group>"; };
 		9D72B5277A4EB60AACEB252E /* DatabaseMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseMigrationTests.swift; sourceTree = "<group>"; };
 		A0578C20F0D69DC239D837C5 /* MastodonCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonCollectorTests.swift; sourceTree = "<group>"; };
@@ -126,6 +129,7 @@
 		F38A28EA239666AB10ACAEA3 /* SocialBrainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialBrainTests.swift; sourceTree = "<group>"; };
 		F47A8E8E119F792F87DE78BB /* GoatCounterCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoatCounterCollectorTests.swift; sourceTree = "<group>"; };
 		FA2BAEB2923B9E65E8E39568 /* ButtondownCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButtondownCollectorTests.swift; sourceTree = "<group>"; };
+		FAAAC8C465952D5111BCE709 /* LinkedInImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedInImporterTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -206,6 +210,7 @@
 				859D5802079DEAF815EA07E2 /* CollectionEngine.swift */,
 				34E4FEB4BA95665EB9B7D551 /* Collector.swift */,
 				07E6CC0A277E7F1ADDBE207F /* GoatCounterCollector.swift */,
+				8EF7CDD83F7795AF4221844C /* LinkedInImporter.swift */,
 				1B63D76C0BF2AC6095ABE3CD /* MastodonCollector.swift */,
 				8D2C781BEE3E368AAD52A071 /* SubstackImporter.swift */,
 				2128E07069D06A4F85D58B9B /* VercelCollector.swift */,
@@ -273,6 +278,7 @@
 				DBC7AA60FA245D9489A99649 /* CollectionEngineTests.swift */,
 				9D72B5277A4EB60AACEB252E /* DatabaseMigrationTests.swift */,
 				F47A8E8E119F792F87DE78BB /* GoatCounterCollectorTests.swift */,
+				FAAAC8C465952D5111BCE709 /* LinkedInImporterTests.swift */,
 				A0578C20F0D69DC239D837C5 /* MastodonCollectorTests.swift */,
 				0036309E5766E343407C85AF /* PromptAssemblerTests.swift */,
 				F38A28EA239666AB10ACAEA3 /* SocialBrainTests.swift */,
@@ -463,6 +469,7 @@
 				9FF5871185F5BF4EE4FCF486 /* CollectionEngineTests.swift in Sources */,
 				89C769B555A5A38972AEC683 /* DatabaseMigrationTests.swift in Sources */,
 				407889F33573100C2D412A63 /* GoatCounterCollectorTests.swift in Sources */,
+				41808A9E3EBDEB021C6F0356 /* LinkedInImporterTests.swift in Sources */,
 				223EF7B850879D74716F9B54 /* MastodonCollectorTests.swift in Sources */,
 				1B6F660A8EF1D70970EF5077 /* MockURLSession.swift in Sources */,
 				D49FB081330A71807BE4D981 /* PromptAssemblerTests.swift in Sources */,
@@ -493,6 +500,7 @@
 				A97F0568846BF3C7E478F5E5 /* HistoryView.swift in Sources */,
 				1D390F32B0F40A94CDE57339 /* HistoryViewModel.swift in Sources */,
 				6D3A626D844241244E88D4BD /* KeychainStore.swift in Sources */,
+				8BA84A18D549C699BF91CF05 /* LinkedInImporter.swift in Sources */,
 				7A53CA94A18CD0DF713D9F5F /* MastodonCollector.swift in Sources */,
 				4DCF8F8574D64F757C791756 /* NotificationManager.swift in Sources */,
 				612EF2EA7D815191DCA3F6FE /* Platform.swift in Sources */,
