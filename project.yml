@@ -78,3 +78,46 @@ targets:
       base:
         SWIFT_VERSION: "6.3"
         GENERATE_INFOPLIST_FILE: YES
+
+  SocialBrainMCP:
+    type: tool
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      # MCP server entry point and helpers
+      - SocialBrainMCP
+      # Shared model, database, and prompt layers (Foundation + GRDB only; no AppKit/SwiftUI)
+      - path: SocialBrain/Models
+      - path: SocialBrain/Database
+      - path: SocialBrain/Prompt
+    settings:
+      base:
+        PRODUCT_NAME: SocialBrainMCP
+        SWIFT_VERSION: "6.3"
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        PRODUCT_BUNDLE_IDENTIFIER: com.catehuston.SocialBrainMCP
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ""
+        GENERATE_INFOPLIST_FILE: YES
+    dependencies:
+      - package: GRDB
+
+  SocialBrainMCPTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - SocialBrainMCPTests
+      # Share all the same sources as the MCP tool so the types are in scope
+      - SocialBrainMCP
+      - path: SocialBrain/Models
+      - path: SocialBrain/Database
+      - path: SocialBrain/Prompt
+    settings:
+      base:
+        SWIFT_VERSION: "6.3"
+        GENERATE_INFOPLIST_FILE: YES
+        # Exclude the command-line entry point — test bundles cannot have a top-level main.
+        EXCLUDED_SOURCE_FILE_NAMES: main.swift
+    dependencies:
+      - package: GRDB
