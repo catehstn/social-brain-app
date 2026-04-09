@@ -23,6 +23,11 @@ enum CollectionResult: Sendable {
         if case .success = self { return true }
         return false
     }
+
+    var error: Error? {
+        guard case .failure(_, let e) = self else { return nil }
+        return e
+    }
 }
 
 /// Summary of a completed collection run.

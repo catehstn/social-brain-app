@@ -4,9 +4,19 @@ import SwiftUI
 struct SocialBrainApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
+    /// Shared database, created once at app launch.
+    private let database: AppDatabase = {
+        do {
+            return try AppDatabase.makeDefault()
+        } catch {
+            // Fatal: can't proceed without a database.
+            fatalError("Failed to open database: \(error)")
+        }
+    }()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ContentView(database: database)
         }
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
