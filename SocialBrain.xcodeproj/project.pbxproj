@@ -20,7 +20,9 @@
 		407889F33573100C2D412A63 /* GoatCounterCollectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F47A8E8E119F792F87DE78BB /* GoatCounterCollectorTests.swift */; };
 		447B075F2FC34BAC77627E6F /* SocialBrainApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC44EC6EF398FFC22CB3058 /* SocialBrainApp.swift */; };
 		494C0A95A67C0967ACDDC47A /* PlatformSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15440D67BA5E83700B165BF /* PlatformSnapshot.swift */; };
+		4DCF8F8574D64F757C791756 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D3D458C2796763AC8AFCC88 /* NotificationManager.swift */; };
 		5081170C2BC0A9C21BE5F7AE /* Collector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34E4FEB4BA95665EB9B7D551 /* Collector.swift */; };
+		531853D5C5AE831BDD30E000 /* BackgroundRefreshScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CA3670FAFF76AEA37623FCB /* BackgroundRefreshScheduler.swift */; };
 		5A99A8B940BC0017AAEE4C64 /* PromptAssembler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03FE43F9DB323E4D268EBE00 /* PromptAssembler.swift */; };
 		5C18DFF0CD1A386ACA251EFF /* SubstackImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D2C781BEE3E368AAD52A071 /* SubstackImporter.swift */; };
 		5C7C564E792CA1DD24E881AC /* CalendlyCollectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF6E210799137F03E23C4EC6 /* CalendlyCollectorTests.swift */; };
@@ -81,10 +83,12 @@
 		1AD4BFD9258E2AC05FFEEDC7 /* PlatformData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformData.swift; sourceTree = "<group>"; };
 		1B2C0D11CC10BC41011D7105 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		1B63D76C0BF2AC6095ABE3CD /* MastodonCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonCollector.swift; sourceTree = "<group>"; };
+		1CA3670FAFF76AEA37623FCB /* BackgroundRefreshScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundRefreshScheduler.swift; sourceTree = "<group>"; };
 		2128E07069D06A4F85D58B9B /* VercelCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VercelCollector.swift; sourceTree = "<group>"; };
 		34E4FEB4BA95665EB9B7D551 /* Collector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Collector.swift; sourceTree = "<group>"; };
 		3D02CD4FB1AACFCAB9CDC5A0 /* CalendlyCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendlyCollector.swift; sourceTree = "<group>"; };
 		4569F6BB49865EE31C402F28 /* RunView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunView.swift; sourceTree = "<group>"; };
+		4D3D458C2796763AC8AFCC88 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		4FE9B2B544199166E6236C6E /* MockURLSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockURLSession.swift; sourceTree = "<group>"; };
 		5247D72A41BCA462D7B38811 /* SocialBrain.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SocialBrain.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		54CF9E65755F901741FE20F9 /* AmazonKDPImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmazonKDPImporter.swift; sourceTree = "<group>"; };
@@ -230,7 +234,9 @@
 		AD2DA712089EBFDA498F9D1B /* App */ = {
 			isa = PBXGroup;
 			children = (
+				1CA3670FAFF76AEA37623FCB /* BackgroundRefreshScheduler.swift */,
 				C6FE51BE4FDDF2853CCDE343 /* ContentView.swift */,
+				4D3D458C2796763AC8AFCC88 /* NotificationManager.swift */,
 				6CC44EC6EF398FFC22CB3058 /* SocialBrainApp.swift */,
 			);
 			path = App;
@@ -472,6 +478,7 @@
 			files = (
 				5F2BCDB24B8B05E351F06785 /* AmazonKDPImporter.swift in Sources */,
 				33AFDAD2603FD51B00CA689A /* AppDatabase.swift in Sources */,
+				531853D5C5AE831BDD30E000 /* BackgroundRefreshScheduler.swift in Sources */,
 				6A3AA757B49ECEBBB8AE4A21 /* BlueskyCollector.swift in Sources */,
 				A8CD2064A0E8BA9E95C2C4AC /* ButtondownCollector.swift in Sources */,
 				900651ABFF265A05959EB848 /* CalendlyCollector.swift in Sources */,
@@ -487,6 +494,7 @@
 				1D390F32B0F40A94CDE57339 /* HistoryViewModel.swift in Sources */,
 				6D3A626D844241244E88D4BD /* KeychainStore.swift in Sources */,
 				7A53CA94A18CD0DF713D9F5F /* MastodonCollector.swift in Sources */,
+				4DCF8F8574D64F757C791756 /* NotificationManager.swift in Sources */,
 				612EF2EA7D815191DCA3F6FE /* Platform.swift in Sources */,
 				8F85A9F319B4EF2680BB8523 /* PlatformCredentialSheet.swift in Sources */,
 				66BC947276B7C0460FCA4EDA /* PlatformData.swift in Sources */,

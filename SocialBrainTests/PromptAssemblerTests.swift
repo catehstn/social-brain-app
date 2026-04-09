@@ -132,6 +132,39 @@ struct PromptAssemblerTests {
         #expect(!prompt.contains("## Amazon KDP"))
     }
 
+    @Test("Amazon KDP section formats units and royalties")
+    func amazonSection() {
+        let data = PlatformData(
+            platform: .amazon,
+            metrics: [
+                "units_sold":        .int(47),
+                "titles_with_sales": .int(3),
+                "royalties_usd":     .double(82.50),
+                "kenp_pages_read":   .int(12400)
+            ]
+        )
+        let prompt = assembler.assemble(makeInput(snapshots: [data]))
+        #expect(prompt.contains("## Amazon KDP"))
+        #expect(prompt.contains("Units sold: 47 across 3 titles"))
+        #expect(prompt.contains("Royalties: $82.50"))
+        #expect(prompt.contains("KENP pages read: 12,400"))
+    }
+
+    @Test("Substack section formats posts and open rate")
+    func substackSection() {
+        let data = PlatformData(
+            platform: .substack,
+            metrics: [
+                "posts_published": .int(4),
+                "avg_open_rate":   .double(0.47)
+            ]
+        )
+        let prompt = assembler.assemble(makeInput(snapshots: [data]))
+        #expect(prompt.contains("## Substack"))
+        #expect(prompt.contains("Posts published: 4"))
+        #expect(prompt.contains("47.0%"))
+    }
+
     @Test("Vercel section formats deployment counts")
     func vercelSection() {
         let data = PlatformData(

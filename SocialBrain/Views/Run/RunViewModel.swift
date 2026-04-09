@@ -72,14 +72,33 @@ final class RunViewModel {
     private func finishCollection(summary: CollectionSummary) async {
         state = .finished(summary)
 
-        // Build the prompt from the successful snapshots.
-        let successfulData = summary.results.compactMap(\.platformData)
-        guard !successfulData.isEmpty else { return }
+        // Start with successful API/token collector data.
+        var allData = summary.results.compactMap(\.platformData)
+
+        // Also pull in the most recent snapshot for each configured file-export
+        // platform (Substack, Amazon KDP).  These aren't fetched live — the user
+        // imports them manually — but they should still appear in the prompt.
+        let fileExportPlatforms = Platform.allCases.filter {
+            $0.authType == .fileExport && KeychainStore.hasCredentials(for: $0)
+        }
+        for platform in fileExportPlatforms {
+            // Don't double-include if the summary already has this platform.
+            guard !allData.contains(where: { $0.platform == platform }) else { continue }
+            if let snap = try? await database.latestSnapshot(for: platform),
+               let platformEnum = snap.platformEnum,
+               let metrics = try? snap.decodedMetrics() {
+                allData.append(PlatformData(platform: platformEnum,
+                                            collectedAt: snap.collectedAt,
+                                            metrics: metrics))
+            }
+        }
+
+        guard !allData.isEmpty else { return }
 
         let input = PromptAssembler.Input(
             periodLabel: periodLabel(since: lastSince),
             reportDate: summary.completedAt,
-            snapshots: successfulData
+            snapshots: allData
         )
         generatedPrompt = assembler.assemble(input)
     }

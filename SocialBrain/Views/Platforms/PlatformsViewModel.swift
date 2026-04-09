@@ -80,6 +80,12 @@ final class PlatformsViewModel {
         // Mark the platform as configured so the list row shows a green badge.
         try KeychainStore.save(Credentials(["imported": "true"]), for: platform)
         configured.insert(platform)
+
+        // Reset the stale-export reminder clock: cancel the old reminder and
+        // schedule a new one 30 days from now.
+        let notificationManager = NotificationManager.shared
+        await notificationManager.cancelStaleExportReminder(for: platform)
+        await notificationManager.scheduleStaleExportReminder(for: platform, lastImportDate: .now)
     }
 
     // MARK: - Private

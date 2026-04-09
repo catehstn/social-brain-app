@@ -4,9 +4,10 @@ import Charts
 struct DashboardView: View {
     @State private var viewModel: DashboardViewModel
 
-    // Platforms that have API collectors and can produce chart data
+    // All platforms that can produce chart data (API collectors + file-import platforms)
     private let chartablePlatforms: [Platform] = [
-        .mastodon, .bluesky, .buttondown, .goatCounter, .vercel, .calendly
+        .mastodon, .bluesky, .buttondown, .goatCounter, .vercel, .calendly,
+        .amazon, .substack
     ]
 
     init(database: AppDatabase) {
