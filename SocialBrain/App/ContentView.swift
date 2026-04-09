@@ -17,6 +17,8 @@ struct ContentView: View {
             switch selection {
             case .run:
                 RunView(database: database)
+            case .platforms:
+                PlatformsView()
             }
         }
         .navigationTitle("Social Brain")
@@ -27,12 +29,20 @@ struct ContentView: View {
 
 private enum SidebarItem: String, CaseIterable {
     case run
+    case platforms
 
     var label: String {
-        switch self { case .run: "Run" }
+        switch self {
+        case .run:       "Run"
+        case .platforms: "Platforms"
+        }
     }
+
     var icon: String {
-        switch self { case .run: "play.circle" }
+        switch self {
+        case .run:       "play.circle"
+        case .platforms: "square.grid.2x2"
+        }
     }
 }
 
