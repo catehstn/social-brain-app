@@ -5,12 +5,14 @@ struct ContentView: View {
 
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var selection: SidebarItem = .run
+    @State private var dashboardInitialPlatform: Platform = .mastodon
 
     var body: some View {
         NavigationSplitView {
             List(SidebarItem.allCases, id: \.self, selection: $selection) { item in
                 Label(item.label, systemImage: item.icon)
                     .tag(item)
+                    .accessibilityIdentifier("sidebar_\(item.rawValue)")
             }
             .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
             .listStyle(.sidebar)
@@ -18,8 +20,15 @@ struct ContentView: View {
             switch selection {
             case .run:
                 RunView(database: database)
+            case .feed:
+                FeedView(database: database) { newSelection, platform in
+                    if let platform {
+                        dashboardInitialPlatform = platform
+                    }
+                    selection = newSelection
+                }
             case .dashboard:
-                DashboardView(database: database)
+                DashboardView(database: database, initialPlatform: dashboardInitialPlatform)
             case .history:
                 HistoryView(database: database)
             case .platforms:
@@ -32,33 +41,6 @@ struct ContentView: View {
             set: { if !$0 { hasCompletedOnboarding = true } }
         )) {
             OnboardingView { hasCompletedOnboarding = true }
-        }
-    }
-}
-
-// MARK: - Sidebar items
-
-private enum SidebarItem: String, CaseIterable {
-    case run
-    case dashboard
-    case history
-    case platforms
-
-    var label: String {
-        switch self {
-        case .run:       "Run"
-        case .dashboard: "Dashboard"
-        case .history:   "History"
-        case .platforms: "Platforms"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .run:       "play.circle"
-        case .dashboard: "chart.line.uptrend.xyaxis"
-        case .history:   "clock.arrow.circlepath"
-        case .platforms: "square.grid.2x2"
         }
     }
 }

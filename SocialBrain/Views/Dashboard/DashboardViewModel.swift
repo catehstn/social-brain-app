@@ -44,8 +44,9 @@ final class DashboardViewModel {
         }
     }
 
-    init(database: AppDatabase) {
+    init(database: AppDatabase, initialPlatform: Platform = .mastodon) {
         self.database = database
+        self.selectedPlatform = initialPlatform
     }
 
     func load() async {

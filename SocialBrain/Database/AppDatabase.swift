@@ -171,4 +171,26 @@ extension AppDatabase {
                 .fetchAll(db)
         }
     }
+
+    /// Returns the latest snapshot for every platform that has at least one row.
+    /// Returns a dictionary keyed by Platform.
+    func latestSnapshots() throws -> [Platform: PlatformSnapshot] {
+        try dbWriter.read { db in
+            // Fetch the most-recent snapshot per platform using a self-join on
+            // (platform, MAX(collectedAt)).
+            let rows = try PlatformSnapshot
+                .filter(sql: """
+                    (platform, collectedAt) IN (
+                        SELECT platform, MAX(collectedAt)
+                        FROM platformSnapshot
+                        GROUP BY platform
+                    )
+                    """)
+                .fetchAll(db)
+            return Dictionary(uniqueKeysWithValues: rows.compactMap { row in
+                guard let p = Platform(rawValue: row.platform) else { return nil }
+                return (p, row)
+            })
+        }
+    }
 }
