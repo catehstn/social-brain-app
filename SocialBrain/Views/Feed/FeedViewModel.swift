@@ -21,12 +21,8 @@ final class FeedViewModel: ObservableObject {
         isLoading = true
         error = nil
         do {
-            // latestSnapshots() is synchronous within the actor; run it via a
-            // detached task so the actor's thread is used without blocking the
-            // main actor.
-            let snapshots = try await Task.detached(priority: .userInitiated) { [database] in
-                try await database.latestSnapshots()
-            }.value
+            // await hops to the AppDatabase actor's executor, freeing MainActor.
+            let snapshots = try await database.latestSnapshots()
             // FeedCardBuilder.build is non-throwing (all JSON decoded with try?)
             cards = FeedCardBuilder.build(snapshots: snapshots, now: now())
         } catch {

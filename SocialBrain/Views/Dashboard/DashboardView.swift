@@ -10,8 +10,9 @@ struct DashboardView: View {
         .amazon, .linkedin, .oreilly, .substack
     ]
 
-    init(database: AppDatabase) {
-        _viewModel = State(wrappedValue: DashboardViewModel(database: database))
+    init(database: AppDatabase, initialPlatform: Platform = .mastodon) {
+        _viewModel = State(wrappedValue: DashboardViewModel(database: database,
+                                                            initialPlatform: initialPlatform))
     }
 
     var body: some View {

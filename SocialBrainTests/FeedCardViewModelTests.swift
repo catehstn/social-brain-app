@@ -31,7 +31,7 @@ struct FeedCardViewModelTests {
     func displaySnippetCollapsed() {
         let long = String(repeating: "a ", count: 100) // 200 chars
         let vm = FeedCardViewModel(card: makeBinding(snippet: long))
-        #expect(vm.displaySnippet.count <= 105) // 100 + "…"
+        #expect(vm.displaySnippet.count <= 101) // 100 chars + "…"
     }
 
     @Test("isTruncated is false for short snippets")
