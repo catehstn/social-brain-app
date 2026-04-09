@@ -23,6 +23,7 @@ final class RunViewModel {
     private let database: AppDatabase
     private let engine: CollectionEngine
     private let assembler: PromptAssembler
+    private var lastSince: Date?
 
     init(database: AppDatabase) {
         self.database = database
@@ -42,6 +43,7 @@ final class RunViewModel {
         state = .running(completed: 0, total: collectors.count)
         completedPlatforms = []
         generatedPrompt = nil
+        lastSince = since
 
         do {
             let summary = try await engine.run(
@@ -75,7 +77,7 @@ final class RunViewModel {
         guard !successfulData.isEmpty else { return }
 
         let input = PromptAssembler.Input(
-            periodLabel: periodLabel(since: nil),
+            periodLabel: periodLabel(since: lastSince),
             reportDate: summary.completedAt,
             snapshots: successfulData
         )

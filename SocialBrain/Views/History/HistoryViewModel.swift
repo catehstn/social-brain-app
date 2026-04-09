@@ -18,12 +18,15 @@ final class HistoryViewModel {
         defer { isLoading = false }
         do {
             runs = try await database.allRuns()
-            // Load snapshots for each run concurrently
+            // Load snapshots for each run concurrently.
+            // Capture only `database` (an actor, so Sendable) to avoid
+            // referencing `self` from a non-isolated task closure.
+            let db = database
             await withTaskGroup(of: (Int64, [PlatformSnapshot]).self) { group in
                 for run in runs {
                     guard let id = run.id else { continue }
                     group.addTask {
-                        let snaps = (try? await self.database.snapshots(forRunID: id)) ?? []
+                        let snaps = (try? await db.snapshots(forRunID: id)) ?? []
                         return (id, snaps)
                     }
                 }
