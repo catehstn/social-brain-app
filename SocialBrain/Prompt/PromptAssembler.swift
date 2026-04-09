@@ -175,9 +175,13 @@ struct PromptAssembler {
 
     private func amazonLines(_ data: PlatformData) -> [String] {
         var lines: [String] = []
-        if let v = data.intMetric("units_ordered")   { lines.append("Units ordered: \(formatted(v))") }
+        if let units = data.intMetric("units_sold") {
+            var s = "Units sold: \(formatted(units))"
+            if let titles = data.intMetric("titles_with_sales") { s += " across \(titles) title\(titles == 1 ? "" : "s")" }
+            lines.append(s)
+        }
         if let v = data.doubleMetric("royalties_usd") { lines.append("Royalties: $\(String(format: "%.2f", v))") }
-        if let v = data.intMetric("page_reads_kenp") { lines.append("KENP reads: \(formatted(v))") }
+        if let v = data.intMetric("kenp_pages_read")  { lines.append("KENP pages read: \(formatted(v))") }
         return lines
     }
 

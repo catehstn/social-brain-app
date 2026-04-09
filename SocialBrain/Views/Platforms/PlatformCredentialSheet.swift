@@ -88,6 +88,17 @@ struct PlatformCredentialSheet: View {
             field("App Password", key: "password", secure: true,
                   help: "Create one in Settings → Privacy and Security → App Passwords")
 
+        case .amazon:
+            importSection(
+                instructions: """
+                    1. Sign in to KDP (kdp.amazon.com) → Reports → Prior Months' Royalties
+                    2. Select the month range and click Download
+                    3. Click Import TSV below to load the file
+                    """,
+                extensions: ["tsv", "txt", "csv"],
+                buttonLabel: "Import TSV"
+            )
+
         case .substack:
             importSection(
                 instructions: """
@@ -95,7 +106,8 @@ struct PlatformCredentialSheet: View {
                     2. Under "Email analytics", download the CSV export
                     3. Click Import CSV below to load it
                     """,
-                extensions: ["csv"]
+                extensions: ["csv"],
+                buttonLabel: "Import CSV"
             )
 
         default:
@@ -105,7 +117,11 @@ struct PlatformCredentialSheet: View {
     }
 
     @ViewBuilder
-    private func importSection(instructions: String, extensions: [String]) -> some View {
+    private func importSection(
+        instructions: String,
+        extensions: [String],
+        buttonLabel: String = "Import File"
+    ) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(instructions)
                 .font(.callout)
@@ -122,7 +138,7 @@ struct PlatformCredentialSheet: View {
                     }
                 }
             } label: {
-                Label("Import CSV", systemImage: "doc.badge.plus")
+                Label(buttonLabel, systemImage: "doc.badge.plus")
             }
             .buttonStyle(.borderedProminent)
         }
@@ -189,8 +205,8 @@ struct PlatformCredentialSheet: View {
 
     private var isFileImportPlatform: Bool {
         switch platform {
-        case .substack: true
-        default:        false
+        case .amazon, .substack: true
+        default:                 false
         }
     }
 
