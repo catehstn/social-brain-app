@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class SocialBrainUITests: XCTestCase {
     let app = XCUIApplication()
 
