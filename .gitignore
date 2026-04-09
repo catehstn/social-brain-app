@@ -17,3 +17,4 @@ SocialBrain/SocialBrain.entitlements
 
 # OS
 .DS_Store
+.worktrees
