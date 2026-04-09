@@ -99,6 +99,29 @@ struct PlatformCredentialSheet: View {
                 buttonLabel: "Import TSV"
             )
 
+        case .linkedin:
+            importSection(
+                instructions: """
+                    1. Go to LinkedIn Settings → Data Privacy → Get a copy of your data
+                    2. Request an archive and wait for the download email (usually minutes)
+                    3. Extract the ZIP — find "Share Statistics.csv" inside
+                    4. Click Import CSV below to load it
+                    """,
+                extensions: ["csv"],
+                buttonLabel: "Import CSV"
+            )
+
+        case .oreilly:
+            importSection(
+                instructions: """
+                    1. Save your monthly O'Reilly author report email as a plain-text .txt file
+                       (in Mail.app: File → Save As → Plain Text, or copy the email body to a text file)
+                    2. Click Import TXT below to load it
+                    """,
+                extensions: ["txt", "text", "eml"],
+                buttonLabel: "Import TXT"
+            )
+
         case .substack:
             importSection(
                 instructions: """
@@ -205,8 +228,8 @@ struct PlatformCredentialSheet: View {
 
     private var isFileImportPlatform: Bool {
         switch platform {
-        case .amazon, .substack: true
-        default:                 false
+        case .amazon, .linkedin, .oreilly, .substack: true
+        default:                                      false
         }
     }
 

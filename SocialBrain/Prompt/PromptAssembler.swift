@@ -196,17 +196,26 @@ struct PromptAssembler {
 
     private func linkedinLines(_ data: PlatformData) -> [String] {
         var lines: [String] = []
-        if let v = data.intMetric("followers")    { lines.append("Followers: \(formatted(v))") }
-        if let v = data.intMetric("impressions")  { lines.append("Post impressions: \(formatted(v))") }
-        if let v = data.intMetric("engagements")  { lines.append("Engagements: \(formatted(v))") }
+        if let posts = data.intMetric("posts_published") {
+            var s = "Posts: \(posts)"
+            if let imp = data.intMetric("total_impressions") { s += ", \(formatted(imp)) impressions" }
+            lines.append(s)
+        }
+        var engagement: [String] = []
+        if let v = data.intMetric("total_likes")    { engagement.append("\(formatted(v)) likes") }
+        if let v = data.intMetric("total_comments") { engagement.append("\(formatted(v)) comments") }
+        if let v = data.intMetric("total_shares")   { engagement.append("\(formatted(v)) shares") }
+        if !engagement.isEmpty { lines.append("Engagement: \(engagement.joined(separator: ", "))") }
+        if let v = data.doubleMetric("avg_ctr") { lines.append("Average CTR: \(pct(v))") }
         return lines
     }
 
     private func oreillyLines(_ data: PlatformData) -> [String] {
         var lines: [String] = []
-        if let v = data.intMetric("page_views")  { lines.append("Page views: \(formatted(v))") }
-        if let v = data.intMetric("unique_users") { lines.append("Unique users: \(formatted(v))") }
-        if let v = data.intMetric("completions") { lines.append("Course completions: \(v)") }
+        if let titles = data.intMetric("titles_count") { lines.append("Titles: \(titles)") }
+        if let v = data.intMetric("total_page_views")   { lines.append("Page views: \(formatted(v))") }
+        if let v = data.intMetric("total_unique_users")  { lines.append("Unique users: \(formatted(v))") }
+        if let v = data.intMetric("total_completions")  { lines.append("Course completions: \(formatted(v))") }
         return lines
     }
 
