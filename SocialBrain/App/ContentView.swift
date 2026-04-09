@@ -17,6 +17,10 @@ struct ContentView: View {
             switch selection {
             case .run:
                 RunView(database: database)
+            case .dashboard:
+                DashboardView(database: database)
+            case .history:
+                HistoryView(database: database)
             case .platforms:
                 PlatformsView()
             }
@@ -29,11 +33,15 @@ struct ContentView: View {
 
 private enum SidebarItem: String, CaseIterable {
     case run
+    case dashboard
+    case history
     case platforms
 
     var label: String {
         switch self {
         case .run:       "Run"
+        case .dashboard: "Dashboard"
+        case .history:   "History"
         case .platforms: "Platforms"
         }
     }
@@ -41,6 +49,8 @@ private enum SidebarItem: String, CaseIterable {
     var icon: String {
         switch self {
         case .run:       "play.circle"
+        case .dashboard: "chart.line.uptrend.xyaxis"
+        case .history:   "clock.arrow.circlepath"
         case .platforms: "square.grid.2x2"
         }
     }
