@@ -6,11 +6,11 @@ struct PlatformsView: View {
 
     // Platforms with live API collectors
     private let apiKeyPlatforms: [Platform]    = [.buttondown, .goatCounter, .vercel, .calendly]
-    private let tokenPlatforms: [Platform]     = [.mastodon, .bluesky]
+    private let tokenPlatforms: [Platform]     = [.mastodon, .bluesky, .jetpack]
     // File-export platforms that can be imported from a local file
     private let importPlatforms: [Platform]    = [.amazon, .linkedin, .oreilly, .substack]
     // Platforms with no support yet
-    private let comingSoonPlatforms: [Platform] = [.jetpack]
+    private let comingSoonPlatforms: [Platform] = []
 
     init(database: AppDatabase) {
         _viewModel = State(wrappedValue: PlatformsViewModel(database: database))

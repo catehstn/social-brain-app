@@ -88,6 +88,12 @@ struct PlatformCredentialSheet: View {
             field("App Password", key: "password", secure: true,
                   help: "Create one in Settings → Privacy and Security → App Passwords")
 
+        case .jetpack:
+            field("WordPress.com Access Token", key: "access_token", secure: true,
+                  help: "Create one at developer.wordpress.com/apps/ — use the 'Test Application' flow to get a token for your own site")
+            field("Site ID or Domain", key: "site_code",
+                  help: "Your WordPress.com site ID (numeric) or domain — e.g. 12345678 or myblog.wordpress.com")
+
         case .amazon:
             importSection(
                 instructions: """
@@ -246,6 +252,7 @@ struct PlatformCredentialSheet: View {
         case .calendly:    ["api_key"]
         case .mastodon:    ["access_token", "instance_url"]
         case .bluesky:     ["username", "password"]
+        case .jetpack:     ["access_token", "site_code"]
         default:           []
         }
     }

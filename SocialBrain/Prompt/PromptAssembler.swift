@@ -187,10 +187,15 @@ struct PromptAssembler {
 
     private func jetpackLines(_ data: PlatformData) -> [String] {
         var lines: [String] = []
-        if let v = data.intMetric("views")   { lines.append("Views: \(formatted(v))") }
-        if let v = data.intMetric("visitors") { lines.append("Visitors: \(formatted(v))") }
-        if let v = data.intMetric("likes")   { lines.append("Likes: \(formatted(v))") }
-        if let v = data.intMetric("comments") { lines.append("Comments: \(formatted(v))") }
+        if let followers = data.intMetric("followers_blog") {
+            var s = "Followers: \(formatted(followers))"
+            if let comments = data.intMetric("followers_comment") { s += " (\(comments) comment subscribers)" }
+            lines.append(s)
+        }
+        if let v = data.intMetric("total_views")    { lines.append("Views: \(formatted(v))") }
+        if let v = data.intMetric("total_visitors")  { lines.append("Visitors: \(formatted(v))") }
+        if let v = data.intMetric("total_likes")     { lines.append("Likes: \(formatted(v))") }
+        if let v = data.intMetric("total_comments")  { lines.append("Comments: \(formatted(v))") }
         return lines
     }
 

@@ -150,8 +150,9 @@ enum CollectorRegistry {
         case .calendly:    return CalendlyCollector()
         case .mastodon:    return MastodonCollector()
         case .bluesky:     return BlueskyCollector()
-        // File-export platforms and unimplemented platforms return nil.
-        case .amazon, .jetpack, .linkedin, .oreilly, .substack:
+        case .jetpack:     return JetpackCollector()
+        // File-export platforms return nil — they're imported manually.
+        case .amazon, .linkedin, .oreilly, .substack:
             return nil
         }
     }
