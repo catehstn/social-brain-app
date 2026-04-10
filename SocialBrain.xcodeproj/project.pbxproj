@@ -14,6 +14,7 @@
 		07EB2774970E7FDB3EAC6E83 /* SubstackImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2505C743A6696B343E4774E /* SubstackImporterTests.swift */; };
 		0A7B04861D3AE5517A3BE706 /* RunViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84DDBF32B4FAE2B22DCB45DE /* RunViewModel.swift */; };
 		0C0F0926A94052DEEA537005 /* PlatformSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15440D67BA5E83700B165BF /* PlatformSnapshot.swift */; };
+		14559F0CE878B76315A55696 /* HighReachDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7F1E234A0DE49718BDE9022 /* HighReachDetectorTests.swift */; };
 		1B6F660A8EF1D70970EF5077 /* MockURLSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FE9B2B544199166E6236C6E /* MockURLSession.swift */; };
 		1C6360F131B69EB484A0858D /* BlueskyCollectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6824A853F434CC1AE79933A8 /* BlueskyCollectorTests.swift */; };
 		1D390F32B0F40A94CDE57339 /* HistoryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB8CAC7CB7D19D22B1EFB223 /* HistoryViewModel.swift */; };
@@ -28,6 +29,7 @@
 		2F55349E4EE12E2445D7A65D /* OReillyImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29A48A10B64A086C99C325AE /* OReillyImporterTests.swift */; };
 		31DC082399EDBE274324262D /* Platform.swift in Sources */ = {isa = PBXBuildFile; fileRef = F284E6CCC2F1782721703DDE /* Platform.swift */; };
 		33AFDAD2603FD51B00CA689A /* AppDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C010F1ED965D1458B4430A8 /* AppDatabase.swift */; };
+		37673B4C97D7AF0BCA504004 /* HighReachDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E30350A09271495B5BA3CA4 /* HighReachDetector.swift */; };
 		39D7DBB726A5476A2D02E047 /* FeedPlatformData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6627A9F277A9FD7656876707 /* FeedPlatformData.swift */; };
 		3BE3EE7F02A0003998778B4C /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AF8C790DD01C543EFFBAB0D /* main.swift */; };
 		3CEF4A389AE8A575EF67F604 /* FeedCardBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACC5336B194C9D8D25CABB52 /* FeedCardBuilder.swift */; };
@@ -82,6 +84,7 @@
 		98FD5B8D03FCE271A1EFDF5B /* MCPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16504E000ABEC62310B42F1A /* MCPServer.swift */; };
 		9A925D4D118519B04F074F8D /* Credentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = F096536B15841BEC5AC9F868 /* Credentials.swift */; };
 		9B9A9B4F859FCE312A21B19E /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFF6DD23BAF88CD6436309C4 /* FeedView.swift */; };
+		9D5DB0E5B64D10A34FED7B92 /* HighReachDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E30350A09271495B5BA3CA4 /* HighReachDetector.swift */; };
 		9FF5871185F5BF4EE4FCF486 /* CollectionEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBC7AA60FA245D9489A99649 /* CollectionEngineTests.swift */; };
 		A0CA03E05FB14A6E216DED04 /* FeedPlatformData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6627A9F277A9FD7656876707 /* FeedPlatformData.swift */; };
 		A288B9F3512C0901C0DC95D4 /* PlatformsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62075DC99894FAA00E9BF328 /* PlatformsView.swift */; };
@@ -100,6 +103,7 @@
 		BA50F9E1ACE7013286CF466A /* AppDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C010F1ED965D1458B4430A8 /* AppDatabase.swift */; };
 		BF10A74FC0F1F77D46737C3C /* FeedCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1EB793400C8F96F1F83CBCF /* FeedCard.swift */; };
 		C55EBB2D844E7CCDDD3FC0A9 /* CollectionRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE4B04405ACA0E4E56CBD7BA /* CollectionRun.swift */; };
+		C72B21077F826B955AC40288 /* HighReachDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E30350A09271495B5BA3CA4 /* HighReachDetector.swift */; };
 		C740E7026EB2B18252077290 /* FeedDatabaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83BC22CE0C5C53010A28382 /* FeedDatabaseTests.swift */; };
 		C7D2B785C1C8E1A2D0D09475 /* JetpackCollectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47C394A535DB6447C77C9396 /* JetpackCollectorTests.swift */; };
 		D0B7E1CB362E7B0D86F692ED /* FeedCardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 821716C2695D99ECF3368D50 /* FeedCardViewModel.swift */; };
@@ -152,6 +156,7 @@
 		29A48A10B64A086C99C325AE /* OReillyImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OReillyImporterTests.swift; sourceTree = "<group>"; };
 		34E4FEB4BA95665EB9B7D551 /* Collector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Collector.swift; sourceTree = "<group>"; };
 		3D02CD4FB1AACFCAB9CDC5A0 /* CalendlyCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendlyCollector.swift; sourceTree = "<group>"; };
+		3E30350A09271495B5BA3CA4 /* HighReachDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighReachDetector.swift; sourceTree = "<group>"; };
 		4569F6BB49865EE31C402F28 /* RunView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunView.swift; sourceTree = "<group>"; };
 		47C394A535DB6447C77C9396 /* JetpackCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JetpackCollectorTests.swift; sourceTree = "<group>"; };
 		4C64DED2123B759BE515409F /* DatabaseProxy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseProxy.swift; sourceTree = "<group>"; };
@@ -199,6 +204,7 @@
 		D0B539D92D98ECFBF5B56077 /* FeedCardType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedCardType.swift; sourceTree = "<group>"; };
 		D1692A0E6ABD9BB6C437B0BF /* FeedViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedViewModel.swift; sourceTree = "<group>"; };
 		D2505C743A6696B343E4774E /* SubstackImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubstackImporterTests.swift; sourceTree = "<group>"; };
+		D7F1E234A0DE49718BDE9022 /* HighReachDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighReachDetectorTests.swift; sourceTree = "<group>"; };
 		DBC7AA60FA245D9489A99649 /* CollectionEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionEngineTests.swift; sourceTree = "<group>"; };
 		DC15AA38645466EC4031B4F0 /* MCPServerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServerTests.swift; sourceTree = "<group>"; };
 		DF6E210799137F03E23C4EC6 /* CalendlyCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendlyCollectorTests.swift; sourceTree = "<group>"; };
@@ -279,6 +285,7 @@
 				ACC5336B194C9D8D25CABB52 /* FeedCardBuilder.swift */,
 				D0B539D92D98ECFBF5B56077 /* FeedCardType.swift */,
 				6627A9F277A9FD7656876707 /* FeedPlatformData.swift */,
+				3E30350A09271495B5BA3CA4 /* HighReachDetector.swift */,
 				F284E6CCC2F1782721703DDE /* Platform.swift */,
 				1AD4BFD9258E2AC05FFEEDC7 /* PlatformData.swift */,
 				209D38A7438EFED51026AFD6 /* SpikeDetector.swift */,
@@ -433,6 +440,7 @@
 				E83BC22CE0C5C53010A28382 /* FeedDatabaseTests.swift */,
 				51E3F715FA10EB4303470093 /* FeedViewModelTests.swift */,
 				F47A8E8E119F792F87DE78BB /* GoatCounterCollectorTests.swift */,
+				D7F1E234A0DE49718BDE9022 /* HighReachDetectorTests.swift */,
 				47C394A535DB6447C77C9396 /* JetpackCollectorTests.swift */,
 				FAAAC8C465952D5111BCE709 /* LinkedInImporterTests.swift */,
 				A0578C20F0D69DC239D837C5 /* MastodonCollectorTests.swift */,
@@ -673,6 +681,7 @@
 				3CEF4A389AE8A575EF67F604 /* FeedCardBuilder.swift in Sources */,
 				22676FE87E10359159479D3A /* FeedCardType.swift in Sources */,
 				A0CA03E05FB14A6E216DED04 /* FeedPlatformData.swift in Sources */,
+				37673B4C97D7AF0BCA504004 /* HighReachDetector.swift in Sources */,
 				655FDF035136FE2C80D74017 /* MCPServer.swift in Sources */,
 				31DC082399EDBE274324262D /* Platform.swift in Sources */,
 				FE73EF34479538693A17F1E0 /* PlatformData.swift in Sources */,
@@ -707,6 +716,7 @@
 				C740E7026EB2B18252077290 /* FeedDatabaseTests.swift in Sources */,
 				5A3BC438A6E27326D77E94DA /* FeedViewModelTests.swift in Sources */,
 				407889F33573100C2D412A63 /* GoatCounterCollectorTests.swift in Sources */,
+				14559F0CE878B76315A55696 /* HighReachDetectorTests.swift in Sources */,
 				C7D2B785C1C8E1A2D0D09475 /* JetpackCollectorTests.swift in Sources */,
 				41808A9E3EBDEB021C6F0356 /* LinkedInImporterTests.swift in Sources */,
 				223EF7B850879D74716F9B54 /* MastodonCollectorTests.swift in Sources */,
@@ -747,6 +757,7 @@
 				9B9A9B4F859FCE312A21B19E /* FeedView.swift in Sources */,
 				945AD598EC52AA09AF56366D /* FeedViewModel.swift in Sources */,
 				9495992C98E7C36CE6A1EBC6 /* GoatCounterCollector.swift in Sources */,
+				9D5DB0E5B64D10A34FED7B92 /* HighReachDetector.swift in Sources */,
 				A97F0568846BF3C7E478F5E5 /* HistoryView.swift in Sources */,
 				1D390F32B0F40A94CDE57339 /* HistoryViewModel.swift in Sources */,
 				3DF0243C592A170BD8F961C3 /* JetpackCollector.swift in Sources */,
@@ -786,6 +797,7 @@
 				ADCDCEAE0B09B600B6C18932 /* FeedCardBuilder.swift in Sources */,
 				43AC685C4C18C35DD44B66C7 /* FeedCardType.swift in Sources */,
 				39D7DBB726A5476A2D02E047 /* FeedPlatformData.swift in Sources */,
+				C72B21077F826B955AC40288 /* HighReachDetector.swift in Sources */,
 				98FD5B8D03FCE271A1EFDF5B /* MCPServer.swift in Sources */,
 				F31AB7CF19201B8B029D3D00 /* MCPServerTests.swift in Sources */,
 				8CF6D01E19C95A73F54A8C24 /* Platform.swift in Sources */,
