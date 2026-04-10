@@ -39,6 +39,14 @@ struct FeedViewModelTests {
         #expect(vm.error == nil)
     }
 
+    @Test("empty database has non-empty cards (stale reminders)")
+    func emptyDatabaseHasNonEmptyCards() async throws {
+        let db = try makeDB()
+        let vm = FeedViewModel(database: db)
+        await vm.load()
+        #expect(!vm.cards.isEmpty)
+    }
+
     @Test("load() with empty database produces 4 stale reminder cards")
     func emptyDatabaseProducesStaleReminders() async throws {
         let db = try makeDB()

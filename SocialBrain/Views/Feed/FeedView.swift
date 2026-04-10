@@ -1,11 +1,11 @@
 import SwiftUI
 
 struct FeedView: View {
-    @StateObject private var vm: FeedViewModel
+    @State private var vm: FeedViewModel
     var onNavigate: (SidebarItem, Platform?) -> Void
 
     init(database: AppDatabase, onNavigate: @escaping (SidebarItem, Platform?) -> Void) {
-        _vm = StateObject(wrappedValue: FeedViewModel(database: database))
+        _vm = State(wrappedValue: FeedViewModel(database: database))
         self.onNavigate = onNavigate
     }
 
@@ -14,7 +14,7 @@ struct FeedView: View {
             if vm.isLoading {
                 ProgressView("Loading feed…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if vm.cards.filter({ $0.cardType != .staleReminder }).isEmpty {
+            } else if vm.cards.isEmpty {
                 ContentUnavailableView(
                     "Nothing yet",
                     systemImage: "rectangle.stack",

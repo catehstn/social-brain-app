@@ -1,13 +1,15 @@
 import SwiftUI
+import Observation
 
 @MainActor
-final class FeedViewModel: ObservableObject {
+@Observable
+final class FeedViewModel {
 
     // cards must be var (not private(set)) so FeedCardView can receive a
     // Binding<FeedCard> via $vm.cards[index] for expand/collapse write-back.
-    @Published var cards: [FeedCard] = []
-    @Published private(set) var isLoading: Bool = false
-    @Published private(set) var error: String?
+    var cards: [FeedCard] = []
+    private(set) var isLoading: Bool = false
+    private(set) var error: String?
 
     private let database: AppDatabase
     private let now: () -> Date

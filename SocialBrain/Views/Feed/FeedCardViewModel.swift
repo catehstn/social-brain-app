@@ -1,7 +1,9 @@
 import SwiftUI
+import Observation
 
 @MainActor
-final class FeedCardViewModel: ObservableObject {
+@Observable
+final class FeedCardViewModel {
 
     // Binding into FeedViewModel.cards so expand state is shared.
     private var cardBinding: Binding<FeedCard>
@@ -22,6 +24,5 @@ final class FeedCardViewModel: ObservableObject {
 
     func toggleExpand() {
         cardBinding.wrappedValue.isExpanded.toggle()
-        objectWillChange.send()
     }
 }

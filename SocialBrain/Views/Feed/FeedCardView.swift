@@ -3,11 +3,11 @@ import SwiftUI
 struct FeedCardView: View {
     // Binding writes back into FeedViewModel.cards — avoids stale local copy.
     @Binding var card: FeedCard
-    @StateObject private var vm: FeedCardViewModel
+    @State private var vm: FeedCardViewModel
 
     init(card: Binding<FeedCard>) {
         self._card = card
-        _vm = StateObject(wrappedValue: FeedCardViewModel(card: card))
+        _vm = State(wrappedValue: FeedCardViewModel(card: card))
     }
 
     var body: some View {
