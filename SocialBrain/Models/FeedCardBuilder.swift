@@ -116,6 +116,24 @@ struct FeedCardBuilder {
             ))
         }
 
+        // 5. High-reach items — platforms with above-threshold or notably lifted engagement
+        //    ranked by reach score; de-duplicated with spikeAlert cards (don't show both).
+        let spikeAlertPlatforms = Set(cards.filter { $0.cardType == .spikeAlert }.map(\.platform))
+        let highReachItems = HighReachDetector().detect(
+            snapshots: snapshots,
+            previousSnapshots: previousSnapshots
+        )
+        for item in highReachItems {
+            // Skip if we already have a spike card for this platform (avoids duplicate messaging).
+            guard !spikeAlertPlatforms.contains(item.platform) else { continue }
+            cards.append(FeedCard(
+                platform: item.platform,
+                cardType: .highReach,
+                snippet: item.message,
+                navigationTarget: item.platform
+            ))
+        }
+
         return cards
     }
 

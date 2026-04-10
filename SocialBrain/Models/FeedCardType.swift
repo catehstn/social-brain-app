@@ -6,6 +6,7 @@ enum FeedCardType: String, Codable, Sendable {
     case upcomingEvent
     case staleReminder
     case spikeAlert
+    case highReach
 
     var displayName: String {
         switch self {
@@ -14,6 +15,7 @@ enum FeedCardType: String, Codable, Sendable {
         case .upcomingEvent: return "Upcoming Event"
         case .staleReminder: return "Stale Reminder"
         case .spikeAlert: return "Spike Alert"
+        case .highReach: return "High Reach"
         }
     }
 }
