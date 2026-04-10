@@ -17,7 +17,7 @@ struct FeedCardView: View {
                       systemImage: platformIcon(vm.card.platform))
                     .font(.headline)
                 Spacer()
-                Text(vm.card.cardType.rawValue)
+                Text(vm.card.cardType.displayName)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

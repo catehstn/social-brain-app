@@ -82,6 +82,14 @@ struct FeedCardBuilderTests {
         #expect(cards.contains { $0.platform == .amazon && $0.cardType == .staleReminder })
     }
 
+    @Test("FeedCardType displayName returns human-readable strings")
+    func feedCardTypeDisplayName() {
+        #expect(FeedCardType.recentPost.displayName == "Recent Post")
+        #expect(FeedCardType.metricHighlight.displayName == "Metric Highlight")
+        #expect(FeedCardType.upcomingEvent.displayName == "Upcoming Event")
+        #expect(FeedCardType.staleReminder.displayName == "Stale Reminder")
+    }
+
     @Test("build does not produce stale reminder for non-file-export platform even if old")
     func buildNoStaleReminderForNonFileExportPlatform() throws {
         let payload = try JSONEncoder().encode(MastodonData(
