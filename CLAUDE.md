@@ -1,5 +1,11 @@
 # Claude Code Guidelines for social-brain (desktop app)
 
+## Critical rules for subagents
+
+**Planning subagents:** Your ONLY job is to write a `trycycle-plan.md` file in the worktree and commit it. Do NOT implement code, open PRs, merge branches, or do anything else. Stop after writing the plan.
+
+**Never merge to main without explicit user approval.** No subagent may run `gh pr merge`, `git merge`, or `git push` to main unless the user has explicitly said to do so in the current conversation turn.
+
 ## Overview
 
 Social Brain is a native macOS app that collects analytics from social/publishing
