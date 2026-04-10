@@ -172,6 +172,45 @@ extension AppDatabase {
         }
     }
 
+    /// Returns the two most recent snapshots for a platform, newest first.
+    /// Used by spike detection to compare the last run against the one before it.
+    func twoLatestSnapshots(for platform: Platform) throws -> [PlatformSnapshot] {
+        try dbWriter.read { db in
+            try PlatformSnapshot
+                .filter(Column("platform") == platform.rawValue)
+                .order(Column("collectedAt").desc)
+                .limit(2)
+                .fetchAll(db)
+        }
+    }
+
+    /// Returns the second-most-recent snapshot per platform (the run before the latest).
+    /// Used to compute spike alerts in the feed. Platforms with only one snapshot are excluded.
+    func previousSnapshots() throws -> [Platform: PlatformSnapshot] {
+        try dbWriter.read { db in
+            // For each platform, fetch the two most recent snapshots then keep the second.
+            let allPlatforms = try PlatformSnapshot
+                .select(Column("platform"), as: String.self)
+                .distinct()
+                .fetchAll(db)
+
+            var result: [Platform: PlatformSnapshot] = [:]
+            for platformRaw in allPlatforms {
+                guard let platform = Platform(rawValue: platformRaw) else { continue }
+                let pair = try PlatformSnapshot
+                    .filter(Column("platform") == platformRaw)
+                    .order(Column("collectedAt").desc)
+                    .limit(2)
+                    .fetchAll(db)
+                // pair[0] = newest, pair[1] = second-newest
+                if pair.count == 2 {
+                    result[platform] = pair[1]
+                }
+            }
+            return result
+        }
+    }
+
     /// Returns the latest snapshot for every platform that has at least one row.
     /// Returns a dictionary keyed by Platform.
     func latestSnapshots() throws -> [Platform: PlatformSnapshot] {

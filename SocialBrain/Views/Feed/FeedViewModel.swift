@@ -24,9 +24,13 @@ final class FeedViewModel {
         error = nil
         do {
             // await hops to the AppDatabase actor's executor, freeing MainActor.
-            let snapshots = try await database.latestSnapshots()
+            async let snapshotsTask = database.latestSnapshots()
+            async let previousTask  = database.previousSnapshots()
+            let (snapshots, previous) = try await (snapshotsTask, previousTask)
             // FeedCardBuilder.build is non-throwing (all JSON decoded with try?)
-            cards = FeedCardBuilder.build(snapshots: snapshots, now: now())
+            cards = FeedCardBuilder.build(snapshots: snapshots,
+                                          previousSnapshots: previous,
+                                          now: now())
         } catch {
             self.error = error.localizedDescription
         }

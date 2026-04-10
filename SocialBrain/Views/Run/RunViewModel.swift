@@ -72,6 +72,10 @@ final class RunViewModel {
     private func finishCollection(summary: CollectionSummary) async {
         state = .finished(summary)
 
+        // Detect spikes — compare the latest two snapshots for each platform
+        // that succeeded in this run and fire a notification if anything is notable.
+        await detectAndNotifySpikes(for: summary)
+
         // Start with successful API/token collector data.
         var allData = summary.results.compactMap(\.platformData)
 
@@ -101,6 +105,23 @@ final class RunViewModel {
             snapshots: allData
         )
         generatedPrompt = assembler.assemble(input)
+    }
+
+    private func detectAndNotifySpikes(for summary: CollectionSummary) async {
+        let detector = SpikeDetector()
+        var allAlerts: [SpikeAlert] = []
+
+        let successfulPlatforms = summary.results.compactMap { $0.platformData?.platform }
+        for platform in successfulPlatforms {
+            guard let pair = try? await database.twoLatestSnapshots(for: platform),
+                  pair.count == 2 else { continue }
+            let alerts = detector.detect(current: pair[0], previous: pair[1])
+            allAlerts.append(contentsOf: alerts)
+        }
+
+        if !allAlerts.isEmpty {
+            await NotificationManager.shared.sendSpikeAlerts(allAlerts)
+        }
     }
 
     private func periodLabel(since: Date?) -> String {
