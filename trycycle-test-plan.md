@@ -1,8 +1,13 @@
-# Feed View — Test Plan
+# Feed View Bug Fixes — Test Plan
+
+> Covers issues #20 (FeedCardType displayName), #21 (@Observable migration),
+> and #22 (show stale reminders instead of empty state).
+
+---
 
 ## Compilation Gate
 
-Run this before and after every batch of changes, and as the final pre-PR check:
+Run before and after every batch of changes, and as the final pre-PR check:
 
 ```
 xcodebuild build-for-testing \
@@ -10,546 +15,253 @@ xcodebuild build-for-testing \
     -destination 'platform=macOS'
 ```
 
-Must produce zero errors. Run `xcodegen generate` from the worktree root before
-invoking xcodebuild whenever new `.swift` files have been added (the project uses
-directory-level source globs, so no manual `project.yml` edits are required).
+Must produce zero errors and zero warnings that would block a build. Run
+`xcodegen generate` from the worktree root after adding new `.swift` files.
 
 ---
 
-## Clock Seam for Staleness Tests
+## Baseline Gate
 
-`FeedViewModel` and `FeedCardBuilder.build(snapshots:now:)` both accept an injectable
-clock as a `() -> Date` closure (defaulting to `Date.init`). Tests that exercise
-staleness logic must pass a fixed `Date` so thresholds are deterministic:
+Before touching any code, confirm the full existing unit test suite is green:
 
-```swift
-// Example: "now" is pinned to a known instant
-let fixedNow = Date(timeIntervalSinceReferenceDate: 1_000_000_000)
-let vm = FeedViewModel(database: db, now: { fixedNow })
+```bash
+xcodebuild test -scheme SocialBrain \
+    -destination 'platform=macOS' \
+    -only-testing:SocialBrainTests 2>&1 | tail -5
 ```
 
-For `FeedCardBuilder` tests, pass the same value directly:
+Expected: `** TEST SUCCEEDED **`
 
-```swift
-let cards = FeedCardBuilder.build(snapshots: snapshots, now: fixedNow)
-```
-
-**Staleness thresholds** (from `StalenessThreshold` in `FeedCardBuilder.swift`):
-
-| Platform          | Threshold   |
-|-------------------|-------------|
-| `.linkedin`       | 3 days      |
-| `.substack`       | 3 days      |
-| `.amazon`         | 30 days     |
-| `.oreilly`        | 30 days     |
-| All others        | Never stale |
-
-A snapshot is considered stale when `now.timeIntervalSince(snapshot.collectedAt) > threshold`.
+**All 3 tasks must start from a green baseline.** Do not proceed if any test is
+failing before changes begin.
 
 ---
 
-## Test Files
+## Task 1: `FeedCardType.displayName` (Issue #20)
 
-### 1. `SocialBrainTests/FeedDatabaseTests.swift`
+### Red test (must be written first)
 
-Framework: Swift Testing (`import Testing`)
-Target: `SocialBrainTests`
-Purpose: In-memory GRDB integration — schema migration, row insertion, `latestSnapshots()` query.
+**File:** `SocialBrainTests/FeedCardBuilderTests.swift`
+**Suite:** `FeedCardBuilder`
 
-**Helper:**
+Add inside the existing `FeedCardBuilderTests` struct:
+
 ```swift
-private func makeDB() throws -> AppDatabase {
-    try AppDatabase(DatabaseQueue())   // in-memory; discarded after each test
+@Test("FeedCardType displayName returns human-readable strings")
+func feedCardTypeDisplayName() {
+    #expect(FeedCardType.recentPost.displayName    == "Recent Post")
+    #expect(FeedCardType.metricHighlight.displayName == "Metric Highlight")
+    #expect(FeedCardType.upcomingEvent.displayName  == "Upcoming Event")
+    #expect(FeedCardType.staleReminder.displayName  == "Stale Reminder")
 }
 ```
 
----
+**Verify it fails before implementation:**
 
-#### `func migrationCreatesTable() throws`
+```bash
+xcodebuild test -scheme SocialBrain -destination 'platform=macOS' \
+    -only-testing:SocialBrainTests/FeedCardBuilderTests 2>&1 \
+    | grep -E "error:|feedCardTypeDisplayName"
+```
 
-Seeds: nothing (just initialises the database).
+Expected: compile error — `value of type 'FeedCardType' has no member 'displayName'`
 
-Asserts:
-- `conn.tableExists("snapshots")` is `true` — confirms the v1 migration ran.
+### Green check
 
----
+After adding `displayName` to `FeedCardType` and updating `FeedCardView` to use it:
 
-#### `func latestSnapshotsReturnsNewest() throws`
+```bash
+xcodebuild test -scheme SocialBrain -destination 'platform=macOS' \
+    -only-testing:SocialBrainTests 2>&1 | tail -5
+```
 
-Seeds:
-- Two `PlatformSnapshot` rows for platform `"mastodon"` with distinct `collectedAt` dates:
-  - `older = Date(timeIntervalSinceNow: -7200)`
-  - `newer = Date()`
-- Both rows carry identical JSON-encoded `MastodonData(latestPostText: "hello", followersCount: 100, engagementRate: 0.05)`.
+Expected: `** TEST SUCCEEDED **`
 
-Asserts:
-- `result[.mastodon]?.collectedAt == newer` — only the most-recent row is returned.
-- `result.count == 1` — only one platform key is present.
+### What is NOT tested here
 
----
-
-#### `func latestSnapshotsMissingPlatform() throws`
-
-Seeds: nothing (empty database).
-
-Asserts:
-- `result[.mastodon] == nil` — querying an absent platform returns nil.
+`FeedCardView` renders `Text(vm.card.cardType.displayName)` — confirming the
+displayed string is human-readable is a UI concern only. The unit test above is
+sufficient to assert the correct string values; no UI test is added for this change.
 
 ---
 
-#### `func oneRowPerPlatformOrdered() throws`
+## Task 2: `@Observable` migration (Issue #21)
 
-Seeds:
-- One `PlatformSnapshot` for each of `.mastodon`, `.bluesky`, `.buttondown`, using
-  distinct `collectedAt` values (`now`, `now - 1h`, `now - 2h`) and minimal valid
-  JSON payloads for each platform.
+### No new tests required
 
-Asserts:
-- `result.count == 3`
-- `result[.mastodon] != nil`
-- `result[.bluesky] != nil`
-- `result[.buttondown] != nil`
-- Each returned snapshot's `collectedAt` matches the most recent insertion for that platform.
+This is a pure refactor: `ObservableObject`/`@Published`/`@StateObject` →
+`@Observable`/`@State`. The existing tests in `FeedViewModelTests.swift` and
+`FeedCardViewModelTests.swift` access `vm.cards`, `vm.isLoading`, `vm.error`,
+`vm.isTruncated`, `vm.displaySnippet`, and `vm.card` — all of which work
+identically with `@Observable`. No test file changes are required.
+
+### Regression check
+
+After migrating both ViewModels and their call sites in the View files:
+
+```bash
+xcodebuild test -scheme SocialBrain -destination 'platform=macOS' \
+    -only-testing:SocialBrainTests/FeedViewModelTests \
+    -only-testing:SocialBrainTests/FeedCardViewModelTests 2>&1 | tail -5
+```
+
+Expected: `** TEST SUCCEEDED **`
+
+### Full suite check
+
+```bash
+xcodebuild test -scheme SocialBrain -destination 'platform=macOS' \
+    -only-testing:SocialBrainTests 2>&1 | tail -5
+```
+
+Expected: `** TEST SUCCEEDED **` with equal-or-higher test count vs baseline.
+
+### Specific invariants to verify
+
+These are implicit in the existing tests but call them out explicitly:
+
+| Invariant | Verified by |
+|---|---|
+| `vm.cards` is mutable (Binding write-back works) | `toggleExpandFlipsIsExpandedAndWritesBackToBinding` |
+| `objectWillChange.send()` in `FeedCardViewModel.toggleExpand()` is removed | Compile success (no `objectWillChange` on `@Observable` class) |
+| `@StateObject` replaced with `@State` at call sites | Compile success |
 
 ---
 
-#### `func contentFieldPresentAfterRoundTrip() throws`
+## Task 3: Show stale reminders instead of empty state (Issue #22)
 
-Seeds:
-- One `PlatformSnapshot` for `.bluesky` with a non-empty `data` blob
-  (`JSONEncoder().encode(BlueskyData(latestPostText: "test", followersCount: 50, engagementRate: 0.07))`).
+### Documenting test (already passing — contract assertion)
 
-Asserts:
-- The retrieved snapshot's `data` is non-empty.
-- `JSONDecoder().decode(BlueskyData.self, from: data).latestPostText == "test"` — the
-  content round-trips correctly through the database.
+**File:** `SocialBrainTests/FeedViewModelTests.swift`
+**Suite:** `FeedViewModel`
 
----
+Add inside the existing `FeedViewModelTests` struct:
 
-### 2. `SocialBrainTests/FeedViewModelTests.swift`
-
-Framework: Swift Testing (`import Testing`)
-Target: `SocialBrainTests`
-Isolation: `@MainActor` on suite (all tests run on main actor; `FeedViewModel` is `@MainActor`).
-
-**Helper:**
 ```swift
-private func makeDB() throws -> AppDatabase {
-    try AppDatabase(DatabaseQueue())
+@Test("empty database cards array is non-empty — stale reminders are present")
+func emptyDatabaseHasNonEmptyCards() async throws {
+    let db = try makeDB()
+    let vm = FeedViewModel(database: db)
+    await vm.load()
+    // FeedView must NOT show "Nothing yet" — stale reminders are actionable
+    #expect(!vm.cards.isEmpty)
 }
 ```
 
----
+This test passes immediately against the current `FeedViewModel` (the ViewModel
+already populates stale reminders). It documents the contract the view is
+supposed to honour but currently violates.
 
-#### `func loadsCards() async throws`
+**Run the test before fixing the view:**
 
-Seeds:
-- One `PlatformSnapshot` for `.mastodon` with
-  `MastodonData(latestPostText: "Test post", followersCount: 200, engagementRate: 0.1)`,
-  `collectedAt: Date()`.
-
-Setup:
-```swift
-let vm = FeedViewModel(database: db)
-await vm.load()
+```bash
+xcodebuild test -scheme SocialBrain -destination 'platform=macOS' \
+    -only-testing:SocialBrainTests/FeedViewModelTests/emptyDatabaseHasNonEmptyCards \
+    2>&1 | tail -5
 ```
 
-Asserts:
-- `vm.cards.isEmpty == false`
-- `vm.isLoading == false`
-- `vm.error == nil`
+Expected: `** TEST SUCCEEDED **` — this test is a ViewModel contract test, not
+a view-layer test. The bug is in `FeedView`, not `FeedViewModel`.
 
----
+### Relationship to the existing `emptyDatabaseProducesStaleReminders` test
 
-#### `func emptyDatabaseProducesStaleReminders() async throws`
+The existing test asserts `vm.cards.filter { $0.cardType == .staleReminder }.count == 4`.
+The new test asserts `!vm.cards.isEmpty`. They are complementary:
 
-Seeds: nothing (empty database).
+- `emptyDatabaseProducesStaleReminders` — verifies the ViewModel produces exactly
+  4 stale reminder cards for an empty database.
+- `emptyDatabaseHasNonEmptyCards` — documents the contract that drives the view-
+  layer fix: because cards is non-empty, `FeedView` must not show `"Nothing yet"`.
 
-Setup:
-```swift
-let vm = FeedViewModel(database: db)
-await vm.load()
-```
+Neither test is modified or deleted.
 
-Asserts:
-- `vm.cards.filter { $0.cardType == .staleReminder }.count == 4`
-  — platforms `.linkedin`, `.substack`, `.amazon`, `.oreilly` each produce one stale
-  reminder because they have no snapshots at all.
+### Green check after view fix
 
----
-
-#### `func staleReminderCard() async throws`
-
-Seeds:
-- One `PlatformSnapshot` for `.linkedin` with
-  `LinkedInData(latestPostText: "old post", totalImpressions: 50)`,
-  `collectedAt: fixedNow - (4 * 24 * 3600)` (4 days ago — beyond the 3-day threshold).
-
-Setup:
-```swift
-let fixedNow = Date()
-let vm = FeedViewModel(database: db, now: { fixedNow })
-await vm.load()
-```
-
-Asserts:
-- `vm.cards.first { $0.platform == .linkedin && $0.cardType == .staleReminder } != nil`
-
----
-
-#### `func freshSnapshotNoStaleReminder() async throws`
-
-Seeds:
-- One `PlatformSnapshot` for `.linkedin` with
-  `LinkedInData(latestPostText: "fresh", totalImpressions: 10)`,
-  `collectedAt: fixedNow - (1 * 24 * 3600)` (1 day ago — within the 3-day threshold).
-
-Setup:
-```swift
-let fixedNow = Date()
-let vm = FeedViewModel(database: db, now: { fixedNow })
-await vm.load()
-```
-
-Asserts:
-- `vm.cards.filter { $0.platform == .linkedin && $0.cardType == .staleReminder }.isEmpty == true`
-
----
-
-#### `func navigationTarget() async throws`
-
-Seeds:
-- One `PlatformSnapshot` for `.mastodon` with
-  `MastodonData(latestPostText: "nav test", followersCount: 10, engagementRate: 0.02)`,
-  `collectedAt: Date()`.
-
-Setup:
-```swift
-let vm = FeedViewModel(database: db)
-await vm.load()
-```
-
-Asserts:
-- `vm.cards.first { $0.platform == .mastodon }?.navigationTarget == .mastodon`
-
----
-
-### 3. `SocialBrainTests/FeedCardViewModelTests.swift`
-
-Framework: Swift Testing (`import Testing`)
-Target: `SocialBrainTests`
-Isolation: `@MainActor` on suite.
-
-**Binding helper** — wraps a `FeedCard` in a reference-type box so mutations via
-the binding are observable in tests without a live SwiftUI environment:
+After changing `FeedView`'s empty-state condition from:
 
 ```swift
-final class Box {
-    var card: FeedCard
-    init(_ card: FeedCard) { self.card = card }
-}
-
-private func makeBinding(snippet: String, expanded: Bool = false) -> Binding<FeedCard> {
-    let box = Box(FeedCard(
-        platform: .mastodon,
-        cardType: .recentPost,
-        snippet: snippet,
-        isExpanded: expanded,
-        navigationTarget: .mastodon
-    ))
-    return Binding(get: { box.card }, set: { box.card = $0 })
-}
+} else if vm.cards.filter({ $0.cardType != .staleReminder }).isEmpty {
 ```
 
----
+to:
 
-#### `func displaySnippetExpanded()`
-
-Setup:
 ```swift
-let long = String(repeating: "a", count: 200)
-let vm = FeedCardViewModel(card: makeBinding(snippet: long, expanded: true))
+} else if vm.cards.isEmpty {
 ```
 
-Asserts:
-- `vm.displaySnippet == long` — full text returned when `isExpanded` is `true`.
+Run the full suite:
 
----
-
-#### `func displaySnippetCollapsed()`
-
-Setup:
-```swift
-let long = String(repeating: "a ", count: 100)  // 200 chars with spaces
-let vm = FeedCardViewModel(card: makeBinding(snippet: long))
+```bash
+xcodebuild test -scheme SocialBrain -destination 'platform=macOS' \
+    -only-testing:SocialBrainTests 2>&1 | tail -5
 ```
 
-Asserts:
-- `vm.displaySnippet.count <= 105` — truncated to ≤ 100 chars + "…" (1 char).
+Expected: `** TEST SUCCEEDED **` with equal-or-higher test count vs baseline +
+Task 1's new test.
 
 ---
 
-#### `func isTruncatedFalseForShortSnippet()`
+## Final Gate
 
-Setup:
-```swift
-let vm = FeedCardViewModel(card: makeBinding(snippet: "Short text."))
+After all three tasks are committed, run the full unit test suite one last time:
+
+```bash
+xcodebuild test -scheme SocialBrain -destination 'platform=macOS' \
+    -only-testing:SocialBrainTests 2>&1 | tail -10
 ```
 
-Asserts:
-- `vm.isTruncated == false`
-
----
-
-#### `func isTruncatedTrueForLongSnippet()`
-
-Setup:
-```swift
-let long = String(repeating: "word ", count: 30)   // 150 chars — exceeds 100-char limit
-let vm = FeedCardViewModel(card: makeBinding(snippet: long))
-```
-
-Asserts:
-- `vm.isTruncated == true`
-
----
-
-#### `func toggleExpandFlipsIsExpandedAndWritesBackToBinding()`
-
-Setup:
-```swift
-let binding = makeBinding(snippet: "Test")
-let vm = FeedCardViewModel(card: binding)
-```
-
-Asserts (in sequence — each assertion before the next call):
-1. `binding.wrappedValue.isExpanded == false` — initial state.
-2. Call `vm.toggleExpand()`.
-3. `binding.wrappedValue.isExpanded == true` — write-back propagated to the binding source.
-4. Call `vm.toggleExpand()`.
-5. `binding.wrappedValue.isExpanded == false` — toggled back.
-
----
-
-### 4. `SocialBrainTests/FeedCardBuilderTests.swift`
-
-Framework: Swift Testing (`import Testing`)
-Target: `SocialBrainTests`
-Purpose: Pure-logic tests; no database or SwiftUI dependencies.
-
----
-
-#### `func truncateShortText()`
-
-Input: `text = "Hello world"`, `limit: 280`
-
-Asserts:
-- `FeedCardBuilder.truncate(text, limit: 280) == text` — unchanged when under limit.
-
----
-
-#### `func truncateAtWordBoundary()`
-
-Input: `text = String(repeating: "hello ", count: 10)` (60 chars), `limit: 25`
-
-Asserts:
-- `result.hasSuffix("…")` — ellipsis appended.
-- `result.dropLast()` does not end with `" "` — no trailing space before ellipsis.
-- `result.count <= 26` — at most 25 content chars + "…".
-
----
-
-#### `func truncateHardCutFallbackWhenNoSpace()`
-
-Input: `text = String(repeating: "a", count: 300)` (no spaces), `limit: 280`
-
-Asserts:
-- `result.hasSuffix("…")`
-- `result.count == 281` — exactly 280 chars + "…".
-
----
-
-#### `func buildEmptySnapshotsProducesFourStaleReminders()`
-
-Input: `FeedCardBuilder.build(snapshots: [:], now: Date())`
-
-Asserts:
-- `cards.filter { $0.cardType == .staleReminder }.count == 4`
-  — `.linkedin`, `.substack`, `.amazon`, `.oreilly` each produce one card when never collected.
-
----
-
-#### `func buildIsNonThrowing()`
-
-Asserts (compile-time gate — no runtime assertion needed):
-```swift
-let _: [FeedCard] = FeedCardBuilder.build(snapshots: [:])
-```
-If this line compiles without `try`, the function's non-throwing signature is confirmed.
-
----
-
-#### `func buildStaleReminderForLinkedInBeyondThreshold()`
-
-Seeds:
-```swift
-let fixedNow = Date(timeIntervalSinceReferenceDate: 1_000_000_000)
-let staleDate = fixedNow.addingTimeInterval(-(4 * 24 * 3600))  // 4 days before fixedNow
-let payload = try JSONEncoder().encode(LinkedInData(latestPostText: "old", totalImpressions: 0))
-let snapshots: [Platform: PlatformSnapshot] = [
-    .linkedin: PlatformSnapshot(id: nil, platform: "linkedin", collectedAt: staleDate, data: payload)
-]
-```
-
-Asserts:
-- `FeedCardBuilder.build(snapshots: snapshots, now: fixedNow)` contains a card where
-  `.platform == .linkedin && .cardType == .staleReminder`.
-
----
-
-#### `func buildNoStaleReminderForLinkedInWithinThreshold()`
-
-Seeds same as above but `collectedAt = fixedNow.addingTimeInterval(-(1 * 24 * 3600))` (1 day).
-
-Asserts:
-- The resulting cards contain no `.staleReminder` for `.linkedin`.
-
----
-
-#### `func buildAmazonStaleAfter30Days()`
-
-Seeds:
-```swift
-let staleDate = fixedNow.addingTimeInterval(-(31 * 24 * 3600))
-let payload = try JSONEncoder().encode(AmazonData(latestTitle: "Book", totalRoyalties: 10))
-let snapshots: [Platform: PlatformSnapshot] = [
-    .amazon: PlatformSnapshot(id: nil, platform: "amazon", collectedAt: staleDate, data: payload)
-]
-```
-
-Asserts:
-- Card with `.platform == .amazon && .cardType == .staleReminder` is present.
-
----
-
-#### `func buildNoStaleReminderForNonFileExportPlatform()`
-
-Seeds:
-```swift
-// Mastodon snapshot that is 365 days old
-let payload = try JSONEncoder().encode(MastodonData(latestPostText: "old", followersCount: 1, engagementRate: 0.01))
-let oldDate = fixedNow.addingTimeInterval(-(365 * 24 * 3600))
-let snapshots: [Platform: PlatformSnapshot] = [
-    .mastodon: PlatformSnapshot(id: nil, platform: "mastodon", collectedAt: oldDate, data: payload)
-]
-```
-
-Asserts:
-- No card with `.platform == .mastodon && .cardType == .staleReminder`.
-
----
-
-### 5. `SocialBrainTests/SidebarTests.swift`
-
-Framework: Swift Testing (`import Testing`)
-Target: `SocialBrainTests`
-
----
-
-#### `func feedCaseExistsInAllCases()`
-
-Asserts:
-- `SidebarItem.allCases.contains(.feed) == true`
-
----
-
-#### `func feedPositionedBetweenRunAndDashboard()`
-
-Setup:
-```swift
-let cases = SidebarItem.allCases
-let runIdx  = cases.firstIndex(of: .run)!
-let feedIdx = cases.firstIndex(of: .feed)!
-let dashIdx = cases.firstIndex(of: .dashboard)!
-```
-
-Asserts:
-- `runIdx < feedIdx`
-- `feedIdx < dashIdx`
-
----
-
-### 6. `SocialBrainUITests/FeedUITests.swift`
-
-Framework: XCTest (`import XCTest`)
-Target: `SocialBrainUITests`
-Setup (shared `setUpWithError`): `continueAfterFailure = false; app.launch()`
-
----
-
-#### `func testFeedItemExistsInSidebar()`
-
-Action: Waits up to 5 seconds for a static text cell labelled `"Feed"` in the
-first outline (the sidebar list).
-
-Asserts:
-- `feedItem.waitForExistence(timeout: 5) == true`
-
----
-
-#### `func testTappingFeedDoesNotCrash()`
-
-Action:
-1. Wait for `"Feed"` sidebar item (up to 5 s); fail with `XCTFail` if absent.
-2. Call `feedItem.click()`.
-
-Asserts:
-- `app.exists == true` — app is still running after the tap.
-
----
-
-#### `func testExpandControlVisibleWhenCardIsTruncated()`
-
-Action:
-1. Navigate to Feed by clicking the `"Feed"` sidebar item.
-2. Query all buttons whose `accessibilityIdentifier` begins with `"expandToggle_"`.
-
-Asserts:
-- If `toggleButtons.count > 0`: `toggleButtons.firstMatch.isHittable == true`.
-- If `toggleButtons.count == 0`: test is a no-op (acceptable when the database is empty).
+Expected: `** TEST SUCCEEDED **` with a count ≥ (baseline + 2) — the two new tests
+added in Tasks 1 and 3.
 
 ---
 
 ## Summary Table
 
-| Test file | Suite / class | Test function | What it seeds | Key assertion |
-|-----------|--------------|---------------|---------------|---------------|
-| `FeedDatabaseTests` | `FeedDatabase` | `migrationCreatesTable` | — | `tableExists("snapshots")` |
-| `FeedDatabaseTests` | `FeedDatabase` | `latestSnapshotsReturnsNewest` | 2 mastodon rows | returns newer row only |
-| `FeedDatabaseTests` | `FeedDatabase` | `latestSnapshotsMissingPlatform` | — | nil for absent platform |
-| `FeedDatabaseTests` | `FeedDatabase` | `oneRowPerPlatformOrdered` | 3 platforms × 1 row | count == 3, correct recency |
-| `FeedDatabaseTests` | `FeedDatabase` | `contentFieldPresentAfterRoundTrip` | bluesky row | data round-trips via JSON |
-| `FeedViewModelTests` | `FeedViewModel` | `loadsCards` | mastodon snapshot | cards non-empty, no error |
-| `FeedViewModelTests` | `FeedViewModel` | `emptyDatabaseProducesStaleReminders` | — | 4 stale-reminder cards |
-| `FeedViewModelTests` | `FeedViewModel` | `staleReminderCard` | linkedin 4 days old | stale card present |
-| `FeedViewModelTests` | `FeedViewModel` | `freshSnapshotNoStaleReminder` | linkedin 1 day old | no stale card for linkedin |
-| `FeedViewModelTests` | `FeedViewModel` | `navigationTarget` | mastodon snapshot | navigationTarget == .mastodon |
-| `FeedCardViewModelTests` | `FeedCardViewModel` | `displaySnippetExpanded` | 200-char snippet (expanded) | full text returned |
-| `FeedCardViewModelTests` | `FeedCardViewModel` | `displaySnippetCollapsed` | 200-char snippet (collapsed) | ≤ 105 chars |
-| `FeedCardViewModelTests` | `FeedCardViewModel` | `isTruncatedFalseForShortSnippet` | 11-char snippet | isTruncated == false |
-| `FeedCardViewModelTests` | `FeedCardViewModel` | `isTruncatedTrueForLongSnippet` | 150-char snippet | isTruncated == true |
-| `FeedCardViewModelTests` | `FeedCardViewModel` | `toggleExpandFlipsIsExpandedAndWritesBackToBinding` | any snippet | binding source toggled |
-| `FeedCardBuilderTests` | `FeedCardBuilder` | `truncateShortText` | 11-char text | unchanged |
-| `FeedCardBuilderTests` | `FeedCardBuilder` | `truncateAtWordBoundary` | 60-char text, limit 25 | word boundary, ends "…" |
-| `FeedCardBuilderTests` | `FeedCardBuilder` | `truncateHardCutFallbackWhenNoSpace` | 300-char no-space text | 280 + "…" |
-| `FeedCardBuilderTests` | `FeedCardBuilder` | `buildEmptySnapshotsProducesFourStaleReminders` | empty map | 4 stale cards |
-| `FeedCardBuilderTests` | `FeedCardBuilder` | `buildIsNonThrowing` | empty map | compiles without `try` |
-| `FeedCardBuilderTests` | `FeedCardBuilder` | `buildStaleReminderForLinkedInBeyondThreshold` | linkedin 4 days old | stale card present |
-| `FeedCardBuilderTests` | `FeedCardBuilder` | `buildNoStaleReminderForLinkedInWithinThreshold` | linkedin 1 day old | no stale card |
-| `FeedCardBuilderTests` | `FeedCardBuilder` | `buildAmazonStaleAfter30Days` | amazon 31 days old | stale card present |
-| `FeedCardBuilderTests` | `FeedCardBuilder` | `buildNoStaleReminderForNonFileExportPlatform` | mastodon 365 days old | no stale card |
-| `SidebarTests` | `Sidebar` | `feedCaseExistsInAllCases` | — | .feed in allCases |
-| `SidebarTests` | `Sidebar` | `feedPositionedBetweenRunAndDashboard` | — | run < feed < dashboard |
-| `FeedUITests` | `FeedUITests` | `testFeedItemExistsInSidebar` | — | "Feed" label exists |
-| `FeedUITests` | `FeedUITests` | `testTappingFeedDoesNotCrash` | — | app still running |
-| `FeedUITests` | `FeedUITests` | `testExpandControlVisibleWhenCardIsTruncated` | live DB | toggle button hittable |
+| Task | File | Test function | Red→Green | Key assertion |
+|---|---|---|---|---|
+| #20 displayName | `FeedCardBuilderTests.swift` | `feedCardTypeDisplayName` | Yes | All 4 `displayName` values match human-readable strings |
+| #21 @Observable | — | (no new test) | No (regression only) | All existing `FeedViewModelTests` + `FeedCardViewModelTests` still pass |
+| #22 empty state | `FeedViewModelTests.swift` | `emptyDatabaseHasNonEmptyCards` | Passes before fix (ViewModel contract); view-layer fix must not break it | `!vm.cards.isEmpty` for empty DB |
+
+### Existing tests that must remain green throughout
+
+| File | Suite | Test |
+|---|---|---|
+| `FeedViewModelTests.swift` | `FeedViewModel` | `loadsCards` |
+| `FeedViewModelTests.swift` | `FeedViewModel` | `emptyDatabaseProducesStaleReminders` |
+| `FeedViewModelTests.swift` | `FeedViewModel` | `staleReminderCard` |
+| `FeedViewModelTests.swift` | `FeedViewModel` | `freshSnapshotNoStaleReminder` |
+| `FeedViewModelTests.swift` | `FeedViewModel` | `navigationTarget` |
+| `FeedCardViewModelTests.swift` | `FeedCardViewModel` | `displaySnippetExpanded` |
+| `FeedCardViewModelTests.swift` | `FeedCardViewModel` | `displaySnippetCollapsed` |
+| `FeedCardViewModelTests.swift` | `FeedCardViewModel` | `isTruncatedFalseForShortSnippet` |
+| `FeedCardViewModelTests.swift` | `FeedCardViewModel` | `isTruncatedTrueForLongSnippet` |
+| `FeedCardViewModelTests.swift` | `FeedCardViewModel` | `toggleExpandFlipsIsExpandedAndWritesBackToBinding` |
+| `FeedCardBuilderTests.swift` | `FeedCardBuilder` | `truncateShortText` |
+| `FeedCardBuilderTests.swift` | `FeedCardBuilder` | `truncateAtWordBoundary` |
+| `FeedCardBuilderTests.swift` | `FeedCardBuilder` | `truncateHardCutFallbackWhenNoSpace` |
+| `FeedCardBuilderTests.swift` | `FeedCardBuilder` | `buildEmptySnapshotsProducesFourStaleReminders` |
+| `FeedCardBuilderTests.swift` | `FeedCardBuilder` | `buildIsNonThrowing` |
+| `FeedCardBuilderTests.swift` | `FeedCardBuilder` | `buildStaleReminderForLinkedInBeyondThreshold` |
+| `FeedCardBuilderTests.swift` | `FeedCardBuilder` | `buildNoStaleReminderForLinkedInWithinThreshold` |
+| `FeedCardBuilderTests.swift` | `FeedCardBuilder` | `buildAmazonStaleAfter30Days` |
+| `FeedCardBuilderTests.swift` | `FeedCardBuilder` | `buildNoStaleReminderForNonFileExportPlatform` |
+| `SidebarTests.swift` | `Sidebar` | `feedCaseExistsInAllCases` |
+| `SidebarTests.swift` | `Sidebar` | `feedPositionedBetweenRunAndDashboard` |
+
+---
+
+## What is explicitly out of scope
+
+- **UI tests** — no UI tests are added or modified. The three issues are all
+  testable at the unit layer:
+  - #20: string values on `FeedCardType` — unit test.
+  - #21: pure refactor — compilation + existing unit tests.
+  - #22: ViewModel contract + FeedView condition — unit test for the contract;
+    the view-layer change is a one-line fix whose correctness is implicit in
+    the ViewModel contract.
+- **`FeedDatabaseTests`** — schema and query tests from the original Feed build.
+  These are not modified; they must remain green but are not the focus.
+- **All non-Feed tests** — the full baseline (`DatabaseMigrationTests`,
+  `CollectionEngineTests`, all collector tests, etc.) must remain green but are
+  not addressed here.
