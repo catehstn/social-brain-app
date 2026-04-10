@@ -52,6 +52,14 @@ struct DashboardView: View {
             .frame(maxWidth: 340)
 
             Spacer()
+
+            Button {
+                Task { await viewModel.load() }
+            } label: {
+                Label("Refresh", systemImage: "arrow.clockwise")
+            }
+            .help("Refresh dashboard data")
+            .disabled(viewModel.isLoading)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

@@ -32,6 +32,17 @@ struct HistoryView: View {
         }
         .task { await viewModel.load() }
         .navigationTitle("History")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    Task { await viewModel.load() }
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+                .help("Refresh history")
+                .disabled(viewModel.isLoading)
+            }
+        }
     }
 
     private var runList: some View {
@@ -39,6 +50,7 @@ struct HistoryView: View {
             runRow(run)
         }
         .listStyle(.inset)
+        .refreshable { await viewModel.load() }
     }
 
     private func runRow(_ run: CollectionRun) -> some View {
