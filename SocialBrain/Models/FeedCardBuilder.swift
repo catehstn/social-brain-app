@@ -24,9 +24,28 @@ struct FeedCardBuilder {
     // need spurious `try` and tests don't need `throws`.
     static func build(
         snapshots: [Platform: PlatformSnapshot],
+        previousSnapshots: [Platform: PlatformSnapshot] = [:],
         now: Date = Date()
     ) -> [FeedCard] {
         var cards: [FeedCard] = []
+
+        // 0. Spike alerts (highest priority after stale — notable changes need attention)
+        let detector = SpikeDetector()
+        for platform in Platform.allCases {
+            guard let current = snapshots[platform],
+                  let previous = previousSnapshots[platform]
+            else { continue }
+            let alerts = detector.detect(current: current, previous: previous)
+            // Show the top spike (highest magnitude) per platform to avoid noise.
+            if let top = alerts.first {
+                cards.append(FeedCard(
+                    platform: platform,
+                    cardType: .spikeAlert,
+                    snippet: top.summary,
+                    navigationTarget: platform
+                ))
+            }
+        }
 
         // 1. Stale reminders (highest priority — user needs to act)
         for platform in [Platform.linkedin, .substack, .amazon, .oreilly] {

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		03E57B365A3F826FDCAB8124 /* SpikeDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC45E6B188F3C9F6832156DD /* SpikeDetectorTests.swift */; };
 		0429FAD4A909F7C28D4A05FE /* AppDatabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C010F1ED965D1458B4430A8 /* AppDatabase.swift */; };
 		049BD8642DBF39AFE6BEA7C2 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 8FD1535BDA3E5C8AE0DD0037 /* GRDB */; };
 		04AE74C022E59A098F26F6E6 /* DatabaseProxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C64DED2123B759BE515409F /* DatabaseProxy.swift */; };
@@ -37,6 +38,7 @@
 		43AC685C4C18C35DD44B66C7 /* FeedCardType.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B539D92D98ECFBF5B56077 /* FeedCardType.swift */; };
 		447B075F2FC34BAC77627E6F /* SocialBrainApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC44EC6EF398FFC22CB3058 /* SocialBrainApp.swift */; };
 		494C0A95A67C0967ACDDC47A /* PlatformSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15440D67BA5E83700B165BF /* PlatformSnapshot.swift */; };
+		4B3B0247EAB8D14FA17317E3 /* SpikeDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209D38A7438EFED51026AFD6 /* SpikeDetector.swift */; };
 		4DCF8F8574D64F757C791756 /* NotificationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D3D458C2796763AC8AFCC88 /* NotificationManager.swift */; };
 		4EF0F2DF63AE15DF7F91C6EE /* PromptAssembler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03FE43F9DB323E4D268EBE00 /* PromptAssembler.swift */; };
 		4F0487B2E118A141EF3F347B /* OReillyImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 90650275C1573C7BE32CD277 /* OReillyImporter.swift */; };
@@ -47,6 +49,7 @@
 		5A3BC438A6E27326D77E94DA /* FeedViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E3F715FA10EB4303470093 /* FeedViewModelTests.swift */; };
 		5A99A8B940BC0017AAEE4C64 /* PromptAssembler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03FE43F9DB323E4D268EBE00 /* PromptAssembler.swift */; };
 		5BC53C3A55E90CC0B3E2C15C /* PlatformData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AD4BFD9258E2AC05FFEEDC7 /* PlatformData.swift */; };
+		5BE99A04F65A7E8A63897A50 /* SpikeDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209D38A7438EFED51026AFD6 /* SpikeDetector.swift */; };
 		5C1133EE3A2E792668F3404E /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 5D867DFA6AB75283DC57C0D7 /* GRDB */; };
 		5C18DFF0CD1A386ACA251EFF /* SubstackImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D2C781BEE3E368AAD52A071 /* SubstackImporter.swift */; };
 		5C7C564E792CA1DD24E881AC /* CalendlyCollectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF6E210799137F03E23C4EC6 /* CalendlyCollectorTests.swift */; };
@@ -86,6 +89,7 @@
 		A879B36DBDF0D0A9BAFDEF1E /* Credentials.swift in Sources */ = {isa = PBXBuildFile; fileRef = F096536B15841BEC5AC9F868 /* Credentials.swift */; };
 		A8CD2064A0E8BA9E95C2C4AC /* ButtondownCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 801F1E9ADC1711F447E9F944 /* ButtondownCollector.swift */; };
 		A97F0568846BF3C7E478F5E5 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AA5FEEB657E076A0A25BF49 /* HistoryView.swift */; };
+		AAB8502F1F7DC7636BBA245E /* SpikeDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209D38A7438EFED51026AFD6 /* SpikeDetector.swift */; };
 		AAE2FDB0F8F11DF0DEDDCA27 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 47FE343FE9EFD6938AFCB7EA /* GRDB */; };
 		ADCDCEAE0B09B600B6C18932 /* FeedCardBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACC5336B194C9D8D25CABB52 /* FeedCardBuilder.swift */; };
 		B29F8E575E37C3A0B5B3B59A /* CollectionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 859D5802079DEAF815EA07E2 /* CollectionEngine.swift */; };
@@ -141,6 +145,7 @@
 		1B2C0D11CC10BC41011D7105 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		1B63D76C0BF2AC6095ABE3CD /* MastodonCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonCollector.swift; sourceTree = "<group>"; };
 		1CA3670FAFF76AEA37623FCB /* BackgroundRefreshScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundRefreshScheduler.swift; sourceTree = "<group>"; };
+		209D38A7438EFED51026AFD6 /* SpikeDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeDetector.swift; sourceTree = "<group>"; };
 		2128E07069D06A4F85D58B9B /* VercelCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VercelCollector.swift; sourceTree = "<group>"; };
 		233B30A951BEC219E0C67B33 /* JetpackCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JetpackCollector.swift; sourceTree = "<group>"; };
 		2642A06D185075AAA0FB3642 /* FeedCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedCardView.swift; sourceTree = "<group>"; };
@@ -207,6 +212,7 @@
 		F47A8E8E119F792F87DE78BB /* GoatCounterCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoatCounterCollectorTests.swift; sourceTree = "<group>"; };
 		FA2BAEB2923B9E65E8E39568 /* ButtondownCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButtondownCollectorTests.swift; sourceTree = "<group>"; };
 		FAAAC8C465952D5111BCE709 /* LinkedInImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedInImporterTests.swift; sourceTree = "<group>"; };
+		FC45E6B188F3C9F6832156DD /* SpikeDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeDetectorTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -275,6 +281,7 @@
 				6627A9F277A9FD7656876707 /* FeedPlatformData.swift */,
 				F284E6CCC2F1782721703DDE /* Platform.swift */,
 				1AD4BFD9258E2AC05FFEEDC7 /* PlatformData.swift */,
+				209D38A7438EFED51026AFD6 /* SpikeDetector.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -433,6 +440,7 @@
 				0036309E5766E343407C85AF /* PromptAssemblerTests.swift */,
 				623DE38C88FED64C2371FD12 /* SidebarTests.swift */,
 				F38A28EA239666AB10ACAEA3 /* SocialBrainTests.swift */,
+				FC45E6B188F3C9F6832156DD /* SpikeDetectorTests.swift */,
 				D2505C743A6696B343E4774E /* SubstackImporterTests.swift */,
 				887C88E6C71E01161679B3B2 /* VercelCollectorTests.swift */,
 			);
@@ -670,6 +678,7 @@
 				FE73EF34479538693A17F1E0 /* PlatformData.swift in Sources */,
 				DF829342CFFF4EB6C8013A52 /* PlatformSnapshot.swift in Sources */,
 				B7516FE4B095CE2FAC39EDA5 /* PromptAssembler.swift in Sources */,
+				5BE99A04F65A7E8A63897A50 /* SpikeDetector.swift in Sources */,
 				3BE3EE7F02A0003998778B4C /* main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -706,6 +715,7 @@
 				D49FB081330A71807BE4D981 /* PromptAssemblerTests.swift in Sources */,
 				201DD632FD1D2D7811D799F0 /* SidebarTests.swift in Sources */,
 				A34D99688ABEC06792FD7CDD /* SocialBrainTests.swift in Sources */,
+				03E57B365A3F826FDCAB8124 /* SpikeDetectorTests.swift in Sources */,
 				07EB2774970E7FDB3EAC6E83 /* SubstackImporterTests.swift in Sources */,
 				9354A382ADCA63501A491527 /* VercelCollectorTests.swift in Sources */,
 			);
@@ -758,6 +768,7 @@
 				2AA7A263FEB665A1D2EB9D5E /* SettingsView.swift in Sources */,
 				547445EE2C995915742EAA66 /* SidebarItem.swift in Sources */,
 				447B075F2FC34BAC77627E6F /* SocialBrainApp.swift in Sources */,
+				AAB8502F1F7DC7636BBA245E /* SpikeDetector.swift in Sources */,
 				5C18DFF0CD1A386ACA251EFF /* SubstackImporter.swift in Sources */,
 				85D3921C27997386AF05423D /* VercelCollector.swift in Sources */,
 			);
@@ -781,6 +792,7 @@
 				5BC53C3A55E90CC0B3E2C15C /* PlatformData.swift in Sources */,
 				0C0F0926A94052DEEA537005 /* PlatformSnapshot.swift in Sources */,
 				4EF0F2DF63AE15DF7F91C6EE /* PromptAssembler.swift in Sources */,
+				4B3B0247EAB8D14FA17317E3 /* SpikeDetector.swift in Sources */,
 				2C334ECE9CFE1B4D9F203CAD /* main.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -73,6 +73,40 @@ actor NotificationManager {
             .removePendingNotificationRequests(withIdentifiers: [notificationID(for: platform)])
     }
 
+    // MARK: - Spike alerts
+
+    /// Posts an immediate notification summarising spike alerts from a collection run.
+    ///
+    /// - Parameter alerts: The spike alerts to report. Does nothing when the array is empty.
+    func sendSpikeAlerts(_ alerts: [SpikeAlert]) async {
+        guard !alerts.isEmpty else { return }
+        let settings = await UNUserNotificationCenter.current().notificationSettings()
+        guard settings.authorizationStatus == .authorized else { return }
+
+        let content = UNMutableNotificationContent()
+        if alerts.count == 1 {
+            content.title = "Metric spike detected"
+            content.body = alerts[0].summary
+        } else {
+            content.title = "\(alerts.count) metric spikes detected"
+            let lines = alerts.prefix(3).map { "• \($0.summary)" }.joined(separator: "\n")
+            content.body = lines
+        }
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: "spike-alert-\(UUID().uuidString)",
+            content: content,
+            trigger: nil  // deliver immediately
+        )
+
+        do {
+            try await UNUserNotificationCenter.current().add(request)
+        } catch {
+            print("[NotificationManager] Could not send spike alert: \(error)")
+        }
+    }
+
     // MARK: - Private
 
     private func notificationID(for platform: Platform) -> String {
