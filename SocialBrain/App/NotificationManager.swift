@@ -19,12 +19,11 @@ actor NotificationManager {
 
     // MARK: - Stale-export reminders
 
-    private static let staleThresholdDays = 30
-
     /// Schedules (or re-schedules) a stale-export reminder for the given platform.
     ///
-    /// The notification fires `staleThresholdDays` after `lastImportDate`.
-    /// If that date has already passed, a notification fires immediately (after a
+    /// Uses the same per-platform thresholds as `StalenessThreshold` in FeedCardBuilder:
+    /// LinkedIn and Substack fire after 3 days; Amazon KDP and O'Reilly after 30 days.
+    /// If the stale date has already passed, a notification fires immediately (after a
     /// short delay so the app has finished launching).
     ///
     /// - Parameters:
@@ -34,18 +33,17 @@ actor NotificationManager {
         let settings = await UNUserNotificationCenter.current().notificationSettings()
         guard settings.authorizationStatus == .authorized else { return }
 
-        let staleDate = Calendar.current.date(
-            byAdding: .day,
-            value: Self.staleThresholdDays,
-            to: lastImportDate
-        ) ?? lastImportDate
+        let thresholdSeconds = StalenessThreshold.threshold(for: platform) ?? (30 * 24 * 3600)
+        let thresholdDays = Int(thresholdSeconds / 86400)
+
+        let staleDate = lastImportDate.addingTimeInterval(thresholdSeconds)
 
         // If already stale, fire after a short delay to avoid interrupting launch.
         let fireDate = max(staleDate, Date(timeIntervalSinceNow: 5))
 
         let content = UNMutableNotificationContent()
         content.title = "Time to update your \(platform.displayName) data"
-        content.body = "It's been over \(Self.staleThresholdDays) days since your last \(platform.displayName) export. Open Social Brain and import fresh data for an accurate analysis."
+        content.body = "It's been over \(thresholdDays) days since your last \(platform.displayName) export. Open Social Brain and import fresh data for an accurate analysis."
         content.sound = .default
 
         let comps = Calendar.current.dateComponents(
