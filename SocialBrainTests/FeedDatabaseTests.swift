@@ -116,4 +116,25 @@ struct FeedDatabaseTests {
         let decoded = try JSONDecoder().decode(BlueskyData.self, from: data)
         #expect(decoded.latestPostText == "test")
     }
+
+    // MARK: - Suite 10.3 — DashboardViewModel uses instanceName
+
+    @Test("DashboardViewModel.load() produces non-empty series from matching (platform, instanceName) data")
+    @MainActor
+    func dashboardViewModelUsesInstanceName() async throws {
+        let db = try makeDB()
+        let runID = try await makeRun(in: db)
+
+        let metrics: [String: MetricValue] = ["followers_count": .int(1500)]
+        let data = PlatformData(platform: .mastodon, instanceName: "work", metrics: metrics)
+        var snap = try PlatformSnapshot(runID: runID, data: data)
+        try await db.saveSnapshot(&snap)
+
+        let instance = PlatformInstance(platform: .mastodon, instanceName: "work")
+        let vm = DashboardViewModel(database: db, initialInstance: instance)
+        vm.timeRange = .all
+        await vm.load()
+
+        #expect(!vm.series.isEmpty)
+    }
 }

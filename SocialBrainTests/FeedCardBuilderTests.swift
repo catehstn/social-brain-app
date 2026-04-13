@@ -102,4 +102,77 @@ struct FeedCardBuilderTests {
         let cards = FeedCardBuilder.build(snapshots: snapshots, now: fixedNow)
         #expect(!cards.contains { $0.platform == .mastodon && $0.cardType == .staleReminder })
     }
+
+    @Test("spike alert card for non-default instance carries correct instanceName")
+    func spikeAlertForNonDefaultInstance() throws {
+        let workInstance = PlatformInstance(platform: .mastodon, instanceName: "work")
+        // Use [String: MetricValue] encoding so SpikeDetector can decode via decodedMetrics()
+        let prevMetrics: [String: MetricValue] = ["followers_count": .int(1000)]
+        let currMetrics: [String: MetricValue] = ["followers_count": .int(1500)] // +50% spike
+        let prevPayload = try JSONEncoder().encode(prevMetrics)
+        let currPayload = try JSONEncoder().encode(currMetrics)
+        let prev = PlatformSnapshot(runID: 1, platform: "mastodon",
+                                    instanceName: "work", collectedAt: fixedNow.addingTimeInterval(-3600),
+                                    metricsJSON: prevPayload)
+        let curr = PlatformSnapshot(runID: 2, platform: "mastodon",
+                                    instanceName: "work", collectedAt: fixedNow,
+                                    metricsJSON: currPayload)
+        let cards = FeedCardBuilder.build(
+            snapshots: [workInstance: curr],
+            previousSnapshots: [workInstance: prev],
+            now: fixedNow
+        )
+        let spikeCard = cards.first { $0.cardType == .spikeAlert && $0.platform == .mastodon }
+        #expect(spikeCard != nil)
+        #expect(spikeCard?.instanceName == "work")
+    }
+
+    @Test("stale reminder for file-export platform with non-default instanceName uses default lookup")
+    func staleReminderForNonDefaultInstance() throws {
+        // FeedCardBuilder stale reminders use the default instance key for file-export platforms.
+        // A non-default instance in the DB does not satisfy the stale check for the default key,
+        // so the default-instance stale reminder fires.
+        let nonDefaultInstance = PlatformInstance(platform: .linkedin, instanceName: "company")
+        let freshDate = fixedNow.addingTimeInterval(-(1 * 24 * 3600))
+        let payload = try JSONEncoder().encode(LinkedInData(latestPostText: "post", totalImpressions: 10))
+        let snap = PlatformSnapshot(runID: 1, platform: "linkedin",
+                                    instanceName: "company", collectedAt: freshDate,
+                                    metricsJSON: payload)
+        // Only the non-default instance is in snapshots — default key is absent
+        let cards = FeedCardBuilder.build(snapshots: [nonDefaultInstance: snap], now: fixedNow)
+        // Because the default key is missing, a stale reminder is still produced
+        #expect(cards.contains { $0.platform == .linkedin && $0.cardType == .staleReminder })
+    }
+
+    @Test("FeedCard has instanceName property defaulting to 'default'")
+    func feedCardHasInstanceName() {
+        let card = FeedCard(
+            platform: .mastodon,
+            cardType: .recentPost,
+            snippet: "Hello",
+            navigationTarget: .mastodon
+        )
+        #expect(card.instanceName == "default")
+        let namedCard = FeedCard(
+            platform: .mastodon,
+            instanceName: "personal",
+            cardType: .recentPost,
+            snippet: "Hello",
+            navigationTarget: .mastodon
+        )
+        #expect(namedCard.instanceName == "personal")
+    }
+
+    @Test("HighReachDetector accepts PlatformInstance keys and produces same results for default instances")
+    func highReachDetectorAcceptsInstanceKeys() throws {
+        let snap = try {
+            let data = PlatformData(platform: .buttondown,
+                                    metrics: ["avg_open_rate": .double(0.55)])
+            return try PlatformSnapshot(runID: 1, data: data)
+        }()
+        let defaultInstance = PlatformInstance(platform: .buttondown)
+        let items = HighReachDetector().detect(snapshots: [defaultInstance: snap])
+        #expect(items.count == 1)
+        #expect(items[0].platform == .buttondown)
+    }
 }

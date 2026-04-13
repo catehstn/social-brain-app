@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import SocialBrain
 
-@Suite("InstanceRegistry Tests")
+@Suite("InstanceRegistry Tests", .serialized)
 struct InstanceRegistryTests {
 
     private let suiteName = "com.test.InstanceRegistryTests"

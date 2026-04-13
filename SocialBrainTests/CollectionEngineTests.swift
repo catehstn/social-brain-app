@@ -163,6 +163,42 @@ struct CollectionEngineTests {
         #expect(runs.count == 1)
         #expect(runs[0].completedAt != nil)
     }
+
+    @Test("Two collectors for same platform with different instanceNames each save a snapshot")
+    func multiInstanceCollectorsRunAndSave() async throws {
+        let db = try makeDB()
+        let engine = CollectionEngine(database: db)
+
+        let collectors: [any Collector] = [
+            StubCollector(
+                platform: .mastodon,
+                instanceName: "personal",
+                result: .success(PlatformData(
+                    platform: .mastodon,
+                    instanceName: "personal",
+                    metrics: ["followers_count": .int(100)]
+                ))
+            ),
+            StubCollector(
+                platform: .mastodon,
+                instanceName: "work",
+                result: .success(PlatformData(
+                    platform: .mastodon,
+                    instanceName: "work",
+                    metrics: ["followers_count": .int(500)]
+                ))
+            )
+        ]
+
+        let summary = try await engine.run(collectors: collectors, credentials: makeCredentials())
+        #expect(summary.successCount == 2)
+        #expect(summary.errorCount == 0)
+
+        let snapshots = try await db.snapshots(forRunID: summary.runID)
+        #expect(snapshots.count == 2)
+        let instanceNames = Set(snapshots.map(\.instanceName))
+        #expect(instanceNames == ["personal", "work"])
+    }
 }
 
 // MARK: - Helpers

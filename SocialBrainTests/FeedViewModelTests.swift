@@ -114,4 +114,48 @@ struct FeedViewModelTests {
         let card = vm.cards.first { $0.platform == .mastodon }
         #expect(card?.navigationTarget == .mastodon)
     }
+
+    // MARK: - Suite 10 multi-instance tests
+
+    @Test("FeedViewModel.load() with default-instance-only DB produces non-empty card list")
+    func feedViewModelLoadsDefaultInstances() async throws {
+        let db = try makeDB()
+        let runID = try await makeRun(in: db)
+        let payload = try JSONEncoder().encode(MastodonData(
+            latestPostText: "default post", followersCount: 100, engagementRate: 0.05))
+        var snap = PlatformSnapshot(runID: runID, platform: "mastodon",
+                                    instanceName: "default", collectedAt: Date(),
+                                    metricsJSON: payload)
+        try await db.saveSnapshot(&snap)
+
+        let vm = FeedViewModel(database: db)
+        await vm.load()
+
+        #expect(!vm.cards.isEmpty)
+        #expect(vm.error == nil)
+    }
+
+    @Test("FeedViewModel.load() with two mastodon instances produces feed cards for both")
+    func feedViewModelLoadsMultipleInstancesForSamePlatform() async throws {
+        let db = try makeDB()
+        let runID = try await makeRun(in: db)
+        let personalPayload = try JSONEncoder().encode(MastodonData(
+            latestPostText: "personal post", followersCount: 100, engagementRate: 0.05))
+        let workPayload = try JSONEncoder().encode(MastodonData(
+            latestPostText: "work post", followersCount: 500, engagementRate: 0.08))
+        var snap1 = PlatformSnapshot(runID: runID, platform: "mastodon",
+                                     instanceName: "personal", collectedAt: Date(),
+                                     metricsJSON: personalPayload)
+        var snap2 = PlatformSnapshot(runID: runID, platform: "mastodon",
+                                     instanceName: "work", collectedAt: Date(),
+                                     metricsJSON: workPayload)
+        try await db.saveSnapshot(&snap1)
+        try await db.saveSnapshot(&snap2)
+
+        let vm = FeedViewModel(database: db)
+        await vm.load()
+
+        let mastodonCards = vm.cards.filter { $0.platform == .mastodon }
+        #expect(mastodonCards.count >= 2)
+    }
 }
