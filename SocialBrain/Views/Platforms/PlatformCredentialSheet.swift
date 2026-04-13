@@ -58,8 +58,8 @@ struct PlatformCredentialSheet: View {
         switch platform {
         case .buttondown:
             field("API Key", key: "api_key", secure: true,
-                  help: "Find it at buttondown.com/settings/api",
-                  helpURL: URL(string: "https://buttondown.com/settings/api"))
+                  help: "Find it at buttondown.com/keys",
+                  helpURL: URL(string: "https://buttondown.com/keys"))
 
         case .goatCounter:
             field("API Key", key: "api_key", secure: true,
@@ -114,8 +114,8 @@ struct PlatformCredentialSheet: View {
 
         case .buffer:
             field("Access Token", key: "api_key", secure: true,
-                  help: "Create one at buffer.com/account/apps",
-                  helpURL: URL(string: "https://buffer.com/account/apps"))
+                  help: "Create one at buffer.com/developers/api",
+                  helpURL: URL(string: "https://buffer.com/developers/api"))
 
         case .hackerNews:
             field("Domain to Track", key: "site_code",

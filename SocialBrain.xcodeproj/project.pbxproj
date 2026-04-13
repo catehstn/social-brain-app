@@ -75,6 +75,7 @@
 		A1ACFFDF551C6795BF672E31 /* PlatformInstance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DFC93798463FDD37AEEFC8B /* PlatformInstance.swift */; };
 		A288B9F3512C0901C0DC95D4 /* PlatformsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 62075DC99894FAA00E9BF328 /* PlatformsView.swift */; };
 		A34D99688ABEC06792FD7CDD /* SocialBrainTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F38A28EA239666AB10ACAEA3 /* SocialBrainTests.swift */; };
+		C7F92D3909E9417D83F26F1E /* SetupURLTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F6E063BCBBC7C7F52088400 /* SetupURLTests.swift */; };
 		A8CD2064A0E8BA9E95C2C4AC /* ButtondownCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 801F1E9ADC1711F447E9F944 /* ButtondownCollector.swift */; };
 		A97F0568846BF3C7E478F5E5 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AA5FEEB657E076A0A25BF49 /* HistoryView.swift */; };
 		AAB8502F1F7DC7636BBA245E /* SpikeDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209D38A7438EFED51026AFD6 /* SpikeDetector.swift */; };
@@ -204,6 +205,7 @@
 		F096536B15841BEC5AC9F868 /* Credentials.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Credentials.swift; sourceTree = "<group>"; };
 		F284E6CCC2F1782721703DDE /* Platform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Platform.swift; sourceTree = "<group>"; };
 		F38A28EA239666AB10ACAEA3 /* SocialBrainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialBrainTests.swift; sourceTree = "<group>"; };
+		1F6E063BCBBC7C7F52088400 /* SetupURLTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupURLTests.swift; sourceTree = "<group>"; };
 		F47A8E8E119F792F87DE78BB /* GoatCounterCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoatCounterCollectorTests.swift; sourceTree = "<group>"; };
 		FA2BAEB2923B9E65E8E39568 /* ButtondownCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButtondownCollectorTests.swift; sourceTree = "<group>"; };
 		FAAAC8C465952D5111BCE709 /* LinkedInImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedInImporterTests.swift; sourceTree = "<group>"; };
@@ -419,6 +421,7 @@
 				0036309E5766E343407C85AF /* PromptAssemblerTests.swift */,
 				623DE38C88FED64C2371FD12 /* SidebarTests.swift */,
 				F38A28EA239666AB10ACAEA3 /* SocialBrainTests.swift */,
+				1F6E063BCBBC7C7F52088400 /* SetupURLTests.swift */,
 				FC45E6B188F3C9F6832156DD /* SpikeDetectorTests.swift */,
 				D2505C743A6696B343E4774E /* SubstackImporterTests.swift */,
 				887C88E6C71E01161679B3B2 /* VercelCollectorTests.swift */,
@@ -650,6 +653,7 @@
 				D49FB081330A71807BE4D981 /* PromptAssemblerTests.swift in Sources */,
 				201DD632FD1D2D7811D799F0 /* SidebarTests.swift in Sources */,
 				A34D99688ABEC06792FD7CDD /* SocialBrainTests.swift in Sources */,
+				C7F92D3909E9417D83F26F1E /* SetupURLTests.swift in Sources */,
 				03E57B365A3F826FDCAB8124 /* SpikeDetectorTests.swift in Sources */,
 				07EB2774970E7FDB3EAC6E83 /* SubstackImporterTests.swift in Sources */,
 				9354A382ADCA63501A491527 /* VercelCollectorTests.swift in Sources */,
