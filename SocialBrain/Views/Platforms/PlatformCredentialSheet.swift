@@ -57,17 +57,20 @@ struct PlatformCredentialSheet: View {
     private var platformFields: some View {
         switch platform {
         case .buttondown:
+            permissionsNote("Permissions needed: full account access (key has no scope restrictions)")
             field("API Key", key: "api_key", secure: true,
                   help: "Find it at buttondown.com/keys",
                   helpURL: URL(string: "https://buttondown.com/keys"))
 
         case .goatCounter:
+            permissionsNote("Permissions needed: Read access")
             field("API Key", key: "api_key", secure: true,
-                  help: "Find it in your GoatCounter account settings")
+                  help: "Settings → API tokens — enable Read access")
             field("Site Code", key: "site_code",
                   help: "Your GoatCounter subdomain — e.g. \"mysite\" from mysite.goatcounter.com")
 
         case .vercel:
+            permissionsNote("Permissions needed: full account access (tokens have no scope restrictions)")
             field("Personal Access Token", key: "api_key", secure: true,
                   help: "Create one at vercel.com/account/tokens",
                   helpURL: URL(string: "https://vercel.com/account/tokens"))
@@ -77,17 +80,20 @@ struct PlatformCredentialSheet: View {
                   help: "Required only if the project belongs to a team")
 
         case .calendly:
+            permissionsNote("Permissions needed: full account access (tokens have no scope restrictions)")
             field("Personal Access Token", key: "api_key", secure: true,
                   help: "Create one at calendly.com/integrations/api_webhooks",
                   helpURL: URL(string: "https://calendly.com/integrations/api_webhooks"))
 
         case .mastodon:
+            permissionsNote("Permissions needed: read (grants access to profile and posts)")
             field("Instance URL", key: "instance_url",
                   help: "The base URL of your instance — e.g. https://mastodon.social")
             field("Access Token", key: "access_token", secure: true,
-                  help: "Create one in your instance's Settings → Development → New application")
+                  help: "Settings → Development → New application — enable the read scope")
 
         case .bluesky:
+            permissionsNote("Permissions needed: full access (app passwords have no scope restrictions)")
             field("Handle", key: "username",
                   help: "Your Bluesky handle — e.g. alice.bsky.social")
             field("App Password", key: "password", secure: true,
@@ -95,31 +101,35 @@ struct PlatformCredentialSheet: View {
                   helpURL: URL(string: "https://bsky.app/settings/app-passwords"))
 
         case .jetpack:
+            permissionsNote("Permissions needed: global scope (required to read stats)")
             field("WordPress.com Access Token", key: "access_token", secure: true,
-                  help: "Create one at developer.wordpress.com/apps/ — use the 'Test Application' flow",
+                  help: "Create one at developer.wordpress.com/apps/ — use the Test Application flow, request global scope",
                   helpURL: URL(string: "https://developer.wordpress.com/apps/"))
             field("Site ID or Domain", key: "site_code",
                   help: "Your WordPress.com site ID (numeric) or domain — e.g. 12345678 or myblog.wordpress.com")
 
         case .googleSearchConsole:
+            permissionsNote("Permissions needed: https://www.googleapis.com/auth/webmasters.readonly")
             field("Client ID", key: "client_id", secure: true,
                   help: "Create OAuth credentials at console.cloud.google.com → APIs & Services → Credentials",
                   helpURL: URL(string: "https://console.cloud.google.com/apis/credentials"))
             field("Client Secret", key: "client_secret", secure: true)
             field("Refresh Token", key: "refresh_token", secure: true,
-                  help: "Get one via OAuth 2.0 Playground (select webmasters.readonly scope)",
+                  help: "Get one via OAuth 2.0 Playground — select the webmasters.readonly scope",
                   helpURL: URL(string: "https://developers.google.com/oauthplayground/"))
             field("Site URL", key: "site_url",
                   help: "Exactly as shown in Search Console — e.g. https://example.com/ or sc-domain:example.com")
 
         case .buffer:
+            permissionsNote("Permissions needed: read access to profiles and sent updates")
             field("Access Token", key: "api_key", secure: true,
                   help: "Create one at buffer.com/developers/api",
                   helpURL: URL(string: "https://buffer.com/developers/api"))
 
         case .hackerNews:
+            permissionsNote("No authentication required — uses the public Algolia HN Search API")
             field("Domain to Track", key: "site_code",
-                  help: "Your domain — e.g. example.com (searches HN for mentions via Algolia, no auth needed)")
+                  help: "Your domain — e.g. example.com")
 
         case .amazon:
             importSection(
@@ -195,6 +205,13 @@ struct PlatformCredentialSheet: View {
             }
             .buttonStyle(.borderedProminent)
         }
+    }
+
+    private func permissionsNote(_ text: String) -> some View {
+        Label(text, systemImage: "lock.shield")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .padding(.bottom, 4)
     }
 
     private func field(
