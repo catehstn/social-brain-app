@@ -16,24 +16,34 @@ struct MultiInstanceDatabaseTests {
         }
     }
 
-    @Test("Old rows get default instanceName 'default' after migration")
+    @Test("Old rows get default instanceName 'default' from SQL DEFAULT constraint")
     func defaultInstanceNameOnOldRows() async throws {
-        // In-memory DB always runs all migrations; rows inserted via PlatformData will have
-        // instanceName == "default" since that's the column default and the init default.
+        // Exercise the column DEFAULT constraint directly: insert a row via raw SQL that
+        // omits the instanceName column, simulating a pre-v2 row being read back after
+        // the migration added DEFAULT 'default'.
         let db = try AppDatabase.makeInMemory()
         var run = CollectionRun(id: nil, startedAt: Date(timeIntervalSinceReferenceDate: 700_000_000),
                                 completedAt: nil, platformCount: 1, errorCount: 0)
         try await db.saveRun(&run)
         let runID = try #require(run.id)
 
-        // Insert without explicit instanceName (defaults to "default")
-        let data = PlatformData(platform: .mastodon, collectedAt: Date(timeIntervalSinceReferenceDate: 700_000_000),
-                                metrics: [:])
-        var snap = try PlatformSnapshot(runID: runID, data: data)
-        try await db.saveSnapshot(&snap)
+        // Insert via raw SQL without the instanceName column — the DEFAULT 'default' fills it in.
+        let metricsJSON = try JSONEncoder().encode([:] as [String: MetricValue])
+        let metricsBase64 = metricsJSON.base64EncodedString()
+        try await db.dbWriter.write { conn in
+            try conn.execute(
+                sql: """
+                INSERT INTO platformSnapshot (runID, platform, collectedAt, metricsJSON)
+                VALUES (?, 'mastodon', '2022-03-01T00:00:00.000', ?)
+                """,
+                arguments: [runID, metricsJSON]
+            )
+        }
 
         let snapshots = try await db.snapshots(forRunID: runID)
+        #expect(snapshots.count == 1)
         #expect(snapshots[0].instanceName == "default")
+        _ = metricsBase64  // suppress unused warning
     }
 
     @Test("latestSnapshot scopes to instanceName")

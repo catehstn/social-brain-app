@@ -140,8 +140,11 @@ struct FeedCardBuilderTests {
                                     metricsJSON: payload)
         // Only the non-default instance is in snapshots — default key is absent
         let cards = FeedCardBuilder.build(snapshots: [nonDefaultInstance: snap], now: fixedNow)
-        // Because the default key is missing, a stale reminder is still produced
-        #expect(cards.contains { $0.platform == .linkedin && $0.cardType == .staleReminder })
+        // Because the default key is missing, a stale reminder is produced for the default slot.
+        // Stale reminders are emitted for the default instance → instanceName == "default".
+        let staleCard = cards.first { $0.platform == .linkedin && $0.cardType == .staleReminder }
+        #expect(staleCard != nil)
+        #expect(staleCard?.instanceName == "default")
     }
 
     @Test("FeedCard has instanceName property defaulting to 'default'")

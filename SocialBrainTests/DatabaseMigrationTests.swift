@@ -184,4 +184,38 @@ struct DatabaseMigrationTests {
         let remaining = try await db.snapshots(forRunID: runID)
         #expect(remaining.isEmpty)
     }
+
+    // MARK: - Suite 6 regression tests (added with v2 migration)
+
+    @Test("PlatformSnapshot init from PlatformData without instanceName defaults to 'default'")
+    func snapshotInitFromPlatformDataDefaultsInstanceName() async throws {
+        // PlatformData has instanceName defaulting to "default"; verify the snapshot inherits it.
+        let data = PlatformData(platform: .mastodon, metrics: ["followers_count": .int(42)])
+        let snap = try PlatformSnapshot(runID: 1, data: data)
+        #expect(snap.instanceName == "default")
+    }
+
+    @Test("latestSnapshot(for:) one-arg form still works after v2 migration")
+    func latestSnapshotDefaultOverloadUnchanged() async throws {
+        // Existing callers using latestSnapshot(for:) without instanceName must continue to compile
+        // and return the most recent snapshot for the default instance.
+        let db = try AppDatabase.makeInMemory()
+
+        var run = CollectionRun(id: nil, startedAt: Date(), completedAt: nil,
+                                platformCount: 1, errorCount: 0)
+        try await db.saveRun(&run)
+        let runID = try #require(run.id)
+
+        let data = PlatformData(platform: .bluesky,
+                                collectedAt: Date(),
+                                metrics: ["followers_count": .int(99)])
+        var snap = try PlatformSnapshot(runID: runID, data: data)
+        try await db.saveSnapshot(&snap)
+
+        // One-argument form (instanceName defaults to "default") must return a result
+        let latest = try await db.latestSnapshot(for: .bluesky)
+        #expect(latest != nil)
+        let metrics = try latest?.decodedMetrics()
+        #expect(metrics?["followers_count"] == .int(99))
+    }
 }
