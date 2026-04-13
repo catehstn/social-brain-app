@@ -43,8 +43,10 @@
 		605752A0BE34ADDD17FFB017 /* AmazonKDPImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72692C95DB62426B3BE05A6 /* AmazonKDPImporterTests.swift */; };
 		612EF2EA7D815191DCA3F6FE /* Platform.swift in Sources */ = {isa = PBXBuildFile; fileRef = F284E6CCC2F1782721703DDE /* Platform.swift */; };
 		66BC947276B7C0460FCA4EDA /* PlatformData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AD4BFD9258E2AC05FFEEDC7 /* PlatformData.swift */; };
+		671A13C339113B6931F39DCA /* GoalBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E51178C97A9FDB0FAB33FDA /* GoalBadgeView.swift */; };
 		6A3AA757B49ECEBBB8AE4A21 /* BlueskyCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AC1E6FBE27355FF4A5F9ED4 /* BlueskyCollector.swift */; };
 		6D3A626D844241244E88D4BD /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A290D89F7ADB49E8A7DA7195 /* KeychainStore.swift */; };
+		70C6E23BAA351CEA23FAEC57 /* AnalyticsGoal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 840582BE27DC387CB01C285B /* AnalyticsGoal.swift */; };
 		72347FDF4C2CF2A0B8EE3CF1 /* FeedCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1EB793400C8F96F1F83CBCF /* FeedCard.swift */; };
 		74FC3FB5DAC6B6C8ED1B2096 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = C910C8BD09C1A4DAB6CF84C4 /* GRDB */; };
 		75539B434DACB5C3EF7CD801 /* SocialBrainUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1A2B948DCADD6C6E537C09 /* SocialBrainUITests.swift */; };
@@ -78,6 +80,7 @@
 		D0B7E1CB362E7B0D86F692ED /* FeedCardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 821716C2695D99ECF3368D50 /* FeedCardViewModel.swift */; };
 		D49FB081330A71807BE4D981 /* PromptAssemblerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0036309E5766E343407C85AF /* PromptAssemblerTests.swift */; };
 		D6B785811F506594D8C129D6 /* FeedCardViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B015A26946841A23B6953364 /* FeedCardViewModelTests.swift */; };
+		D74BC1926DBB7BD3AE1707AB /* setup-guide.html in Resources */ = {isa = PBXBuildFile; fileRef = 91EEBFF4721EA1C96F99BD92 /* setup-guide.html */; };
 		EDD572851E77CF9321FEF9F9 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 653287EE2F473501A0D4EC29 /* DashboardView.swift */; };
 		EE4B5037B4534CA56F73D291 /* FeedCardBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18110278BC5F67DA7BFA424F /* FeedCardBuilderTests.swift */; };
 		EF6B4E4D6B44B9C02A8F32E5 /* FeedUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00CB5D85C4632224DD4F8EB8 /* FeedUITests.swift */; };
@@ -113,6 +116,7 @@
 		1B2C0D11CC10BC41011D7105 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		1B63D76C0BF2AC6095ABE3CD /* MastodonCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonCollector.swift; sourceTree = "<group>"; };
 		1CA3670FAFF76AEA37623FCB /* BackgroundRefreshScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundRefreshScheduler.swift; sourceTree = "<group>"; };
+		1E51178C97A9FDB0FAB33FDA /* GoalBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalBadgeView.swift; sourceTree = "<group>"; };
 		209D38A7438EFED51026AFD6 /* SpikeDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeDetector.swift; sourceTree = "<group>"; };
 		2128E07069D06A4F85D58B9B /* VercelCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VercelCollector.swift; sourceTree = "<group>"; };
 		233B30A951BEC219E0C67B33 /* JetpackCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JetpackCollector.swift; sourceTree = "<group>"; };
@@ -139,6 +143,7 @@
 		7C010F1ED965D1458B4430A8 /* AppDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDatabase.swift; sourceTree = "<group>"; };
 		801F1E9ADC1711F447E9F944 /* ButtondownCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButtondownCollector.swift; sourceTree = "<group>"; };
 		821716C2695D99ECF3368D50 /* FeedCardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedCardViewModel.swift; sourceTree = "<group>"; };
+		840582BE27DC387CB01C285B /* AnalyticsGoal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsGoal.swift; sourceTree = "<group>"; };
 		84D1612ABA549F0415EA4184 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
 		84DDBF32B4FAE2B22DCB45DE /* RunViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunViewModel.swift; sourceTree = "<group>"; };
 		859D5802079DEAF815EA07E2 /* CollectionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionEngine.swift; sourceTree = "<group>"; };
@@ -146,6 +151,7 @@
 		8D2C781BEE3E368AAD52A071 /* SubstackImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubstackImporter.swift; sourceTree = "<group>"; };
 		8EF7CDD83F7795AF4221844C /* LinkedInImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedInImporter.swift; sourceTree = "<group>"; };
 		90650275C1573C7BE32CD277 /* OReillyImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OReillyImporter.swift; sourceTree = "<group>"; };
+		91EEBFF4721EA1C96F99BD92 /* setup-guide.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "setup-guide.html"; sourceTree = "<group>"; };
 		9586342EA6BD306DA372AC3A /* PlatformsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformsViewModel.swift; sourceTree = "<group>"; };
 		9D72B5277A4EB60AACEB252E /* DatabaseMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseMigrationTests.swift; sourceTree = "<group>"; };
 		A0578C20F0D69DC239D837C5 /* MastodonCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonCollectorTests.swift; sourceTree = "<group>"; };
@@ -225,6 +231,7 @@
 		48C91AC045446C394F6C83C7 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				840582BE27DC387CB01C285B /* AnalyticsGoal.swift */,
 				F096536B15841BEC5AC9F868 /* Credentials.swift */,
 				A1EB793400C8F96F1F83CBCF /* FeedCard.swift */,
 				ACC5336B194C9D8D25CABB52 /* FeedCardBuilder.swift */,
@@ -306,6 +313,14 @@
 				AA0CC39E98D4B9C86FEAD4C6 /* SocialBrainUITests */,
 				B856B8C63E39CF7298B1F3EE /* Products */,
 			);
+			sourceTree = "<group>";
+		};
+		96920A82AF6692D26A6A9CF0 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				91EEBFF4721EA1C96F99BD92 /* setup-guide.html */,
+			);
+			path = Resources;
 			sourceTree = "<group>";
 		};
 		AA0CC39E98D4B9C86FEAD4C6 /* SocialBrainUITests */ = {
@@ -412,6 +427,7 @@
 				E2EDE5A49AE339730815A81B /* Keychain */,
 				48C91AC045446C394F6C83C7 /* Models */,
 				D47B90D3AD12E6E432235DF3 /* Prompt */,
+				96920A82AF6692D26A6A9CF0 /* Resources */,
 				72ACFC5E1C0E22C17ABCBC6B /* Views */,
 				513AE74E252C7EFD1834FFA3 /* Assets.xcassets */,
 				1B2C0D11CC10BC41011D7105 /* Info.plist */,
@@ -423,6 +439,7 @@
 		EB79BF1594698A758E3DB653 /* Sidebar */ = {
 			isa = PBXGroup;
 			children = (
+				1E51178C97A9FDB0FAB33FDA /* GoalBadgeView.swift */,
 				BA311F586CAE425D2F001776 /* SidebarItem.swift */,
 			);
 			path = Sidebar;
@@ -555,6 +572,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				5878699453E9E8884736EDCB /* Assets.xcassets in Resources */,
+				D74BC1926DBB7BD3AE1707AB /* setup-guide.html in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -605,6 +623,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				5F2BCDB24B8B05E351F06785 /* AmazonKDPImporter.swift in Sources */,
+				70C6E23BAA351CEA23FAEC57 /* AnalyticsGoal.swift in Sources */,
 				33AFDAD2603FD51B00CA689A /* AppDatabase.swift in Sources */,
 				531853D5C5AE831BDD30E000 /* BackgroundRefreshScheduler.swift in Sources */,
 				6A3AA757B49ECEBBB8AE4A21 /* BlueskyCollector.swift in Sources */,
@@ -625,6 +644,7 @@
 				B9A1154B6BC0766DE56BF70A /* FeedPlatformData.swift in Sources */,
 				9B9A9B4F859FCE312A21B19E /* FeedView.swift in Sources */,
 				945AD598EC52AA09AF56366D /* FeedViewModel.swift in Sources */,
+				671A13C339113B6931F39DCA /* GoalBadgeView.swift in Sources */,
 				9495992C98E7C36CE6A1EBC6 /* GoatCounterCollector.swift in Sources */,
 				9D5DB0E5B64D10A34FED7B92 /* HighReachDetector.swift in Sources */,
 				A97F0568846BF3C7E478F5E5 /* HistoryView.swift in Sources */,

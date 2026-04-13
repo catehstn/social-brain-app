@@ -2,18 +2,19 @@ import SwiftUI
 
 /// A multi-step onboarding wizard shown on the first launch.
 ///
-/// The wizard walks the user through:
+/// Steps:
 /// 1. Welcome — what Social Brain does
-/// 2. Connect — an overview of the available platform groups with quick-setup hints
-/// 3. Ready — confirmation and next steps
-///
-/// Shown as a sheet from `ContentView` when `hasCompletedOnboarding` is false.
+/// 2. Goal — what the user is trying to achieve
+/// 3. Connect — overview of platform groups
+/// 4. Ready — confirmation and next steps
 struct OnboardingView: View {
     let onComplete: () -> Void
 
     @State private var step: Step = .welcome
+    @State private var selectedGoal: AnalyticsGoal = AnalyticsGoal.current
+    @State private var customGoalText: String = AnalyticsGoal.customText
 
-    enum Step { case welcome, connect, ready }
+    enum Step { case welcome, goal, connect, ready }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -21,7 +22,7 @@ struct OnboardingView: View {
             Divider()
             footer
         }
-        .frame(width: 560, height: 460)
+        .frame(width: 560, height: 480)
     }
 
     // MARK: - Pages
@@ -30,6 +31,7 @@ struct OnboardingView: View {
     private var content: some View {
         switch step {
         case .welcome: welcomePage
+        case .goal:    goalPage
         case .connect: connectPage
         case .ready:   readyPage
         }
@@ -59,18 +61,64 @@ struct OnboardingView: View {
         .padding(32)
     }
 
+    private var goalPage: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("What's Your Goal?")
+                .font(.title2.bold())
+
+            Text("This helps Claude focus its analysis on what matters most to you.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            VStack(spacing: 10) {
+                ForEach(AnalyticsGoal.allCases, id: \.self) { goal in
+                    Button {
+                        selectedGoal = goal
+                    } label: {
+                        HStack {
+                            Image(systemName: selectedGoal == goal
+                                  ? "checkmark.circle.fill" : "circle")
+                                .foregroundStyle(selectedGoal == goal ? Color.accentColor : Color.secondary)
+                            Text(goal.displayName)
+                                .foregroundStyle(.primary)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(selectedGoal == goal
+                                      ? Color.accentColor.opacity(0.1)
+                                      : Color.secondary.opacity(0.07))
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                if selectedGoal == .other {
+                    TextField("Describe your goal…", text: $customGoalText)
+                        .textFieldStyle(.roundedBorder)
+                        .padding(.top, 4)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(28)
+    }
+
     private var connectPage: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             Text("Connect Your Platforms")
                 .font(.title2.bold())
-                .padding(.bottom, 4)
+                .padding(.bottom, 2)
 
             platformGroup(
                 icon: "key",
                 title: "API Key",
                 color: .blue,
                 platforms: "Buttondown, GoatCounter, Vercel, Calendly",
-                detail: "Paste an API key from each platform's settings page."
+                detail: "Paste an API key from each platform's settings page.",
+                docsAnchor: "api-key"
             )
 
             platformGroup(
@@ -78,7 +126,8 @@ struct OnboardingView: View {
                 title: "Access Token / App Password",
                 color: .purple,
                 platforms: "Mastodon, Bluesky, Jetpack",
-                detail: "Create a token or app password in each platform's developer settings."
+                detail: "Create a token or app password in each platform's developer settings.",
+                docsAnchor: "access-token"
             )
 
             platformGroup(
@@ -86,7 +135,8 @@ struct OnboardingView: View {
                 title: "File Export",
                 color: .orange,
                 platforms: "Substack, Amazon KDP, LinkedIn, O'Reilly",
-                detail: "Download a CSV or TSV export from each platform and import it here."
+                detail: "Download a CSV or TSV export from each platform and import it here.",
+                docsAnchor: "file-export"
             )
 
             Text("You can set up any platform at any time from the Platforms sidebar.")
@@ -129,7 +179,8 @@ struct OnboardingView: View {
         title: String,
         color: Color,
         platforms: String,
-        detail: String
+        detail: String,
+        docsAnchor: String
     ) -> some View {
         HStack(alignment: .top, spacing: 14) {
             Image(systemName: icon)
@@ -143,10 +194,28 @@ struct OnboardingView: View {
                 Text(platforms)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                Text(detail)
+                HStack(spacing: 6) {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                    Button("Setup guide ↗") {
+                        openSetupGuide(anchor: docsAnchor)
+                    }
+                    .buttonStyle(.plain)
                     .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.tint)
+                }
             }
+        }
+    }
+
+    private func openSetupGuide(anchor: String) {
+        guard let url = Bundle.main.url(forResource: "setup-guide", withExtension: "html") else { return }
+        // Append anchor as a fragment so the browser jumps to the right section.
+        var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+        comps.fragment = anchor
+        if let final = comps.url {
+            NSWorkspace.shared.open(final)
         }
     }
 
@@ -164,15 +233,13 @@ struct OnboardingView: View {
 
     private var footer: some View {
         HStack {
-            // Back button (not shown on first page)
             if step != .welcome {
                 Button("Back") { stepBack() }
             }
 
-            // Step indicator
             Spacer()
             HStack(spacing: 6) {
-                ForEach([Step.welcome, .connect, .ready], id: \.rawValue) { s in
+                ForEach([Step.welcome, .goal, .connect, .ready], id: \.rawValue) { s in
                     Circle()
                         .fill(s == step ? Color.accentColor : Color.secondary.opacity(0.4))
                         .frame(width: 7, height: 7)
@@ -180,9 +247,9 @@ struct OnboardingView: View {
             }
             Spacer()
 
-            // Primary action
             Button(step == .ready ? "Get Started" : "Next") {
                 if step == .ready {
+                    saveGoal()
                     onComplete()
                 } else {
                     stepForward()
@@ -197,9 +264,10 @@ struct OnboardingView: View {
     private func stepForward() {
         withAnimation {
             switch step {
-            case .welcome: step = .connect
+            case .welcome: step = .goal
+            case .goal:    step = .connect
             case .connect: step = .ready
-            case .ready:   onComplete()
+            case .ready:   saveGoal(); onComplete()
             }
         }
     }
@@ -208,10 +276,16 @@ struct OnboardingView: View {
         withAnimation {
             switch step {
             case .welcome: break
-            case .connect: step = .welcome
+            case .goal:    step = .welcome
+            case .connect: step = .goal
             case .ready:   step = .connect
             }
         }
+    }
+
+    private func saveGoal() {
+        AnalyticsGoal.current = selectedGoal
+        AnalyticsGoal.customText = customGoalText
     }
 }
 
@@ -219,13 +293,14 @@ struct OnboardingView: View {
 
 extension OnboardingView.Step: RawRepresentable {
     var rawValue: Int {
-        switch self { case .welcome: 0; case .connect: 1; case .ready: 2 }
+        switch self { case .welcome: 0; case .goal: 1; case .connect: 2; case .ready: 3 }
     }
     init?(rawValue: Int) {
         switch rawValue {
         case 0: self = .welcome
-        case 1: self = .connect
-        case 2: self = .ready
+        case 1: self = .goal
+        case 2: self = .connect
+        case 3: self = .ready
         default: return nil
         }
     }

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Social Brain — Platform Setup Guide</title>
+  <style>
+    :root {
+      --bg: #0f0f13;
+      --surface: #1a1a24;
+      --border: #2e2e40;
+      --accent: #5b8def;
+      --text: #e8e8f0;
+      --muted: #888899;
+      --orange: #f5a623;
+      --purple: #a78bfa;
+      --blue: #60a5fa;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font: 16px/1.6 -apple-system, sans-serif; padding: 2rem 1rem; }
+    .wrap { max-width: 720px; margin: 0 auto; }
+    header { text-align: center; padding: 3rem 0 2rem; }
+    header h1 { font-size: 2.2rem; font-weight: 700; margin-bottom: .5rem; }
+    header p { color: var(--muted); font-size: 1.05rem; }
+    h2 { font-size: 1.25rem; font-weight: 600; margin: 2.5rem 0 .75rem; padding-bottom: .4rem; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 1rem; font-weight: 600; margin: 1.25rem 0 .3rem; }
+    p, li { color: #c8c8d8; margin-bottom: .4rem; }
+    ul { padding-left: 1.4rem; margin-bottom: .6rem; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .badge {
+      display: inline-block; font-size: .75rem; font-weight: 600; padding: .15rem .55rem;
+      border-radius: 4px; margin-bottom: .5rem; letter-spacing: .04em; text-transform: uppercase;
+    }
+    .api-key  { background: rgba(96,165,250,.15); color: var(--blue); }
+    .token    { background: rgba(167,139,250,.15); color: var(--purple); }
+    .export   { background: rgba(245,166,35,.15);  color: var(--orange); }
+    code { background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: .1rem .4rem; font-size: .875rem; font-family: 'SF Mono', monospace; }
+    .platform { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem 1.5rem; margin-bottom: 1rem; }
+    footer { text-align: center; color: var(--muted); font-size: .85rem; margin-top: 4rem; padding-top: 2rem; border-top: 1px solid var(--border); }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🧠 Social Brain</h1>
+    <p>Platform Setup Guide</p>
+  </header>
+
+  <h2 id="api-key">API Key Platforms</h2>
+  <p>For these platforms, go to the platform's settings page and create or copy an API key, then paste it into Social Brain's Platforms screen.</p>
+
+  <div class="platform">
+    <span class="badge api-key">API Key</span>
+    <h3>Buttondown</h3>
+    <p>Go to <a href="https://buttondown.com/settings/api" target="_blank">buttondown.com/settings/api</a> → copy your API key.</p>
+  </div>
+
+  <div class="platform">
+    <span class="badge api-key">API Key</span>
+    <h3>GoatCounter</h3>
+    <p>Go to <strong>Settings → API tokens</strong> in your GoatCounter dashboard and create a new token with read access.</p>
+    <p>You'll also need your site code (the subdomain part of your GoatCounter URL).</p>
+  </div>
+
+  <div class="platform">
+    <span class="badge api-key">API Key</span>
+    <h3>Vercel</h3>
+    <p>Go to <a href="https://vercel.com/account/tokens" target="_blank">vercel.com/account/tokens</a> → create a token. Also note your team slug if applicable.</p>
+  </div>
+
+  <div class="platform">
+    <span class="badge api-key">API Key</span>
+    <h3>Calendly</h3>
+    <p>Go to <a href="https://calendly.com/integrations/api_webhooks" target="_blank">Calendly → Integrations → API &amp; Webhooks</a> → generate a Personal Access Token.</p>
+  </div>
+
+  <div class="platform">
+    <span class="badge api-key">API Key</span>
+    <h3>Amazon KDP</h3>
+    <p>Amazon KDP doesn't have a public API. Use the <strong>File Export</strong> method instead — see below.</p>
+  </div>
+
+  <h2 id="access-token">Access Token / App Password Platforms</h2>
+
+  <div class="platform">
+    <span class="badge token">Token</span>
+    <h3>Mastodon</h3>
+    <ul>
+      <li>Go to your Mastodon instance → <strong>Settings → Development → New application</strong></li>
+      <li>Give it read permissions; copy the access token.</li>
+      <li>Also enter your instance URL (e.g. <code>mastodon.social</code>).</li>
+    </ul>
+  </div>
+
+  <div class="platform">
+    <span class="badge token">Token</span>
+    <h3>Bluesky</h3>
+    <ul>
+      <li>Go to <strong>Settings → Privacy and security → App Passwords</strong></li>
+      <li>Create a new app password — use this instead of your main password.</li>
+      <li>Enter your handle (e.g. <code>you.bsky.social</code>) and the app password.</li>
+    </ul>
+  </div>
+
+  <div class="platform">
+    <span class="badge token">Token</span>
+    <h3>Jetpack / WordPress.com</h3>
+    <ul>
+      <li>Go to <a href="https://developer.wordpress.com/apps/" target="_blank">developer.wordpress.com/apps</a> → create an application.</li>
+      <li>Use the OAuth flow in Social Brain to authenticate — it will open a browser window.</li>
+    </ul>
+  </div>
+
+  <h2 id="file-export">File Export Platforms</h2>
+  <p>These platforms don't offer API access. Download a fresh export and drag it into Social Brain's Platforms screen.</p>
+
+  <div class="platform">
+    <span class="badge export">File Export</span>
+    <h3>Substack</h3>
+    <ul>
+      <li>Go to your Substack dashboard → <strong>Settings → Exports</strong></li>
+      <li>Request a data export; download the ZIP and find <code>subscribers.csv</code>.</li>
+    </ul>
+  </div>
+
+  <div class="platform">
+    <span class="badge export">File Export</span>
+    <h3>Amazon KDP</h3>
+    <ul>
+      <li>Go to <a href="https://kdp.amazon.com/en_US/report/royalty" target="_blank">KDP Reports → Royalty</a></li>
+      <li>Download the <strong>Prior Months Royalties</strong> TSV for the current month.</li>
+    </ul>
+  </div>
+
+  <div class="platform">
+    <span class="badge export">File Export</span>
+    <h3>LinkedIn</h3>
+    <ul>
+      <li>Go to your LinkedIn profile → <strong>Analytics → Post impressions</strong></li>
+      <li>Click <strong>Export</strong> to download a CSV.</li>
+    </ul>
+  </div>
+
+  <div class="platform">
+    <span class="badge export">File Export</span>
+    <h3>O'Reilly</h3>
+    <ul>
+      <li>Log in at <a href="https://www.oreilly.com" target="_blank">oreilly.com</a> → <strong>Account → Monthly Report</strong></li>
+      <li>Download the TXT report for the most recent month.</li>
+    </ul>
+  </div>
+
+  <footer>
+    <p>Social Brain is open source — <a href="https://github.com/catehstn/social-brain-app">github.com/catehstn/social-brain-app</a></p>
+  </footer>
+</div>
+</body>
+</html>

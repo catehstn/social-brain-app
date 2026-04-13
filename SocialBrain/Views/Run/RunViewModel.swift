@@ -102,7 +102,9 @@ final class RunViewModel {
         let input = PromptAssembler.Input(
             periodLabel: periodLabel(since: lastSince),
             reportDate: summary.completedAt,
-            snapshots: allData
+            snapshots: allData,
+            goal: AnalyticsGoal.current,
+            goalCustomText: AnalyticsGoal.customText
         )
         generatedPrompt = assembler.assemble(input)
     }

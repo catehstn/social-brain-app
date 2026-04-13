@@ -22,6 +22,7 @@ targets:
       - SocialBrain
     resources:
       - path: SocialBrain/Assets.xcassets
+      - path: SocialBrain/Resources
     entitlements:
       path: SocialBrain/SocialBrain.entitlements
       properties:

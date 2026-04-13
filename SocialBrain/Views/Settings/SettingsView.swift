@@ -1,21 +1,46 @@
 import SwiftUI
 
 /// The app's Preferences window (⌘,).
-///
-/// Credential management lives in the main window's Platforms tab.
-/// This Settings window surfaces a quick status overview and links
-/// to that tab for editing.
 struct SettingsView: View {
     @State private var configured: [Platform] = []
+    @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = true
+    @AppStorage("analyticsGoal") private var goalRaw: String = AnalyticsGoal.growReach.rawValue
+    @AppStorage("analyticsGoalCustomText") private var goalCustomText: String = ""
+
+    private var goalLabel: String {
+        guard let goal = AnalyticsGoal(rawValue: goalRaw) else { return "—" }
+        if goal == .other, !goalCustomText.isEmpty { return goalCustomText }
+        return goal.displayName
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
+            goalSection
+            Divider()
             header
             Divider()
             platformList
+            Divider()
+            wizardSection
         }
-        .frame(width: 480, height: 320)
+        .frame(width: 480, height: 400)
         .onAppear { reload() }
+    }
+
+    private var goalSection: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Current Goal")
+                    .font(.headline)
+                Text(goalLabel)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Change") { hasCompletedOnboarding = false }
+                .controlSize(.small)
+        }
+        .padding()
     }
 
     private var header: some View {
@@ -46,6 +71,23 @@ struct SettingsView: View {
             }
         }
         .listStyle(.inset)
+        .frame(maxHeight: 160)
+    }
+
+    private var wizardSection: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Setup Wizard")
+                    .font(.headline)
+                Text("Re-run the setup wizard to update your goal or review platform instructions.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Re-run Wizard") { hasCompletedOnboarding = false }
+                .controlSize(.small)
+        }
+        .padding()
     }
 
     private func reload() {

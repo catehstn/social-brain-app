@@ -16,6 +16,11 @@ struct ContentView: View {
             }
             .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
             .listStyle(.sidebar)
+            .safeAreaInset(edge: .bottom) {
+                GoalBadgeView()
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+            }
         } detail: {
             switch selection {
             case .run:

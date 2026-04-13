@@ -14,6 +14,8 @@ struct PromptAssembler {
         let periodLabel: String           // e.g. "Last 30 days"
         let reportDate: Date
         let snapshots: [PlatformData]
+        var goal: AnalyticsGoal = .growReach
+        var goalCustomText: String = ""
     }
 
     /// Builds the prompt string from the given input.
@@ -27,6 +29,10 @@ struct PromptAssembler {
         lines.append("# Social Media & Publishing Analytics Report")
         lines.append("Date: \(dateFmt.string(from: input.reportDate))")
         lines.append("Period: \(input.periodLabel)")
+        let goalLabel = (input.goal == .other && !input.goalCustomText.isEmpty)
+            ? input.goalCustomText
+            : input.goal.displayName
+        lines.append("Goal: \(goalLabel)")
         lines.append("")
 
         // Sort platforms alphabetically for a stable output order.
@@ -41,7 +47,7 @@ struct PromptAssembler {
 
         lines.append("---")
         lines.append("")
-        lines.append(analysisRequest)
+        lines.append(analysisRequest(for: input))
 
         return lines.joined(separator: "\n")
     }
@@ -258,14 +264,21 @@ struct PromptAssembler {
 
     // MARK: - Analysis request text
 
-    private let analysisRequest = """
-    Please analyse the above analytics data and provide:
+    private func analysisRequest(for input: Input) -> String {
+        let goalPhrase = (input.goal == .other && !input.goalCustomText.isEmpty)
+            ? input.goalCustomText
+            : input.goal.promptPhrase
+        return """
+        My primary goal is to \(goalPhrase).
 
-    1. **Key trends** — what changed meaningfully compared to previous periods?
-    2. **Platform highlights** — which platforms showed the strongest growth or engagement?
-    3. **Content performance** — any signals about what topics or formats resonated?
-    4. **Actionable recommendations** — 2–3 specific things to focus on in the coming period.
+        Please analyse the above analytics data and provide:
 
-    Keep the analysis concise and focused on insights that are actionable.
-    """
+        1. **Key trends** — what changed meaningfully compared to previous periods?
+        2. **Platform highlights** — which platforms showed the strongest growth or engagement?
+        3. **Content performance** — any signals about what topics or formats resonated?
+        4. **Actionable recommendations** — 2–3 specific things to focus on given my goal.
+
+        Keep the analysis concise and focused on insights that are actionable.
+        """
+    }
 }
