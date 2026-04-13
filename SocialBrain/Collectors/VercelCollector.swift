@@ -15,6 +15,7 @@ import Foundation
 /// - `error_deployments`    – deployments that errored
 struct VercelCollector: Collector {
     let platform: Platform = .vercel
+    var instanceName: String = "default"
     private let session: any URLSessionProtocol
     private let baseURL: URL
 
@@ -48,7 +49,7 @@ struct VercelCollector: Collector {
             "production_deployments": .int(production),
             "error_deployments":      .int(errors)
         ]
-        return PlatformData(platform: platform, metrics: metrics)
+        return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)
     }
 
     // MARK: - Private

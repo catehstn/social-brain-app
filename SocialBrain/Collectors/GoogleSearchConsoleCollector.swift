@@ -19,6 +19,7 @@ import Foundation
 /// - `top_page_1..5`     – top pages by clicks (as `"path (N clicks)"` strings)
 struct GoogleSearchConsoleCollector: Collector {
     let platform: Platform = .googleSearchConsole
+    var instanceName: String = "default"
     private let session: any URLSessionProtocol
 
     static let apiBase = URL(string: "https://searchconsole.googleapis.com")!
@@ -99,7 +100,7 @@ struct GoogleSearchConsoleCollector: Collector {
             metrics["top_page_\(i + 1)"] = .string("\(page) (\(Int(row.clicks)) clicks)")
         }
 
-        return PlatformData(platform: platform, metrics: metrics)
+        return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)
     }
 
     // MARK: - Token refresh

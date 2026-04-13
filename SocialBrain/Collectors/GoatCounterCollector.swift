@@ -12,6 +12,7 @@ import Foundation
 /// - `top_page_1` … `top_page_5` – paths of the top-5 pages by hits
 struct GoatCounterCollector: Collector {
     let platform: Platform = .goatCounter
+    var instanceName: String = "default"
     private let session: any URLSessionProtocol
 
     init(session: any URLSessionProtocol = URLSession.shared) {
@@ -45,7 +46,7 @@ struct GoatCounterCollector: Collector {
             metrics["top_page_\(index + 1)"] = .string(page.path)
         }
 
-        return PlatformData(platform: platform, metrics: metrics)
+        return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)
     }
 
     // MARK: - Private

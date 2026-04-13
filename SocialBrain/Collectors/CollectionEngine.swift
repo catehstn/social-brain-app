@@ -5,14 +5,19 @@ import Foundation
 /// The outcome of running a single platform collector.
 enum CollectionResult: Sendable {
     case success(PlatformData)
-    case failure(platform: Platform, error: Error)
+    case failure(platform: Platform, instanceName: String, error: Error)
 
-    var platform: Platform {
+    /// The `PlatformInstance` for this result.
+    var instance: PlatformInstance {
         switch self {
-        case .success(let d):       return d.platform
-        case .failure(let p, _):    return p
+        case .success(let d):
+            return PlatformInstance(platform: d.platform, instanceName: d.instanceName)
+        case .failure(let p, let i, _):
+            return PlatformInstance(platform: p, instanceName: i)
         }
     }
+
+    var platform: Platform { instance.platform }
 
     var platformData: PlatformData? {
         guard case .success(let d) = self else { return nil }
@@ -25,7 +30,7 @@ enum CollectionResult: Sendable {
     }
 
     var error: Error? {
-        guard case .failure(_, let e) = self else { return nil }
+        guard case .failure(_, _, let e) = self else { return nil }
         return e
     }
 }
@@ -58,13 +63,13 @@ actor CollectionEngine {
     /// Runs every collector in `collectors`, saves results to the database, and returns a summary.
     ///
     /// - Parameters:
-    ///   - collectors: The platform collectors to run (typically one per configured platform).
-    ///   - credentials: A function that returns stored credentials for a given platform.
+    ///   - collectors: The platform collectors to run (typically one per configured instance).
+    ///   - credentials: A function that returns stored credentials for a given `PlatformInstance`.
     ///   - since: Optional date; collectors only fetch data since this point in time.
     ///   - progress: Optional closure called after each collector completes with its result.
     func run(
         collectors: [any Collector],
-        credentials: @escaping @Sendable (Platform) throws -> Credentials?,
+        credentials: @escaping @Sendable (PlatformInstance) throws -> Credentials?,
         since: Date? = nil,
         progress: (@Sendable (CollectionResult) async -> Void)? = nil
     ) async throws -> CollectionSummary {
@@ -84,14 +89,22 @@ actor CollectionEngine {
         await withTaskGroup(of: CollectionResult.self) { group in
             for collector in collectors {
                 group.addTask {
+                    let instance = PlatformInstance(
+                        platform: collector.platform,
+                        instanceName: collector.instanceName
+                    )
                     do {
-                        guard let creds = try credentials(collector.platform) else {
-                            throw CollectorError.missingCredential("(no credentials stored for \(collector.platform.displayName))")
+                        guard let creds = try credentials(instance) else {
+                            throw CollectorError.missingCredential("(no credentials stored for \(instance.displayName))")
                         }
                         let data = try await collector.collect(since: since, credentials: creds)
                         return .success(data)
                     } catch {
-                        return .failure(platform: collector.platform, error: error)
+                        return .failure(
+                            platform: collector.platform,
+                            instanceName: collector.instanceName,
+                            error: error
+                        )
                     }
                 }
             }
@@ -125,35 +138,49 @@ actor CollectionEngine {
 
 // MARK: - Registry
 
-/// Maps each `Platform` to its collector implementation.
+/// Maps each `PlatformInstance` to its collector implementation.
 ///
-/// Only platforms that have credentials stored in the Keychain are included,
+/// Only instances that have credentials stored in the Keychain are included,
 /// so this always returns collectors that are ready to run.
 enum CollectorRegistry {
-    /// Returns all collectors for which the user has stored credentials.
+    /// Returns all collectors for all instances with stored credentials.
     static func configured(
-        hasCredentials: (Platform) -> Bool = KeychainStore.hasCredentials
+        instances: (Platform) -> [String] = InstanceRegistry.instances,
+        hasCredentials: (PlatformInstance) -> Bool = KeychainStore.hasCredentials
     ) -> [any Collector] {
-        Platform.allCases.compactMap { platform in
-            guard hasCredentials(platform) else { return nil }
-            return collector(for: platform)
+        Platform.allCases.flatMap { platform in
+            instances(platform).compactMap { instanceName in
+                let instance = PlatformInstance(platform: platform, instanceName: instanceName)
+                guard hasCredentials(instance) else { return nil }
+                return collector(for: instance)
+            }
         }
     }
 
-    /// Returns the collector implementation for a given platform, or nil for
+    /// Returns the collector implementation for a given `PlatformInstance`, or nil for
     /// file-export platforms that don't have an API collector.
-    static func collector(for platform: Platform) -> (any Collector)? {
-        switch platform {
-        case .buttondown:          return ButtondownCollector()
-        case .goatCounter:         return GoatCounterCollector()
-        case .vercel:              return VercelCollector()
-        case .calendly:            return CalendlyCollector()
-        case .mastodon:            return MastodonCollector()
-        case .bluesky:             return BlueskyCollector()
-        case .jetpack:             return JetpackCollector()
-        case .googleSearchConsole: return GoogleSearchConsoleCollector()
-        case .buffer:              return BufferCollector()
-        case .hackerNews:          return HackerNewsCollector()
+    static func collector(for instance: PlatformInstance) -> (any Collector)? {
+        switch instance.platform {
+        case .buttondown:
+            var c = ButtondownCollector(); c.instanceName = instance.instanceName; return c
+        case .goatCounter:
+            var c = GoatCounterCollector(); c.instanceName = instance.instanceName; return c
+        case .vercel:
+            var c = VercelCollector(); c.instanceName = instance.instanceName; return c
+        case .calendly:
+            var c = CalendlyCollector(); c.instanceName = instance.instanceName; return c
+        case .mastodon:
+            var c = MastodonCollector(); c.instanceName = instance.instanceName; return c
+        case .bluesky:
+            var c = BlueskyCollector(); c.instanceName = instance.instanceName; return c
+        case .jetpack:
+            var c = JetpackCollector(); c.instanceName = instance.instanceName; return c
+        case .googleSearchConsole:
+            var c = GoogleSearchConsoleCollector(); c.instanceName = instance.instanceName; return c
+        case .buffer:
+            var c = BufferCollector(); c.instanceName = instance.instanceName; return c
+        case .hackerNews:
+            var c = HackerNewsCollector(); c.instanceName = instance.instanceName; return c
         // File-export platforms return nil — they're imported manually.
         case .amazon, .linkedin, .oreilly, .substack:
             return nil

@@ -6,6 +6,7 @@ import Foundation
 
 private struct StubCollector: Collector {
     let platform: Platform
+    var instanceName: String = "default"
     let result: Result<PlatformData, Error>
 
     func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
@@ -22,7 +23,7 @@ struct CollectionEngineTests {
         try AppDatabase.makeInMemory()
     }
 
-    private func makeCredentials() -> @Sendable (Platform) throws -> Credentials? {
+    private func makeCredentials() -> @Sendable (PlatformInstance) throws -> Credentials? {
         return { _ in Credentials(["api_key": "test"]) }
     }
 
@@ -118,7 +119,7 @@ struct CollectionEngineTests {
             )
         ]
 
-        let noCredentials: @Sendable (Platform) throws -> Credentials? = { _ in nil }
+        let noCredentials: @Sendable (PlatformInstance) throws -> Credentials? = { _ in nil }
         let summary = try await engine.run(collectors: collectors, credentials: noCredentials)
 
         // No credentials → failure result, not a thrown error

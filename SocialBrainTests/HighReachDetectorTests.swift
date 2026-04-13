@@ -22,7 +22,7 @@ struct HighReachDetectorTests {
     func buttondownAboveThreshold() throws {
         let snap = try makeSnapshot(platform: .buttondown,
                                     metrics: ["avg_open_rate": .double(0.55)])
-        let items = HighReachDetector().detect(snapshots: [.buttondown: snap])
+        let items = HighReachDetector().detect(snapshots: [PlatformInstance(platform: .buttondown): snap])
         #expect(items.count == 1)
         #expect(items[0].platform == .buttondown)
         #expect(items[0].message.contains("55%"))
@@ -32,7 +32,7 @@ struct HighReachDetectorTests {
     func buttondownBelowThreshold() throws {
         let snap = try makeSnapshot(platform: .buttondown,
                                     metrics: ["avg_open_rate": .double(0.30)])
-        let items = HighReachDetector().detect(snapshots: [.buttondown: snap])
+        let items = HighReachDetector().detect(snapshots: [PlatformInstance(platform: .buttondown): snap])
         #expect(items.isEmpty)
     }
 
@@ -40,7 +40,7 @@ struct HighReachDetectorTests {
     func mastodonAboveThreshold() throws {
         let snap = try makeSnapshot(platform: .mastodon,
                                     metrics: ["avg_favourites": .double(8.0)])
-        let items = HighReachDetector().detect(snapshots: [.mastodon: snap])
+        let items = HighReachDetector().detect(snapshots: [PlatformInstance(platform: .mastodon): snap])
         #expect(items.count == 1)
         #expect(items[0].platform == .mastodon)
     }
@@ -49,7 +49,7 @@ struct HighReachDetectorTests {
     func mastodonBelowThreshold() throws {
         let snap = try makeSnapshot(platform: .mastodon,
                                     metrics: ["avg_favourites": .double(2.0)])
-        let items = HighReachDetector().detect(snapshots: [.mastodon: snap])
+        let items = HighReachDetector().detect(snapshots: [PlatformInstance(platform: .mastodon): snap])
         #expect(items.isEmpty)
     }
 
@@ -57,7 +57,7 @@ struct HighReachDetectorTests {
     func blueskyAboveThreshold() throws {
         let snap = try makeSnapshot(platform: .bluesky,
                                     metrics: ["avg_likes": .double(10.0)])
-        let items = HighReachDetector().detect(snapshots: [.bluesky: snap])
+        let items = HighReachDetector().detect(snapshots: [PlatformInstance(platform: .bluesky): snap])
         #expect(items.count == 1)
         #expect(items[0].platform == .bluesky)
     }
@@ -66,7 +66,7 @@ struct HighReachDetectorTests {
     func jetpackAboveThreshold() throws {
         let snap = try makeSnapshot(platform: .jetpack,
                                     metrics: ["total_views": .int(1500)])
-        let items = HighReachDetector().detect(snapshots: [.jetpack: snap])
+        let items = HighReachDetector().detect(snapshots: [PlatformInstance(platform: .jetpack): snap])
         #expect(items.count == 1)
         #expect(items[0].platform == .jetpack)
     }
@@ -75,7 +75,7 @@ struct HighReachDetectorTests {
     func linkedInAboveThreshold() throws {
         let snap = try makeSnapshot(platform: .linkedin,
                                     metrics: ["total_impressions": .int(600)])
-        let items = HighReachDetector().detect(snapshots: [.linkedin: snap])
+        let items = HighReachDetector().detect(snapshots: [PlatformInstance(platform: .linkedin): snap])
         #expect(items.count == 1)
         #expect(items[0].platform == .linkedin)
     }
@@ -84,7 +84,7 @@ struct HighReachDetectorTests {
     func goatCounterAboveThreshold() throws {
         let snap = try makeSnapshot(platform: .goatCounter,
                                     metrics: ["unique_visitors": .int(750)])
-        let items = HighReachDetector().detect(snapshots: [.goatCounter: snap])
+        let items = HighReachDetector().detect(snapshots: [PlatformInstance(platform: .goatCounter): snap])
         #expect(items.count == 1)
         #expect(items[0].platform == .goatCounter)
     }
@@ -99,7 +99,7 @@ struct HighReachDetectorTests {
                                     metrics: ["avg_favourites": .double(2.8)])  // +40%
 
         let items = HighReachDetector(relativeLiftThreshold: 0.30)
-            .detect(snapshots: [.mastodon: curr], previousSnapshots: [.mastodon: prev])
+            .detect(snapshots: [PlatformInstance(platform: .mastodon): curr], previousSnapshots: [PlatformInstance(platform: .mastodon): prev])
         #expect(items.count == 1)
     }
 
@@ -111,7 +111,7 @@ struct HighReachDetectorTests {
                                     metrics: ["avg_favourites": .double(2.2)])  // +10%
 
         let items = HighReachDetector(relativeLiftThreshold: 0.30)
-            .detect(snapshots: [.mastodon: curr], previousSnapshots: [.mastodon: prev])
+            .detect(snapshots: [PlatformInstance(platform: .mastodon): curr], previousSnapshots: [PlatformInstance(platform: .mastodon): prev])
         #expect(items.isEmpty)
     }
 
@@ -125,8 +125,8 @@ struct HighReachDetectorTests {
                                           metrics: ["avg_open_rate": .double(0.80)])  // score ~0.8
 
         let items = HighReachDetector().detect(snapshots: [
-            .mastodon: mastodon,
-            .buttondown: buttondown
+            PlatformInstance(platform: .mastodon): mastodon,
+            PlatformInstance(platform: .buttondown): buttondown
         ])
 
         // Both should be present; buttondown first (higher score)
@@ -139,7 +139,7 @@ struct HighReachDetectorTests {
     func noItemWhenMetricMissing() throws {
         let snap = try makeSnapshot(platform: .buttondown,
                                     metrics: ["subscriber_count": .int(500)])
-        let items = HighReachDetector().detect(snapshots: [.buttondown: snap])
+        let items = HighReachDetector().detect(snapshots: [PlatformInstance(platform: .buttondown): snap])
         #expect(items.isEmpty)
     }
 
@@ -149,7 +149,7 @@ struct HighReachDetectorTests {
     func highReachCardInFeed() throws {
         let snap = try makeSnapshot(platform: .buttondown,
                                     metrics: ["avg_open_rate": .double(0.55)])
-        let cards = FeedCardBuilder.build(snapshots: [.buttondown: snap])
+        let cards = FeedCardBuilder.build(snapshots: [PlatformInstance(platform: .buttondown): snap])
         let highReachCards = cards.filter { $0.cardType == .highReach }
         #expect(highReachCards.count == 1)
         #expect(highReachCards[0].platform == .buttondown)
@@ -167,8 +167,8 @@ struct HighReachDetectorTests {
             "subscriber_count": .int(1500)    // +50% spike
         ])
         let cards = FeedCardBuilder.build(
-            snapshots: [.buttondown: curr],
-            previousSnapshots: [.buttondown: prev]
+            snapshots: [PlatformInstance(platform: .buttondown): curr],
+            previousSnapshots: [PlatformInstance(platform: .buttondown): prev]
         )
         // Both spike and high-reach are valid, but they should not both appear for the same platform
         let spikeCards = cards.filter { $0.cardType == .spikeAlert && $0.platform == .buttondown }

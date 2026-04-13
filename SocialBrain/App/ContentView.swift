@@ -5,7 +5,7 @@ struct ContentView: View {
 
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
     @State private var selection: SidebarItem = .run
-    @State private var dashboardInitialPlatform: Platform = .mastodon
+    @State private var dashboardInitialPlatform: Platform = .mastodon  // kept for FeedView navigation
 
     var body: some View {
         NavigationSplitView {
@@ -33,7 +33,7 @@ struct ContentView: View {
                     selection = newSelection
                 }
             case .dashboard:
-                DashboardView(database: database, initialPlatform: dashboardInitialPlatform)
+                DashboardView(database: database)
             case .history:
                 HistoryView(database: database)
             case .platforms:

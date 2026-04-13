@@ -13,7 +13,8 @@ struct PromptAssembler {
     struct Input {
         let periodLabel: String           // e.g. "Last 30 days"
         let reportDate: Date
-        let snapshots: [PlatformData]
+        /// Snapshots keyed by `PlatformInstance`.
+        let snapshots: [PlatformInstance: PlatformSnapshot]
         var goal: AnalyticsGoal = .growReach
         var goalCustomText: String = ""
     }
@@ -35,13 +36,31 @@ struct PromptAssembler {
         lines.append("Goal: \(goalLabel)")
         lines.append("")
 
-        // Sort platforms alphabetically for a stable output order.
-        let sorted = input.snapshots.sorted { $0.platform.displayName < $1.platform.displayName }
+        // Group instances by platform to decide header style.
+        let byPlatform = Dictionary(grouping: input.snapshots.keys, by: \.platform)
 
-        for snap in sorted {
-            if let section = platformSection(snap) {
-                lines.append(section)
-                lines.append("")
+        // Sort platforms alphabetically for a stable output order.
+        let sortedPlatforms = byPlatform.keys.sorted { $0.displayName < $1.displayName }
+
+        for platform in sortedPlatforms {
+            let instances = (byPlatform[platform] ?? [])
+                .sorted { $0.instanceName < $1.instanceName }
+            let multiInstance = instances.count > 1
+
+            for instance in instances {
+                guard let snap = input.snapshots[instance] else { continue }
+                let headerLabel = multiInstance ? instance.displayName : platform.displayName
+                // Build PlatformData from snapshot for formatting
+                if let metrics = try? snap.decodedMetrics() {
+                    let data = PlatformData(platform: platform,
+                                            instanceName: instance.instanceName,
+                                            collectedAt: snap.collectedAt,
+                                            metrics: metrics)
+                    if let section = platformSection(data, header: headerLabel) {
+                        lines.append(section)
+                        lines.append("")
+                    }
+                }
             }
         }
 
@@ -54,10 +73,10 @@ struct PromptAssembler {
 
     // MARK: - Private
 
-    private func platformSection(_ data: PlatformData) -> String? {
+    private func platformSection(_ data: PlatformData, header: String) -> String? {
         let lines = platformLines(data)
         guard !lines.isEmpty else { return nil }
-        var out = "## \(data.platform.displayName)\n"
+        var out = "## \(header)\n"
         out += lines.map { "- \($0)" }.joined(separator: "\n")
         return out
     }

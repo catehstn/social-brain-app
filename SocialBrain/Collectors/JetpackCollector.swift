@@ -18,6 +18,7 @@ import Foundation
 /// - `total_comments`    – total comments (all-time count from site stats)
 struct JetpackCollector: Collector {
     let platform: Platform = .jetpack
+    var instanceName: String = "default"
     private let session: any URLSessionProtocol
 
     static let apiBase = URL(string: "https://public-api.wordpress.com")!
@@ -54,7 +55,7 @@ struct JetpackCollector: Collector {
         metrics["total_views"]    = .int(vis.views)
         metrics["total_visitors"] = .int(vis.visitors)
 
-        return PlatformData(platform: platform, metrics: metrics)
+        return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)
     }
 
     // MARK: - Endpoints

@@ -14,6 +14,7 @@ import Foundation
 /// - `top_story_1..3`     – top stories by points (as `"title (N pts)"` strings)
 struct HackerNewsCollector: Collector {
     let platform: Platform = .hackerNews
+    var instanceName: String = "default"
     private let session: any URLSessionProtocol
 
     static let apiBase = URL(string: "https://hn.algolia.com/api/v1")!
@@ -50,7 +51,7 @@ struct HackerNewsCollector: Collector {
             metrics["top_story_\(i + 1)"] = .string("\(title) (\(pts) pts)")
         }
 
-        return PlatformData(platform: platform, metrics: metrics)
+        return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)
     }
 
     // MARK: - API

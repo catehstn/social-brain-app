@@ -8,8 +8,8 @@ import UniformTypeIdentifiers
 @MainActor
 final class PlatformsViewModel {
 
-    /// Set of platforms that currently have credentials stored in the Keychain.
-    private(set) var configured: Set<Platform> = []
+    /// Instance names grouped by platform for configured instances only.
+    private(set) var configuredInstances: [Platform: [String]] = [:]
 
     private let database: AppDatabase
 
@@ -19,42 +19,59 @@ final class PlatformsViewModel {
 
     // MARK: - API credential actions
 
-    /// Refreshes `configured` by checking the Keychain for each platform.
+    /// Refreshes `configuredInstances` by checking the Keychain for each (platform, instance).
     func reload() {
-        configured = Set(Platform.allCases.filter { KeychainStore.hasCredentials(for: $0) })
+        configuredInstances = [:]
+        for platform in Platform.allCases {
+            let names = InstanceRegistry.instances(for: platform)
+            let configured = names.filter { name in
+                KeychainStore.hasCredentials(for: PlatformInstance(platform: platform, instanceName: name))
+            }
+            if !configured.isEmpty {
+                configuredInstances[platform] = configured
+            }
+        }
     }
 
-    /// Returns the currently stored credential values for a platform (empty dict if none).
-    func loadValues(for platform: Platform) -> [String: String] {
-        (try? KeychainStore.load(for: platform))?.values ?? [:]
+    /// Returns the currently stored credential values for an instance (empty dict if none).
+    func loadValues(for instance: PlatformInstance) -> [String: String] {
+        (try? KeychainStore.load(for: instance))?.values ?? [:]
     }
 
-    /// Saves the given values to the Keychain and marks the platform as configured.
-    func save(_ values: [String: String], for platform: Platform) throws {
-        try KeychainStore.save(Credentials(values), for: platform)
-        configured.insert(platform)
+    /// Saves the given values to the Keychain for the specified instance.
+    func save(_ values: [String: String], for instance: PlatformInstance) throws {
+        try KeychainStore.save(Credentials(values), for: instance)
+        InstanceRegistry.add(instanceName: instance.instanceName, to: instance.platform)
+        reload()
     }
 
-    /// Removes credentials for the platform from the Keychain.
-    func delete(for platform: Platform) throws {
-        try KeychainStore.delete(for: platform)
-        configured.remove(platform)
+    /// Removes credentials for an instance from the Keychain and its snapshot data.
+    func delete(for instance: PlatformInstance) async throws {
+        try KeychainStore.delete(for: instance)
+        try await database.deleteSnapshots(for: instance)
+        InstanceRegistry.remove(instanceName: instance.instanceName, from: instance.platform)
+        reload()
+    }
+
+    /// Adds a new named instance for a platform (without credentials).
+    func addInstance(label: String, to platform: Platform) {
+        InstanceRegistry.add(instanceName: label, to: platform)
     }
 
     // MARK: - File import
 
     /// Presents an NSOpenPanel, parses the selected file, and saves it as a
-    /// snapshot in the database.  Marks the platform as configured in the Keychain.
+    /// snapshot in the database.  Marks the instance as configured in the Keychain.
     ///
     /// Throws `ImportError.cancelled` if the user dismisses the panel (callers
     /// should treat this as a no-op rather than an error to display).
-    func importFile(for platform: Platform, allowedExtensions: [String]) async throws {
+    func importFile(for instance: PlatformInstance, allowedExtensions: [String]) async throws {
         let url = try await selectFile(allowedExtensions: allowedExtensions)
 
         let rawData = try Data(contentsOf: url)
         let platformData: PlatformData
 
-        switch platform {
+        switch instance.platform {
         case .amazon:
             platformData = try AmazonKDPImporter().parse(data: rawData)
         case .linkedin:
@@ -64,7 +81,7 @@ final class PlatformsViewModel {
         case .substack:
             platformData = try SubstackImporter().parse(data: rawData)
         default:
-            throw ImportError.unsupportedPlatform(platform)
+            throw ImportError.unsupportedPlatform(instance.platform)
         }
 
         // Persist as a one-platform collection run + snapshot.
@@ -81,15 +98,15 @@ final class PlatformsViewModel {
         try await database.saveSnapshot(&snapshot)
         try await database.completeRun(id: runID, errorCount: 0)
 
-        // Mark the platform as configured so the list row shows a green badge.
-        try KeychainStore.save(Credentials(["imported": "true"]), for: platform)
-        configured.insert(platform)
+        // Mark the instance as configured so the list row shows a green badge.
+        try KeychainStore.save(Credentials(["imported": "true"]), for: instance)
+        InstanceRegistry.add(instanceName: instance.instanceName, to: instance.platform)
+        reload()
 
-        // Reset the stale-export reminder clock: cancel the old reminder and
-        // schedule a new one 30 days from now.
+        // Reset the stale-export reminder clock.
         let notificationManager = NotificationManager.shared
-        await notificationManager.cancelStaleExportReminder(for: platform)
-        await notificationManager.scheduleStaleExportReminder(for: platform, lastImportDate: .now)
+        await notificationManager.cancelStaleExportReminder(for: instance.platform)
+        await notificationManager.scheduleStaleExportReminder(for: instance.platform, lastImportDate: .now)
     }
 
     // MARK: - Private

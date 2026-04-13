@@ -16,6 +16,7 @@ import Foundation
 /// - `top_profile_1..3`    – top profiles by sent count (as `"network (N posts)"` strings)
 struct BufferCollector: Collector {
     let platform: Platform = .buffer
+    var instanceName: String = "default"
     private let session: any URLSessionProtocol
 
     static let apiBase = URL(string: "https://api.bufferapp.com/1")!
@@ -85,7 +86,7 @@ struct BufferCollector: Collector {
             metrics["top_profile_\(i + 1)"] = .string("\(name) (\(count) posts)")
         }
 
-        return PlatformData(platform: platform, metrics: metrics)
+        return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)
     }
 
     // MARK: - Endpoints

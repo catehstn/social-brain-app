@@ -14,7 +14,13 @@ extension URLSession: URLSessionProtocol {}
 /// A platform-specific analytics collector.
 protocol Collector: Sendable {
     var platform: Platform { get }
+    /// The instance name for this collector. Defaults to `"default"`.
+    var instanceName: String { get }
     func collect(since: Date?, credentials: Credentials) async throws -> PlatformData
+}
+
+extension Collector {
+    var instanceName: String { "default" }
 }
 
 // MARK: - Errors

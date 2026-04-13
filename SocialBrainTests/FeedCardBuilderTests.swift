@@ -50,8 +50,8 @@ struct FeedCardBuilderTests {
     func buildStaleReminderForLinkedInBeyondThreshold() throws {
         let staleDate = fixedNow.addingTimeInterval(-(4 * 24 * 3600))
         let payload = try JSONEncoder().encode(LinkedInData(latestPostText: "old", totalImpressions: 0))
-        let snapshots: [Platform: PlatformSnapshot] = [
-            .linkedin: PlatformSnapshot(runID: 1, platform: "linkedin",
+        let snapshots: [PlatformInstance: PlatformSnapshot] = [
+            PlatformInstance(platform: .linkedin): PlatformSnapshot(runID: 1, platform: "linkedin",
                                         collectedAt: staleDate, metricsJSON: payload)
         ]
         let cards = FeedCardBuilder.build(snapshots: snapshots, now: fixedNow)
@@ -62,8 +62,8 @@ struct FeedCardBuilderTests {
     func buildNoStaleReminderForLinkedInWithinThreshold() throws {
         let freshDate = fixedNow.addingTimeInterval(-(1 * 24 * 3600))
         let payload = try JSONEncoder().encode(LinkedInData(latestPostText: "fresh", totalImpressions: 10))
-        let snapshots: [Platform: PlatformSnapshot] = [
-            .linkedin: PlatformSnapshot(runID: 1, platform: "linkedin",
+        let snapshots: [PlatformInstance: PlatformSnapshot] = [
+            PlatformInstance(platform: .linkedin): PlatformSnapshot(runID: 1, platform: "linkedin",
                                         collectedAt: freshDate, metricsJSON: payload)
         ]
         let cards = FeedCardBuilder.build(snapshots: snapshots, now: fixedNow)
@@ -74,8 +74,8 @@ struct FeedCardBuilderTests {
     func buildAmazonStaleAfter30Days() throws {
         let staleDate = fixedNow.addingTimeInterval(-(31 * 24 * 3600))
         let payload = try JSONEncoder().encode(AmazonData(latestTitle: "Book", totalRoyalties: 10))
-        let snapshots: [Platform: PlatformSnapshot] = [
-            .amazon: PlatformSnapshot(runID: 1, platform: "amazon",
+        let snapshots: [PlatformInstance: PlatformSnapshot] = [
+            PlatformInstance(platform: .amazon): PlatformSnapshot(runID: 1, platform: "amazon",
                                       collectedAt: staleDate, metricsJSON: payload)
         ]
         let cards = FeedCardBuilder.build(snapshots: snapshots, now: fixedNow)
@@ -95,8 +95,8 @@ struct FeedCardBuilderTests {
         let payload = try JSONEncoder().encode(MastodonData(
             latestPostText: "old", followersCount: 1, engagementRate: 0.01))
         let oldDate = fixedNow.addingTimeInterval(-(365 * 24 * 3600))
-        let snapshots: [Platform: PlatformSnapshot] = [
-            .mastodon: PlatformSnapshot(runID: 1, platform: "mastodon",
+        let snapshots: [PlatformInstance: PlatformSnapshot] = [
+            PlatformInstance(platform: .mastodon): PlatformSnapshot(runID: 1, platform: "mastodon",
                                         collectedAt: oldDate, metricsJSON: payload)
         ]
         let cards = FeedCardBuilder.build(snapshots: snapshots, now: fixedNow)
