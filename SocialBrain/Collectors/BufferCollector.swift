@@ -25,6 +25,17 @@ struct BufferCollector: Collector {
         self.session = session
     }
 
+    func fetchLabel(credentials: Credentials) async -> String? {
+        guard let token = credentials.apiKey else { return nil }
+        var comps = URLComponents(url: Self.apiBase.appendingPathComponent("user.json"), resolvingAgainstBaseURL: false)!
+        comps.queryItems = [URLQueryItem(name: "access_token", value: token)]
+        guard let url = comps.url else { return nil }
+        guard let (data, response) = try? await session.data(for: URLRequest(url: url)),
+              let http = response as? HTTPURLResponse, http.statusCode == 200 else { return nil }
+        struct User: Decodable { let name: String? }
+        return try? JSONDecoder().decode(User.self, from: data).name
+    }
+
     func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
         guard let token = credentials.apiKey else {
             throw CollectorError.missingCredential("api_key")

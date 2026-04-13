@@ -38,11 +38,19 @@ final class PlatformsViewModel {
         (try? KeychainStore.load(for: instance))?.values ?? [:]
     }
 
-    /// Saves the given values to the Keychain for the specified instance.
+    /// Saves the given values to the Keychain for the specified instance,
+    /// then asynchronously fetches a display label from the platform API.
     func save(_ values: [String: String], for instance: PlatformInstance) throws {
-        try KeychainStore.save(Credentials(values), for: instance)
+        let credentials = Credentials(values)
+        try KeychainStore.save(credentials, for: instance)
         InstanceRegistry.add(instanceName: instance.instanceName, to: instance.platform)
         reload()
+        Task {
+            guard let collector = CollectorRegistry.collector(for: instance) else { return }
+            if let label = await collector.fetchLabel(credentials: credentials) {
+                InstanceLabels.setLabel(label, for: instance)
+            }
+        }
     }
 
     /// Removes credentials for an instance from the Keychain and its snapshot data.
@@ -50,6 +58,7 @@ final class PlatformsViewModel {
         try KeychainStore.delete(for: instance)
         try await database.deleteSnapshots(for: instance)
         InstanceRegistry.remove(instanceName: instance.instanceName, from: instance.platform)
+        InstanceLabels.removeLabel(for: instance)
         reload()
     }
 

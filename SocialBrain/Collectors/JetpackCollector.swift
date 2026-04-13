@@ -27,6 +27,10 @@ struct JetpackCollector: Collector {
         self.session = session
     }
 
+    func fetchLabel(credentials: Credentials) async -> String? {
+        credentials.siteCode
+    }
+
     func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
         guard let token = credentials.accessToken else {
             throw CollectorError.missingCredential("access_token")

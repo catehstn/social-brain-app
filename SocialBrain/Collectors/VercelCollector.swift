@@ -25,6 +25,10 @@ struct VercelCollector: Collector {
         self.baseURL = baseURL
     }
 
+    func fetchLabel(credentials: Credentials) async -> String? {
+        credentials.siteCode
+    }
+
     func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
         guard let apiKey = credentials.apiKey else {
             throw CollectorError.missingCredential("api_key")

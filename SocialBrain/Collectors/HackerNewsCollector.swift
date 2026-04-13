@@ -23,6 +23,10 @@ struct HackerNewsCollector: Collector {
         self.session = session
     }
 
+    func fetchLabel(credentials: Credentials) async -> String? {
+        credentials.siteCode
+    }
+
     func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
         guard let domain = credentials.siteCode, !domain.isEmpty else {
             throw CollectorError.missingCredential("site_code")

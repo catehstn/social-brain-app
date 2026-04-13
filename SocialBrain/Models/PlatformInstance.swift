@@ -11,10 +11,14 @@ public struct PlatformInstance: Hashable, Sendable, Identifiable, Codable {
 
     public var id: String { "\(platform.rawValue):\(instanceName)" }
 
-    /// Shows just the platform name for the default instance; includes the
-    /// label for additional instances (e.g. "GoatCounter — my-blog").
+    /// Shows a human-readable name for this instance.
+    ///
+    /// Priority: stored label (auto-fetched from the platform API) →
+    /// platform name for the default instance → "Platform — instanceName"
+    /// for additional instances.
     public var displayName: String {
-        instanceName == "default"
+        if let label = InstanceLabels.label(for: self) { return label }
+        return instanceName == "default"
             ? platform.displayName
             : "\(platform.displayName) — \(instanceName)"
     }

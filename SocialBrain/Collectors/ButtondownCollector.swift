@@ -22,6 +22,18 @@ struct ButtondownCollector: Collector {
         self.baseURL = baseURL
     }
 
+    func fetchLabel(credentials: Credentials) async -> String? {
+        guard let apiKey = credentials.apiKey else { return nil }
+        // The /v1/metadata endpoint returns newsletter-level info including the username.
+        let url = baseURL.appendingPathComponent("metadata")
+        var req = URLRequest(url: url)
+        req.setTokenAuth(apiKey)
+        guard let (data, response) = try? await session.data(for: req),
+              let http = response as? HTTPURLResponse, http.statusCode == 200 else { return nil }
+        struct Metadata: Decodable { let username: String? }
+        return try? JSONDecoder().decode(Metadata.self, from: data).username
+    }
+
     func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
         guard let apiKey = credentials.apiKey else {
             throw CollectorError.missingCredential("api_key")

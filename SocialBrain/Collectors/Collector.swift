@@ -17,10 +17,15 @@ protocol Collector: Sendable {
     /// The instance name for this collector. Defaults to `"default"`.
     var instanceName: String { get }
     func collect(since: Date?, credentials: Credentials) async throws -> PlatformData
+    /// Returns a human-readable label for this instance (e.g. newsletter name,
+    /// site name, handle). Called once after credentials are saved.
+    /// Returns `nil` if no label can be determined.
+    func fetchLabel(credentials: Credentials) async -> String?
 }
 
 extension Collector {
     var instanceName: String { "default" }
+    func fetchLabel(credentials: Credentials) async -> String? { nil }
 }
 
 // MARK: - Errors

@@ -23,6 +23,20 @@ struct MastodonCollector: Collector {
         self.session = session
     }
 
+    func fetchLabel(credentials: Credentials) async -> String? {
+        guard let token = credentials.accessToken,
+              let instanceURL = credentials.instanceURL else { return nil }
+        let url = instanceURL.appendingPathComponent("/api/v1/accounts/verify_credentials")
+        var req = URLRequest(url: url)
+        req.setBearerToken(token)
+        guard let (data, response) = try? await session.data(for: req),
+              let http = response as? HTTPURLResponse, http.statusCode == 200 else { return nil }
+        struct Account: Decodable { let username: String }
+        guard let acct = try? JSONDecoder().decode(Account.self, from: data) else { return nil }
+        let host = instanceURL.host ?? instanceURL.absoluteString
+        return "@\(acct.username)@\(host)"
+    }
+
     func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
         guard let token = credentials.accessToken else {
             throw CollectorError.missingCredential("access_token")

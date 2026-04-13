@@ -57,7 +57,7 @@ struct PlatformCredentialSheet: View {
     private var platformFields: some View {
         switch platform {
         case .buttondown:
-            permissionsNote("Permissions needed: full account access (key has no scope restrictions)")
+            permissionsNote("Permissions needed: read-only — we only read subscriber counts and email stats, never send")
             field("API Key", key: "api_key", secure: true,
                   help: "Find it at buttondown.com/keys",
                   helpURL: URL(string: "https://buttondown.com/keys"))
