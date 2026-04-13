@@ -152,6 +152,8 @@ enum CollectorRegistry {
         case .bluesky:             return BlueskyCollector()
         case .jetpack:             return JetpackCollector()
         case .googleSearchConsole: return GoogleSearchConsoleCollector()
+        case .buffer:              return BufferCollector()
+        case .hackerNews:          return HackerNewsCollector()
         // File-export platforms return nil — they're imported manually.
         case .amazon, .linkedin, .oreilly, .substack:
             return nil

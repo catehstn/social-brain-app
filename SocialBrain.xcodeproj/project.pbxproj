@@ -42,6 +42,7 @@
 		6025308D798885FB9D71C922 /* DashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD8CE54D3FD8FD77FB796D95 /* DashboardViewModel.swift */; };
 		605752A0BE34ADDD17FFB017 /* AmazonKDPImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72692C95DB62426B3BE05A6 /* AmazonKDPImporterTests.swift */; };
 		612EF2EA7D815191DCA3F6FE /* Platform.swift in Sources */ = {isa = PBXBuildFile; fileRef = F284E6CCC2F1782721703DDE /* Platform.swift */; };
+		6446F2668347478543B8C673 /* BufferCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60871A8EA0FAEDB8DA8FA7B3 /* BufferCollector.swift */; };
 		66BC947276B7C0460FCA4EDA /* PlatformData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AD4BFD9258E2AC05FFEEDC7 /* PlatformData.swift */; };
 		671A13C339113B6931F39DCA /* GoalBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E51178C97A9FDB0FAB33FDA /* GoalBadgeView.swift */; };
 		6A3AA757B49ECEBBB8AE4A21 /* BlueskyCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AC1E6FBE27355FF4A5F9ED4 /* BlueskyCollector.swift */; };
@@ -85,6 +86,7 @@
 		EE4B5037B4534CA56F73D291 /* FeedCardBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18110278BC5F67DA7BFA424F /* FeedCardBuilderTests.swift */; };
 		EF2FD5B1FD64AE053E77FCBE /* GoogleSearchConsoleCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B61967173EA192DCB1640CA /* GoogleSearchConsoleCollector.swift */; };
 		EF6B4E4D6B44B9C02A8F32E5 /* FeedUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00CB5D85C4632224DD4F8EB8 /* FeedUITests.swift */; };
+		F07A0ED57639627A9D00CC94 /* HackerNewsCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20AEED312641FBC088302881 /* HackerNewsCollector.swift */; };
 		FB2B0CB801E20E4DDD2F7A2A /* CollectionRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE4B04405ACA0E4E56CBD7BA /* CollectionRun.swift */; };
 /* End PBXBuildFile section */
 
@@ -119,6 +121,7 @@
 		1CA3670FAFF76AEA37623FCB /* BackgroundRefreshScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundRefreshScheduler.swift; sourceTree = "<group>"; };
 		1E51178C97A9FDB0FAB33FDA /* GoalBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalBadgeView.swift; sourceTree = "<group>"; };
 		209D38A7438EFED51026AFD6 /* SpikeDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeDetector.swift; sourceTree = "<group>"; };
+		20AEED312641FBC088302881 /* HackerNewsCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HackerNewsCollector.swift; sourceTree = "<group>"; };
 		2128E07069D06A4F85D58B9B /* VercelCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VercelCollector.swift; sourceTree = "<group>"; };
 		233B30A951BEC219E0C67B33 /* JetpackCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JetpackCollector.swift; sourceTree = "<group>"; };
 		2642A06D185075AAA0FB3642 /* FeedCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedCardView.swift; sourceTree = "<group>"; };
@@ -134,6 +137,7 @@
 		51E3F715FA10EB4303470093 /* FeedViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedViewModelTests.swift; sourceTree = "<group>"; };
 		5247D72A41BCA462D7B38811 /* SocialBrain.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SocialBrain.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		54CF9E65755F901741FE20F9 /* AmazonKDPImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmazonKDPImporter.swift; sourceTree = "<group>"; };
+		60871A8EA0FAEDB8DA8FA7B3 /* BufferCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BufferCollector.swift; sourceTree = "<group>"; };
 		62075DC99894FAA00E9BF328 /* PlatformsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformsView.swift; sourceTree = "<group>"; };
 		623DE38C88FED64C2371FD12 /* SidebarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarTests.swift; sourceTree = "<group>"; };
 		653287EE2F473501A0D4EC29 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
@@ -292,12 +296,14 @@
 			children = (
 				54CF9E65755F901741FE20F9 /* AmazonKDPImporter.swift */,
 				0AC1E6FBE27355FF4A5F9ED4 /* BlueskyCollector.swift */,
+				60871A8EA0FAEDB8DA8FA7B3 /* BufferCollector.swift */,
 				801F1E9ADC1711F447E9F944 /* ButtondownCollector.swift */,
 				3D02CD4FB1AACFCAB9CDC5A0 /* CalendlyCollector.swift */,
 				859D5802079DEAF815EA07E2 /* CollectionEngine.swift */,
 				34E4FEB4BA95665EB9B7D551 /* Collector.swift */,
 				07E6CC0A277E7F1ADDBE207F /* GoatCounterCollector.swift */,
 				6B61967173EA192DCB1640CA /* GoogleSearchConsoleCollector.swift */,
+				20AEED312641FBC088302881 /* HackerNewsCollector.swift */,
 				233B30A951BEC219E0C67B33 /* JetpackCollector.swift */,
 				8EF7CDD83F7795AF4221844C /* LinkedInImporter.swift */,
 				1B63D76C0BF2AC6095ABE3CD /* MastodonCollector.swift */,
@@ -630,6 +636,7 @@
 				33AFDAD2603FD51B00CA689A /* AppDatabase.swift in Sources */,
 				531853D5C5AE831BDD30E000 /* BackgroundRefreshScheduler.swift in Sources */,
 				6A3AA757B49ECEBBB8AE4A21 /* BlueskyCollector.swift in Sources */,
+				6446F2668347478543B8C673 /* BufferCollector.swift in Sources */,
 				A8CD2064A0E8BA9E95C2C4AC /* ButtondownCollector.swift in Sources */,
 				900651ABFF265A05959EB848 /* CalendlyCollector.swift in Sources */,
 				B29F8E575E37C3A0B5B3B59A /* CollectionEngine.swift in Sources */,
@@ -650,6 +657,7 @@
 				671A13C339113B6931F39DCA /* GoalBadgeView.swift in Sources */,
 				9495992C98E7C36CE6A1EBC6 /* GoatCounterCollector.swift in Sources */,
 				EF2FD5B1FD64AE053E77FCBE /* GoogleSearchConsoleCollector.swift in Sources */,
+				F07A0ED57639627A9D00CC94 /* HackerNewsCollector.swift in Sources */,
 				9D5DB0E5B64D10A34FED7B92 /* HighReachDetector.swift in Sources */,
 				A97F0568846BF3C7E478F5E5 /* HistoryView.swift in Sources */,
 				1D390F32B0F40A94CDE57339 /* HistoryViewModel.swift in Sources */,

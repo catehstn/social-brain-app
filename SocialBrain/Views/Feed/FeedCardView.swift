@@ -54,6 +54,8 @@ struct FeedCardView: View {
         case .oreilly:     return "book"
         case .substack:            return "newspaper"
         case .googleSearchConsole: return "magnifyingglass"
+        case .buffer:              return "arrow.triangle.2.circlepath"
+        case .hackerNews:          return "y.circle"
         }
     }
 }

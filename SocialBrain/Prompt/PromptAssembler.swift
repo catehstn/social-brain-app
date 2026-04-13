@@ -76,6 +76,8 @@ struct PromptAssembler {
         case .oreilly:             return oreillyLines(data)
         case .substack:            return substackLines(data)
         case .googleSearchConsole: return googleSearchConsoleLines(data)
+        case .buffer:              return bufferLines(data)
+        case .hackerNews:          return hackerNewsLines(data)
         }
     }
 
@@ -240,6 +242,30 @@ struct PromptAssembler {
         }
         if let v = data.intMetric("posts_published") { lines.append("Posts published: \(v)") }
         if let open = data.doubleMetric("avg_open_rate") { lines.append("Average open rate: \(pct(open))") }
+        return lines
+    }
+
+    private func bufferLines(_ data: PlatformData) -> [String] {
+        var lines: [String] = []
+        if let v = data.intMetric("sent_updates")      { lines.append("Posts sent: \(v)") }
+        if let v = data.intMetric("scheduled_updates") { lines.append("Posts scheduled: \(v)") }
+        if let v = data.intMetric("total_clicks")      { lines.append("Total clicks: \(formatted(v))") }
+        if let v = data.intMetric("total_reach")       { lines.append("Total reach: \(formatted(v))") }
+        if let v = data.intMetric("total_likes")       { lines.append("Total likes: \(formatted(v))") }
+        for i in 1...3 {
+            if let p = data.stringMetric("top_profile_\(i)") { lines.append("Top profile \(i): \(p)") }
+        }
+        return lines
+    }
+
+    private func hackerNewsLines(_ data: PlatformData) -> [String] {
+        var lines: [String] = []
+        if let v = data.intMetric("mention_count")  { lines.append("Mentions: \(v)") }
+        if let v = data.intMetric("total_points")   { lines.append("Total points: \(v)") }
+        if let v = data.intMetric("total_comments") { lines.append("Total comments: \(v)") }
+        for i in 1...3 {
+            if let s = data.stringMetric("top_story_\(i)") { lines.append("Top story \(i): \(s)") }
+        }
         return lines
     }
 
