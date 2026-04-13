@@ -83,6 +83,7 @@
 		D74BC1926DBB7BD3AE1707AB /* setup-guide.html in Resources */ = {isa = PBXBuildFile; fileRef = 91EEBFF4721EA1C96F99BD92 /* setup-guide.html */; };
 		EDD572851E77CF9321FEF9F9 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 653287EE2F473501A0D4EC29 /* DashboardView.swift */; };
 		EE4B5037B4534CA56F73D291 /* FeedCardBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18110278BC5F67DA7BFA424F /* FeedCardBuilderTests.swift */; };
+		EF2FD5B1FD64AE053E77FCBE /* GoogleSearchConsoleCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B61967173EA192DCB1640CA /* GoogleSearchConsoleCollector.swift */; };
 		EF6B4E4D6B44B9C02A8F32E5 /* FeedUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00CB5D85C4632224DD4F8EB8 /* FeedUITests.swift */; };
 		FB2B0CB801E20E4DDD2F7A2A /* CollectionRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE4B04405ACA0E4E56CBD7BA /* CollectionRun.swift */; };
 /* End PBXBuildFile section */
@@ -138,6 +139,7 @@
 		653287EE2F473501A0D4EC29 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		6627A9F277A9FD7656876707 /* FeedPlatformData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedPlatformData.swift; sourceTree = "<group>"; };
 		6824A853F434CC1AE79933A8 /* BlueskyCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlueskyCollectorTests.swift; sourceTree = "<group>"; };
+		6B61967173EA192DCB1640CA /* GoogleSearchConsoleCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleSearchConsoleCollector.swift; sourceTree = "<group>"; };
 		6CC44EC6EF398FFC22CB3058 /* SocialBrainApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialBrainApp.swift; sourceTree = "<group>"; };
 		7070B55F5A655D85ED8B2D69 /* PlatformCredentialSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformCredentialSheet.swift; sourceTree = "<group>"; };
 		7C010F1ED965D1458B4430A8 /* AppDatabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDatabase.swift; sourceTree = "<group>"; };
@@ -295,6 +297,7 @@
 				859D5802079DEAF815EA07E2 /* CollectionEngine.swift */,
 				34E4FEB4BA95665EB9B7D551 /* Collector.swift */,
 				07E6CC0A277E7F1ADDBE207F /* GoatCounterCollector.swift */,
+				6B61967173EA192DCB1640CA /* GoogleSearchConsoleCollector.swift */,
 				233B30A951BEC219E0C67B33 /* JetpackCollector.swift */,
 				8EF7CDD83F7795AF4221844C /* LinkedInImporter.swift */,
 				1B63D76C0BF2AC6095ABE3CD /* MastodonCollector.swift */,
@@ -646,6 +649,7 @@
 				945AD598EC52AA09AF56366D /* FeedViewModel.swift in Sources */,
 				671A13C339113B6931F39DCA /* GoalBadgeView.swift in Sources */,
 				9495992C98E7C36CE6A1EBC6 /* GoatCounterCollector.swift in Sources */,
+				EF2FD5B1FD64AE053E77FCBE /* GoogleSearchConsoleCollector.swift in Sources */,
 				9D5DB0E5B64D10A34FED7B92 /* HighReachDetector.swift in Sources */,
 				A97F0568846BF3C7E478F5E5 /* HistoryView.swift in Sources */,
 				1D390F32B0F40A94CDE57339 /* HistoryViewModel.swift in Sources */,

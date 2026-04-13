@@ -144,13 +144,14 @@ enum CollectorRegistry {
     /// file-export platforms that don't have an API collector.
     static func collector(for platform: Platform) -> (any Collector)? {
         switch platform {
-        case .buttondown:  return ButtondownCollector()
-        case .goatCounter: return GoatCounterCollector()
-        case .vercel:      return VercelCollector()
-        case .calendly:    return CalendlyCollector()
-        case .mastodon:    return MastodonCollector()
-        case .bluesky:     return BlueskyCollector()
-        case .jetpack:     return JetpackCollector()
+        case .buttondown:          return ButtondownCollector()
+        case .goatCounter:         return GoatCounterCollector()
+        case .vercel:              return VercelCollector()
+        case .calendly:            return CalendlyCollector()
+        case .mastodon:            return MastodonCollector()
+        case .bluesky:             return BlueskyCollector()
+        case .jetpack:             return JetpackCollector()
+        case .googleSearchConsole: return GoogleSearchConsoleCollector()
         // File-export platforms return nil — they're imported manually.
         case .amazon, .linkedin, .oreilly, .substack:
             return nil

@@ -123,9 +123,9 @@ struct OnboardingView: View {
 
             platformGroup(
                 icon: "person.badge.key",
-                title: "Access Token / App Password",
+                title: "Access Token / App Password / OAuth",
                 color: .purple,
-                platforms: "Mastodon, Bluesky, Jetpack",
+                platforms: "Mastodon, Bluesky, Jetpack, Google Search Console",
                 detail: "Create a token or app password in each platform's developer settings.",
                 docsAnchor: "access-token"
             )

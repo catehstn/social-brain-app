@@ -14,20 +14,22 @@ public enum Platform: String, CaseIterable, Codable, Sendable, Identifiable {
     case linkedin
     case oreilly
     case substack
+    case googleSearchConsole = "google_search_console"
 
     public var displayName: String {
         switch self {
-        case .buttondown:  "Buttondown"
-        case .goatCounter: "GoatCounter"
-        case .vercel:      "Vercel"
-        case .calendly:    "Calendly"
-        case .amazon:      "Amazon KDP"
-        case .mastodon:    "Mastodon"
-        case .jetpack:     "Jetpack Stats"
-        case .bluesky:     "Bluesky"
-        case .linkedin:    "LinkedIn"
-        case .oreilly:     "O'Reilly"
-        case .substack:    "Substack"
+        case .buttondown:          "Buttondown"
+        case .goatCounter:         "GoatCounter"
+        case .vercel:              "Vercel"
+        case .calendly:            "Calendly"
+        case .amazon:              "Amazon KDP"
+        case .mastodon:            "Mastodon"
+        case .jetpack:             "Jetpack Stats"
+        case .bluesky:             "Bluesky"
+        case .linkedin:            "LinkedIn"
+        case .oreilly:             "O'Reilly"
+        case .substack:            "Substack"
+        case .googleSearchConsole: "Google Search Console"
         }
     }
 
@@ -35,7 +37,7 @@ public enum Platform: String, CaseIterable, Codable, Sendable, Identifiable {
         switch self {
         case .buttondown, .goatCounter, .vercel, .calendly:
             return .apiKey
-        case .mastodon, .jetpack, .bluesky:
+        case .mastodon, .jetpack, .bluesky, .googleSearchConsole:
             return .oauthToken
         case .amazon, .linkedin, .oreilly, .substack:
             return .fileExport

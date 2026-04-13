@@ -72,9 +72,10 @@ struct PromptAssembler {
         case .calendly:    return calendlyLines(data)
         case .amazon:      return amazonLines(data)
         case .jetpack:     return jetpackLines(data)
-        case .linkedin:    return linkedinLines(data)
-        case .oreilly:     return oreillyLines(data)
-        case .substack:    return substackLines(data)
+        case .linkedin:            return linkedinLines(data)
+        case .oreilly:             return oreillyLines(data)
+        case .substack:            return substackLines(data)
+        case .googleSearchConsole: return googleSearchConsoleLines(data)
         }
     }
 
@@ -239,6 +240,21 @@ struct PromptAssembler {
         }
         if let v = data.intMetric("posts_published") { lines.append("Posts published: \(v)") }
         if let open = data.doubleMetric("avg_open_rate") { lines.append("Average open rate: \(pct(open))") }
+        return lines
+    }
+
+    private func googleSearchConsoleLines(_ data: PlatformData) -> [String] {
+        var lines: [String] = []
+        if let clicks      = data.intMetric("clicks")      { lines.append("Clicks: \(formatted(clicks))") }
+        if let impressions = data.intMetric("impressions") { lines.append("Impressions: \(formatted(impressions))") }
+        if let ctr         = data.doubleMetric("ctr")      { lines.append("CTR: \(pct(ctr))") }
+        if let pos         = data.doubleMetric("avg_position") { lines.append("Avg position: \(String(format: "%.1f", pos))") }
+        for i in 1...5 {
+            if let q = data.stringMetric("top_query_\(i)") { lines.append("Top query \(i): \(q)") }
+        }
+        for i in 1...5 {
+            if let p = data.stringMetric("top_page_\(i)") { lines.append("Top page \(i): \(p)") }
+        }
         return lines
     }
 

@@ -52,7 +52,8 @@ struct FeedCardView: View {
         case .jetpack:     return "bolt"
         case .linkedin:    return "person.crop.square"
         case .oreilly:     return "book"
-        case .substack:    return "newspaper"
+        case .substack:            return "newspaper"
+        case .googleSearchConsole: return "magnifyingglass"
         }
     }
 }
