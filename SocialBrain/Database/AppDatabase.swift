@@ -81,6 +81,18 @@ actor AppDatabase {
             )
         }
 
+        migrator.registerMigration("v2_instance_names") { db in
+            try db.alter(table: "platformSnapshot") { t in
+                t.add(column: "instanceName", .text).notNull().defaults(to: "default")
+            }
+            // Drop old two-column index and recreate with three columns.
+            try db.execute(sql: "DROP INDEX IF EXISTS \"index_platformSnapshot_on_platform_collectedAt\"")
+            try db.create(
+                indexOn: "platformSnapshot",
+                columns: ["platform", "instanceName", "collectedAt"]
+            )
+        }
+
         return migrator
     }
 }
@@ -124,28 +136,48 @@ extension AppDatabase {
     }
 }
 
+// MARK: - Write helpers (additional)
+
+extension AppDatabase {
+    /// Deletes all snapshots for a specific platform instance.
+    func deleteSnapshots(for instance: PlatformInstance) throws {
+        try dbWriter.write { db in
+            try PlatformSnapshot
+                .filter(Column("platform") == instance.platform.rawValue)
+                .filter(Column("instanceName") == instance.instanceName)
+                .deleteAll(db)
+        }
+    }
+}
+
 // MARK: - Read helpers
 
 extension AppDatabase {
-    /// Returns the most recent snapshot for the given platform, or nil if none exists.
-    func latestSnapshot(for platform: Platform) throws -> PlatformSnapshot? {
+    /// Returns the most recent snapshot for the given platform and instance, or nil if none exists.
+    func latestSnapshot(
+        for platform: Platform,
+        instanceName: String = "default"
+    ) throws -> PlatformSnapshot? {
         try dbWriter.read { db in
             try PlatformSnapshot
                 .filter(Column("platform") == platform.rawValue)
+                .filter(Column("instanceName") == instanceName)
                 .order(Column("collectedAt").desc)
                 .fetchOne(db)
         }
     }
 
-    /// Returns all snapshots for a platform within `[from, to]`.
+    /// Returns all snapshots for a platform+instance within `[from, to]`.
     func snapshots(
         for platform: Platform,
+        instanceName: String = "default",
         from: Date,
         to: Date = .now
     ) throws -> [PlatformSnapshot] {
         try dbWriter.read { db in
             try PlatformSnapshot
                 .filter(Column("platform") == platform.rawValue)
+                .filter(Column("instanceName") == instanceName)
                 .filter(Column("collectedAt") >= from)
                 .filter(Column("collectedAt") <= to)
                 .order(Column("collectedAt").asc)
@@ -172,63 +204,71 @@ extension AppDatabase {
         }
     }
 
-    /// Returns the two most recent snapshots for a platform, newest first.
+    /// Returns the two most recent snapshots for a platform+instance, newest first.
     /// Used by spike detection to compare the last run against the one before it.
-    func twoLatestSnapshots(for platform: Platform) throws -> [PlatformSnapshot] {
+    func twoLatestSnapshots(
+        for platform: Platform,
+        instanceName: String = "default"
+    ) throws -> [PlatformSnapshot] {
         try dbWriter.read { db in
             try PlatformSnapshot
                 .filter(Column("platform") == platform.rawValue)
+                .filter(Column("instanceName") == instanceName)
                 .order(Column("collectedAt").desc)
                 .limit(2)
                 .fetchAll(db)
         }
     }
 
-    /// Returns the second-most-recent snapshot per platform (the run before the latest).
-    /// Used to compute spike alerts in the feed. Platforms with only one snapshot are excluded.
-    func previousSnapshots() throws -> [Platform: PlatformSnapshot] {
+    /// Returns the second-most-recent snapshot per (platform, instanceName) pair.
+    /// Used to compute spike alerts in the feed. Instances with only one snapshot are excluded.
+    func previousSnapshots() throws -> [PlatformInstance: PlatformSnapshot] {
         try dbWriter.read { db in
-            // For each platform, fetch the two most recent snapshots then keep the second.
-            let allPlatforms = try PlatformSnapshot
-                .select(Column("platform"), as: String.self)
-                .distinct()
-                .fetchAll(db)
+            // Fetch distinct (platform, instanceName) pairs.
+            struct PlatformInstanceKey: FetchableRecord, Decodable {
+                var platform: String
+                var instanceName: String
+            }
+            let pairs = try PlatformInstanceKey.fetchAll(
+                db,
+                sql: "SELECT DISTINCT platform, instanceName FROM platformSnapshot"
+            )
 
-            var result: [Platform: PlatformSnapshot] = [:]
-            for platformRaw in allPlatforms {
-                guard let platform = Platform(rawValue: platformRaw) else { continue }
-                let pair = try PlatformSnapshot
-                    .filter(Column("platform") == platformRaw)
+            var result: [PlatformInstance: PlatformSnapshot] = [:]
+            for pair in pairs {
+                guard let platformEnum = Platform(rawValue: pair.platform) else { continue }
+                let snapshots = try PlatformSnapshot
+                    .filter(Column("platform") == pair.platform)
+                    .filter(Column("instanceName") == pair.instanceName)
                     .order(Column("collectedAt").desc)
                     .limit(2)
                     .fetchAll(db)
-                // pair[0] = newest, pair[1] = second-newest
-                if pair.count == 2 {
-                    result[platform] = pair[1]
+                // snapshots[0] = newest, snapshots[1] = second-newest
+                if snapshots.count == 2 {
+                    let key = PlatformInstance(platform: platformEnum, instanceName: pair.instanceName)
+                    result[key] = snapshots[1]
                 }
             }
             return result
         }
     }
 
-    /// Returns the latest snapshot for every platform that has at least one row.
-    /// Returns a dictionary keyed by Platform.
-    func latestSnapshots() throws -> [Platform: PlatformSnapshot] {
+    /// Returns the latest snapshot for every (platform, instanceName) pair that has at least one row.
+    /// Returns a dictionary keyed by `PlatformInstance`.
+    func latestSnapshots() throws -> [PlatformInstance: PlatformSnapshot] {
         try dbWriter.read { db in
-            // Fetch the most-recent snapshot per platform using a self-join on
-            // (platform, MAX(collectedAt)).
             let rows = try PlatformSnapshot
                 .filter(sql: """
-                    (platform, collectedAt) IN (
-                        SELECT platform, MAX(collectedAt)
+                    (platform, instanceName, collectedAt) IN (
+                        SELECT platform, instanceName, MAX(collectedAt)
                         FROM platformSnapshot
-                        GROUP BY platform
+                        GROUP BY platform, instanceName
                     )
                     """)
                 .fetchAll(db)
             return Dictionary(uniqueKeysWithValues: rows.compactMap { row in
-                guard let p = Platform(rawValue: row.platform) else { return nil }
-                return (p, row)
+                guard let inst = row.instanceEnum else { return nil }
+                return (inst, row)
             })
         }
     }

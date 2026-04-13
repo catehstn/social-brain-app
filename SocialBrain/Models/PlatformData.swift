@@ -67,16 +67,20 @@ extension MetricValue: Codable {
 /// Analytics snapshot returned by a collector for one platform at one point in time.
 public struct PlatformData: Sendable, Codable {
     public let platform: Platform
+    /// The instance name for this data point. Defaults to `"default"` for single-instance setups.
+    public let instanceName: String
     public let collectedAt: Date
     /// Named metrics; keys are platform-specific (e.g. "subscriber_count", "followers").
     public let metrics: [String: MetricValue]
 
     public init(
         platform: Platform,
+        instanceName: String = "default",
         collectedAt: Date = .now,
         metrics: [String: MetricValue]
     ) {
         self.platform = platform
+        self.instanceName = instanceName
         self.collectedAt = collectedAt
         self.metrics = metrics
     }

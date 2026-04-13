@@ -12,6 +12,7 @@ import Foundation
 /// - `avg_click_rate`       – mean click rate across those newsletters (0–1)
 struct ButtondownCollector: Collector {
     let platform: Platform = .buttondown
+    var instanceName: String = "default"
     private let session: any URLSessionProtocol
     private let baseURL: URL
 
@@ -44,7 +45,7 @@ struct ButtondownCollector: Collector {
             metrics["avg_click_rate"] = .double(avgClick)
         }
 
-        return PlatformData(platform: platform, metrics: metrics)
+        return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)
     }
 
     // MARK: - Private

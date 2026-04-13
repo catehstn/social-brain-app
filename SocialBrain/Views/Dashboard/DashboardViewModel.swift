@@ -18,9 +18,10 @@ struct MetricSeries: Identifiable {
 @Observable
 @MainActor
 final class DashboardViewModel {
-    var selectedPlatform: Platform = .mastodon
+    var selectedInstance: PlatformInstance = PlatformInstance(platform: .mastodon)
     var timeRange: TimeRange = .month
 
+    var allInstances: [PlatformInstance] = []
     var series: [MetricSeries] = []
     var isLoading = false
 
@@ -44,17 +45,22 @@ final class DashboardViewModel {
         }
     }
 
-    init(database: AppDatabase, initialPlatform: Platform = .mastodon) {
+    init(database: AppDatabase, initialInstance: PlatformInstance = PlatformInstance(platform: .mastodon)) {
         self.database = database
-        self.selectedPlatform = initialPlatform
+        self.selectedInstance = initialInstance
     }
 
     func load() async {
         isLoading = true
         defer { isLoading = false }
         do {
+            // Refresh the list of available instances.
+            let latestMap = try await database.latestSnapshots()
+            allInstances = Array(latestMap.keys).sorted { $0.displayName < $1.displayName }
+
             let snapshots = try await database.snapshots(
-                for: selectedPlatform,
+                for: selectedInstance.platform,
+                instanceName: selectedInstance.instanceName,
                 from: timeRange.since
             )
             series = buildSeries(from: snapshots)
@@ -68,7 +74,7 @@ final class DashboardViewModel {
     private func buildSeries(from snapshots: [PlatformSnapshot]) -> [MetricSeries] {
         guard !snapshots.isEmpty else { return [] }
 
-        let keys = metricKeys(for: selectedPlatform)
+        let keys = metricKeys(for: selectedInstance.platform)
         var pointsPerKey: [String: [MetricPoint]] = [:]
 
         for snap in snapshots {

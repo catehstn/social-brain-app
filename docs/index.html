@@ -112,6 +112,21 @@
     </ul>
   </div>
 
+  <div class="platform">
+    <span class="badge token">OAuth</span>
+    <h3>Google Search Console</h3>
+    <p>Social Brain fetches clicks, impressions, CTR, average position, and top queries/pages.</p>
+    <ul>
+      <li>Go to <a href="https://console.cloud.google.com/" target="_blank">console.cloud.google.com</a> → create a new project (or select an existing one).</li>
+      <li>Enable the <strong>Google Search Console API</strong> in <strong>APIs &amp; Services → Library</strong>.</li>
+      <li>Go to <strong>APIs &amp; Services → Credentials → Create Credentials → OAuth client ID</strong>.</li>
+      <li>Choose <strong>Desktop app</strong> as the application type. Copy the <strong>Client ID</strong> and <strong>Client Secret</strong>.</li>
+      <li>Run the OAuth flow once to get your <strong>access token</strong> and <strong>refresh token</strong>:
+        <br>Use <a href="https://developers.google.com/oauthplayground/" target="_blank">OAuth 2.0 Playground</a>, select <code>https://www.googleapis.com/auth/webmasters.readonly</code>, and enter your own client ID/secret under the gear icon.</li>
+      <li>Enter your <strong>site URL</strong> exactly as it appears in Search Console (e.g. <code>https://example.com/</code> or <code>sc-domain:example.com</code>).</li>
+    </ul>
+  </div>
+
   <h2 id="file-export">File Export Platforms</h2>
   <p>These platforms don't offer API access. Download a fresh export and drag it into Social Brain's Platforms screen.</p>
 

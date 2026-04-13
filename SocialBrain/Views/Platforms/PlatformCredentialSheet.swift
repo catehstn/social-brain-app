@@ -1,8 +1,10 @@
 import SwiftUI
 
 struct PlatformCredentialSheet: View {
-    let platform: Platform
+    let instance: PlatformInstance
     let viewModel: PlatformsViewModel
+
+    private var platform: Platform { instance.platform }
 
     @Environment(\.dismiss) private var dismiss
     @State private var values: [String: String] = [:]
@@ -21,7 +23,7 @@ struct PlatformCredentialSheet: View {
         }
         .frame(width: 480)
         .onAppear {
-            values = viewModel.loadValues(for: platform)
+            values = viewModel.loadValues(for: instance)
         }
     }
 
@@ -29,7 +31,7 @@ struct PlatformCredentialSheet: View {
 
     private var sheetHeader: some View {
         HStack {
-            Text(platform.displayName)
+            Text(instance.displayName)
                 .font(.headline)
             Spacer()
             Button("Cancel") { dismiss() }
@@ -158,7 +160,7 @@ struct PlatformCredentialSheet: View {
             Button {
                 Task {
                     do {
-                        try await viewModel.importFile(for: platform, allowedExtensions: extensions)
+                        try await viewModel.importFile(for: instance, allowedExtensions: extensions)
                         dismiss()
                     } catch ImportError.cancelled {
                         // User dismissed the panel — no-op
@@ -210,13 +212,16 @@ struct PlatformCredentialSheet: View {
 
     private var sheetFooter: some View {
         HStack {
-            if viewModel.configured.contains(platform) {
+            let isConfigured = (viewModel.configuredInstances[platform] ?? []).contains(instance.instanceName)
+            if isConfigured {
                 Button("Remove Credentials", role: .destructive) {
-                    do {
-                        try viewModel.delete(for: platform)
-                        dismiss()
-                    } catch {
-                        errorMessage = error.localizedDescription
+                    Task {
+                        do {
+                            try await viewModel.delete(for: instance)
+                            dismiss()
+                        } catch {
+                            errorMessage = error.localizedDescription
+                        }
                     }
                 }
             }
@@ -263,7 +268,7 @@ struct PlatformCredentialSheet: View {
         // Strip empty optional fields so they're not stored as empty strings.
         let filtered = values.filter { !$0.value.isEmpty }
         do {
-            try viewModel.save(filtered, for: platform)
+            try viewModel.save(filtered, for: instance)
             dismiss()
         } catch {
             errorMessage = error.localizedDescription

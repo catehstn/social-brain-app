@@ -23,34 +23,35 @@ struct FeedCardBuilder {
     // with `try?` internally.  The signature is non-throwing so callers don't
     // need spurious `try` and tests don't need `throws`.
     static func build(
-        snapshots: [Platform: PlatformSnapshot],
-        previousSnapshots: [Platform: PlatformSnapshot] = [:],
+        snapshots: [PlatformInstance: PlatformSnapshot],
+        previousSnapshots: [PlatformInstance: PlatformSnapshot] = [:],
         now: Date = Date()
     ) -> [FeedCard] {
         var cards: [FeedCard] = []
 
         // 0. Spike alerts (highest priority after stale — notable changes need attention)
         let detector = SpikeDetector()
-        for platform in Platform.allCases {
-            guard let current = snapshots[platform],
-                  let previous = previousSnapshots[platform]
-            else { continue }
+        for (instance, current) in snapshots {
+            guard let previous = previousSnapshots[instance] else { continue }
             let alerts = detector.detect(current: current, previous: previous)
-            // Show the top spike (highest magnitude) per platform to avoid noise.
+            // Show the top spike (highest magnitude) per instance to avoid noise.
             if let top = alerts.first {
                 cards.append(FeedCard(
-                    platform: platform,
+                    platform: instance.platform,
+                    instanceName: instance.instanceName,
                     cardType: .spikeAlert,
                     snippet: top.summary,
-                    navigationTarget: platform
+                    navigationTarget: instance.platform
                 ))
             }
         }
 
         // 1. Stale reminders (highest priority — user needs to act)
+        // Check default instance for each file-export platform.
         for platform in [Platform.linkedin, .substack, .amazon, .oreilly] {
             guard let threshold = StalenessThreshold.threshold(for: platform) else { continue }
-            if let snapshot = snapshots[platform] {
+            let defaultInstance = PlatformInstance(platform: platform)
+            if let snapshot = snapshots[defaultInstance] {
                 if now.timeIntervalSince(snapshot.collectedAt) > threshold {
                     cards.append(FeedCard(
                         platform: platform,
@@ -70,8 +71,9 @@ struct FeedCardBuilder {
             }
         }
 
-        // 2. Upcoming events from Calendly
-        if let snapshot = snapshots[.calendly],
+        // 2. Upcoming events from Calendly (default instance only)
+        let calendlyInstance = PlatformInstance(platform: .calendly)
+        if let snapshot = snapshots[calendlyInstance],
            let data = try? JSONDecoder().decode(CalendlyData.self, from: snapshot.metricsJSON),
            !data.upcomingEventTitles.isEmpty {
             let titles = data.upcomingEventTitles.prefix(3).joined(separator: ", ")
@@ -86,37 +88,39 @@ struct FeedCardBuilder {
         // 3. Recent posts — platforms with text content in latest snapshot
         let postPlatforms: [Platform] = [.mastodon, .bluesky, .buttondown, .jetpack,
                                           .linkedin, .substack]
-        for platform in postPlatforms {
-            guard let snapshot = snapshots[platform] else { continue }
-            if let text = latestPostText(platform: platform, data: snapshot.metricsJSON) {
+        for (instance, snapshot) in snapshots {
+            guard postPlatforms.contains(instance.platform) else { continue }
+            if let text = latestPostText(platform: instance.platform, data: snapshot.metricsJSON) {
                 cards.append(FeedCard(
-                    platform: platform,
+                    platform: instance.platform,
+                    instanceName: instance.instanceName,
                     cardType: .recentPost,
                     snippet: truncate(text),
-                    navigationTarget: platform
+                    navigationTarget: instance.platform
                 ))
             }
         }
 
-        // 4. Metric highlights — platform with engagement notably above baseline
+        // 4. Metric highlights — instance with engagement notably above baseline
         let engagementCandidates: [Platform] = [.mastodon, .bluesky, .buttondown, .jetpack]
-        let engagementPlatforms: [(Platform, Double)] = engagementCandidates.compactMap { p in
-            guard let snapshot = snapshots[p],
-                  let rate = engagementRate(platform: p, data: snapshot.metricsJSON)
+        let engagementEntries: [(PlatformInstance, Double)] = snapshots.compactMap { (instance, snapshot) in
+            guard engagementCandidates.contains(instance.platform),
+                  let rate = engagementRate(platform: instance.platform, data: snapshot.metricsJSON)
             else { return nil }
-            return (p, rate)
+            return (instance, rate)
         }
-        if let best = engagementPlatforms.max(by: { $0.1 < $1.1 }) {
+        if let best = engagementEntries.max(by: { $0.1 < $1.1 }) {
             let pct = String(format: "%.1f%%", best.1 * 100)
             cards.append(FeedCard(
-                platform: best.0,
+                platform: best.0.platform,
+                instanceName: best.0.instanceName,
                 cardType: .metricHighlight,
-                snippet: "\(best.0.rawValue.capitalized) engagement at \(pct) — your best this period.",
-                navigationTarget: best.0
+                snippet: "\(best.0.platform.rawValue.capitalized) engagement at \(pct) — your best this period.",
+                navigationTarget: best.0.platform
             ))
         }
 
-        // 5. High-reach items — platforms with above-threshold or notably lifted engagement
+        // 5. High-reach items — instances with above-threshold or notably lifted engagement
         //    ranked by reach score; de-duplicated with spikeAlert cards (don't show both).
         let spikeAlertPlatforms = Set(cards.filter { $0.cardType == .spikeAlert }.map(\.platform))
         let highReachItems = HighReachDetector().detect(

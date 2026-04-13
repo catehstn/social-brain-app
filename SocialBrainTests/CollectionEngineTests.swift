@@ -6,6 +6,7 @@ import Foundation
 
 private struct StubCollector: Collector {
     let platform: Platform
+    var instanceName: String = "default"
     let result: Result<PlatformData, Error>
 
     func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
@@ -22,7 +23,7 @@ struct CollectionEngineTests {
         try AppDatabase.makeInMemory()
     }
 
-    private func makeCredentials() -> @Sendable (Platform) throws -> Credentials? {
+    private func makeCredentials() -> @Sendable (PlatformInstance) throws -> Credentials? {
         return { _ in Credentials(["api_key": "test"]) }
     }
 
@@ -118,7 +119,7 @@ struct CollectionEngineTests {
             )
         ]
 
-        let noCredentials: @Sendable (Platform) throws -> Credentials? = { _ in nil }
+        let noCredentials: @Sendable (PlatformInstance) throws -> Credentials? = { _ in nil }
         let summary = try await engine.run(collectors: collectors, credentials: noCredentials)
 
         // No credentials → failure result, not a thrown error
@@ -161,6 +162,42 @@ struct CollectionEngineTests {
         let runs = try await db.allRuns()
         #expect(runs.count == 1)
         #expect(runs[0].completedAt != nil)
+    }
+
+    @Test("Two collectors for same platform with different instanceNames each save a snapshot")
+    func multiInstanceCollectorsRunAndSave() async throws {
+        let db = try makeDB()
+        let engine = CollectionEngine(database: db)
+
+        let collectors: [any Collector] = [
+            StubCollector(
+                platform: .mastodon,
+                instanceName: "personal",
+                result: .success(PlatformData(
+                    platform: .mastodon,
+                    instanceName: "personal",
+                    metrics: ["followers_count": .int(100)]
+                ))
+            ),
+            StubCollector(
+                platform: .mastodon,
+                instanceName: "work",
+                result: .success(PlatformData(
+                    platform: .mastodon,
+                    instanceName: "work",
+                    metrics: ["followers_count": .int(500)]
+                ))
+            )
+        ]
+
+        let summary = try await engine.run(collectors: collectors, credentials: makeCredentials())
+        #expect(summary.successCount == 2)
+        #expect(summary.errorCount == 0)
+
+        let snapshots = try await db.snapshots(forRunID: summary.runID)
+        #expect(snapshots.count == 2)
+        let instanceNames = Set(snapshots.map(\.instanceName))
+        #expect(instanceNames == ["personal", "work"])
     }
 }
 

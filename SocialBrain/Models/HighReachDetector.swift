@@ -28,26 +28,25 @@ struct HighReachDetector: Sendable {
     /// Returns high-reach items for the given current and optional previous snapshots.
     ///
     /// - Parameters:
-    ///   - snapshots: The most recent snapshot per platform.
-    ///   - previousSnapshots: The second-most-recent snapshot per platform (may be empty).
+    ///   - snapshots: The most recent snapshot per `PlatformInstance`.
+    ///   - previousSnapshots: The second-most-recent snapshot per `PlatformInstance` (may be empty).
     /// - Returns: High-reach items sorted by score descending.
     func detect(
-        snapshots: [Platform: PlatformSnapshot],
-        previousSnapshots: [Platform: PlatformSnapshot] = [:]
+        snapshots: [PlatformInstance: PlatformSnapshot],
+        previousSnapshots: [PlatformInstance: PlatformSnapshot] = [:]
     ) -> [HighReachItem] {
         var items: [HighReachItem] = []
 
-        for platform in Platform.allCases {
-            guard let current = snapshots[platform] else { continue }
+        for (instance, current) in snapshots {
             let currentMetrics = (try? current.decodedMetrics()) ?? [:]
             let previousMetrics: [String: MetricValue]
-            if let prev = previousSnapshots[platform] {
+            if let prev = previousSnapshots[instance] {
                 previousMetrics = (try? prev.decodedMetrics()) ?? [:]
             } else {
                 previousMetrics = [:]
             }
 
-            if let item = evaluate(platform: platform,
+            if let item = evaluate(platform: instance.platform,
                                    currentMetrics: currentMetrics,
                                    previousMetrics: previousMetrics) {
                 items.append(item)

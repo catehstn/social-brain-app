@@ -171,8 +171,8 @@ struct SpikeDetectorTests {
                                      metrics: ["followers_count": .int(1400)])
 
         let cards = FeedCardBuilder.build(
-            snapshots: [.mastodon: newer],
-            previousSnapshots: [.mastodon: older]
+            snapshots: [PlatformInstance(platform: .mastodon): newer],
+            previousSnapshots: [PlatformInstance(platform: .mastodon): older]
         )
         let spikes = cards.filter { $0.cardType == .spikeAlert }
         #expect(spikes.count == 1)
@@ -187,8 +187,8 @@ struct SpikeDetectorTests {
                                      metrics: ["followers_count": .int(1050)])
 
         let cards = FeedCardBuilder.build(
-            snapshots: [.mastodon: newer],
-            previousSnapshots: [.mastodon: older]
+            snapshots: [PlatformInstance(platform: .mastodon): newer],
+            previousSnapshots: [PlatformInstance(platform: .mastodon): older]
         )
         let spikes = cards.filter { $0.cardType == .spikeAlert }
         #expect(spikes.isEmpty)
@@ -200,7 +200,7 @@ struct SpikeDetectorTests {
                                      metrics: ["followers_count": .int(1500)])
 
         let cards = FeedCardBuilder.build(
-            snapshots: [.mastodon: newer],
+            snapshots: [PlatformInstance(platform: .mastodon): newer],
             previousSnapshots: [:]
         )
         let spikes = cards.filter { $0.cardType == .spikeAlert }

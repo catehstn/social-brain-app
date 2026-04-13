@@ -13,7 +13,8 @@ struct PromptAssembler {
     struct Input {
         let periodLabel: String           // e.g. "Last 30 days"
         let reportDate: Date
-        let snapshots: [PlatformData]
+        /// Snapshots keyed by `PlatformInstance`.
+        let snapshots: [PlatformInstance: PlatformSnapshot]
         var goal: AnalyticsGoal = .growReach
         var goalCustomText: String = ""
     }
@@ -35,13 +36,31 @@ struct PromptAssembler {
         lines.append("Goal: \(goalLabel)")
         lines.append("")
 
-        // Sort platforms alphabetically for a stable output order.
-        let sorted = input.snapshots.sorted { $0.platform.displayName < $1.platform.displayName }
+        // Group instances by platform to decide header style.
+        let byPlatform = Dictionary(grouping: input.snapshots.keys, by: \.platform)
 
-        for snap in sorted {
-            if let section = platformSection(snap) {
-                lines.append(section)
-                lines.append("")
+        // Sort platforms alphabetically for a stable output order.
+        let sortedPlatforms = byPlatform.keys.sorted { $0.displayName < $1.displayName }
+
+        for platform in sortedPlatforms {
+            let instances = (byPlatform[platform] ?? [])
+                .sorted { $0.instanceName < $1.instanceName }
+            let multiInstance = instances.count > 1
+
+            for instance in instances {
+                guard let snap = input.snapshots[instance] else { continue }
+                let headerLabel = multiInstance ? instance.displayName : platform.displayName
+                // Build PlatformData from snapshot for formatting
+                if let metrics = try? snap.decodedMetrics() {
+                    let data = PlatformData(platform: platform,
+                                            instanceName: instance.instanceName,
+                                            collectedAt: snap.collectedAt,
+                                            metrics: metrics)
+                    if let section = platformSection(data, header: headerLabel) {
+                        lines.append(section)
+                        lines.append("")
+                    }
+                }
             }
         }
 
@@ -54,10 +73,10 @@ struct PromptAssembler {
 
     // MARK: - Private
 
-    private func platformSection(_ data: PlatformData) -> String? {
+    private func platformSection(_ data: PlatformData, header: String) -> String? {
         let lines = platformLines(data)
         guard !lines.isEmpty else { return nil }
-        var out = "## \(data.platform.displayName)\n"
+        var out = "## \(header)\n"
         out += lines.map { "- \($0)" }.joined(separator: "\n")
         return out
     }
@@ -72,9 +91,12 @@ struct PromptAssembler {
         case .calendly:    return calendlyLines(data)
         case .amazon:      return amazonLines(data)
         case .jetpack:     return jetpackLines(data)
-        case .linkedin:    return linkedinLines(data)
-        case .oreilly:     return oreillyLines(data)
-        case .substack:    return substackLines(data)
+        case .linkedin:            return linkedinLines(data)
+        case .oreilly:             return oreillyLines(data)
+        case .substack:            return substackLines(data)
+        case .googleSearchConsole: return googleSearchConsoleLines(data)
+        case .buffer:              return bufferLines(data)
+        case .hackerNews:          return hackerNewsLines(data)
         }
     }
 
@@ -239,6 +261,45 @@ struct PromptAssembler {
         }
         if let v = data.intMetric("posts_published") { lines.append("Posts published: \(v)") }
         if let open = data.doubleMetric("avg_open_rate") { lines.append("Average open rate: \(pct(open))") }
+        return lines
+    }
+
+    private func bufferLines(_ data: PlatformData) -> [String] {
+        var lines: [String] = []
+        if let v = data.intMetric("sent_updates")      { lines.append("Posts sent: \(v)") }
+        if let v = data.intMetric("scheduled_updates") { lines.append("Posts scheduled: \(v)") }
+        if let v = data.intMetric("total_clicks")      { lines.append("Total clicks: \(formatted(v))") }
+        if let v = data.intMetric("total_reach")       { lines.append("Total reach: \(formatted(v))") }
+        if let v = data.intMetric("total_likes")       { lines.append("Total likes: \(formatted(v))") }
+        for i in 1...3 {
+            if let p = data.stringMetric("top_profile_\(i)") { lines.append("Top profile \(i): \(p)") }
+        }
+        return lines
+    }
+
+    private func hackerNewsLines(_ data: PlatformData) -> [String] {
+        var lines: [String] = []
+        if let v = data.intMetric("mention_count")  { lines.append("Mentions: \(v)") }
+        if let v = data.intMetric("total_points")   { lines.append("Total points: \(v)") }
+        if let v = data.intMetric("total_comments") { lines.append("Total comments: \(v)") }
+        for i in 1...3 {
+            if let s = data.stringMetric("top_story_\(i)") { lines.append("Top story \(i): \(s)") }
+        }
+        return lines
+    }
+
+    private func googleSearchConsoleLines(_ data: PlatformData) -> [String] {
+        var lines: [String] = []
+        if let clicks      = data.intMetric("clicks")      { lines.append("Clicks: \(formatted(clicks))") }
+        if let impressions = data.intMetric("impressions") { lines.append("Impressions: \(formatted(impressions))") }
+        if let ctr         = data.doubleMetric("ctr")      { lines.append("CTR: \(pct(ctr))") }
+        if let pos         = data.doubleMetric("avg_position") { lines.append("Avg position: \(String(format: "%.1f", pos))") }
+        for i in 1...5 {
+            if let q = data.stringMetric("top_query_\(i)") { lines.append("Top query \(i): \(q)") }
+        }
+        for i in 1...5 {
+            if let p = data.stringMetric("top_page_\(i)") { lines.append("Top page \(i): \(p)") }
+        }
         return lines
     }
 

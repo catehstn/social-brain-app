@@ -4,15 +4,8 @@ import Charts
 struct DashboardView: View {
     @State private var viewModel: DashboardViewModel
 
-    // All platforms that can produce chart data (API collectors + file-import platforms)
-    private let chartablePlatforms: [Platform] = [
-        .mastodon, .bluesky, .jetpack, .buttondown, .goatCounter, .vercel, .calendly,
-        .amazon, .linkedin, .oreilly, .substack
-    ]
-
-    init(database: AppDatabase, initialPlatform: Platform = .mastodon) {
-        _viewModel = State(wrappedValue: DashboardViewModel(database: database,
-                                                            initialPlatform: initialPlatform))
+    init(database: AppDatabase) {
+        _viewModel = State(wrappedValue: DashboardViewModel(database: database))
     }
 
     var body: some View {
@@ -22,7 +15,7 @@ struct DashboardView: View {
             content
         }
         .task { await viewModel.load() }
-        .onChange(of: viewModel.selectedPlatform) { _, _ in
+        .onChange(of: viewModel.selectedInstance) { _, _ in
             Task { await viewModel.load() }
         }
         .onChange(of: viewModel.timeRange) { _, _ in
@@ -35,13 +28,13 @@ struct DashboardView: View {
 
     private var toolbar: some View {
         HStack {
-            Picker("Platform", selection: $viewModel.selectedPlatform) {
-                ForEach(chartablePlatforms) { platform in
-                    Text(platform.displayName).tag(platform)
+            Picker("Instance", selection: $viewModel.selectedInstance) {
+                ForEach(viewModel.allInstances) { instance in
+                    Text(instance.displayName).tag(instance)
                 }
             }
             .labelsHidden()
-            .frame(width: 160)
+            .frame(width: 180)
 
             Picker("Range", selection: $viewModel.timeRange) {
                 ForEach(DashboardViewModel.TimeRange.allCases) { range in

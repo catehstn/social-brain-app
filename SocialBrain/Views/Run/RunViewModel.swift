@@ -48,8 +48,8 @@ final class RunViewModel {
         do {
             let summary = try await engine.run(
                 collectors: collectors,
-                credentials: { platform in
-                    try KeychainStore.load(for: platform)
+                credentials: { instance in
+                    try KeychainStore.load(for: instance)
                 },
                 since: since,
                 progress: { [weak self] result in
@@ -76,33 +76,36 @@ final class RunViewModel {
         // that succeeded in this run and fire a notification if anything is notable.
         await detectAndNotifySpikes(for: summary)
 
-        // Start with successful API/token collector data.
-        var allData = summary.results.compactMap(\.platformData)
+        // Build a [PlatformInstance: PlatformSnapshot] dictionary from successful results.
+        var snapshotsByInstance: [PlatformInstance: PlatformSnapshot] = [:]
+        for data in summary.results.compactMap(\.platformData) {
+            let inst = PlatformInstance(platform: data.platform, instanceName: data.instanceName)
+            if let snap = try? await database.latestSnapshot(for: data.platform,
+                                                              instanceName: data.instanceName) {
+                snapshotsByInstance[inst] = snap
+            }
+        }
 
         // Also pull in the most recent snapshot for each configured file-export
-        // platform (Substack, Amazon KDP).  These aren't fetched live — the user
+        // platform (default instance only).  These aren't fetched live — the user
         // imports them manually — but they should still appear in the prompt.
         let fileExportPlatforms = Platform.allCases.filter {
             $0.authType == .fileExport && KeychainStore.hasCredentials(for: $0)
         }
         for platform in fileExportPlatforms {
-            // Don't double-include if the summary already has this platform.
-            guard !allData.contains(where: { $0.platform == platform }) else { continue }
-            if let snap = try? await database.latestSnapshot(for: platform),
-               let platformEnum = snap.platformEnum,
-               let metrics = try? snap.decodedMetrics() {
-                allData.append(PlatformData(platform: platformEnum,
-                                            collectedAt: snap.collectedAt,
-                                            metrics: metrics))
+            let inst = PlatformInstance(platform: platform)
+            guard snapshotsByInstance[inst] == nil else { continue }
+            if let snap = try? await database.latestSnapshot(for: platform) {
+                snapshotsByInstance[inst] = snap
             }
         }
 
-        guard !allData.isEmpty else { return }
+        guard !snapshotsByInstance.isEmpty else { return }
 
         let input = PromptAssembler.Input(
             periodLabel: periodLabel(since: lastSince),
             reportDate: summary.completedAt,
-            snapshots: allData,
+            snapshots: snapshotsByInstance,
             goal: AnalyticsGoal.current,
             goalCustomText: AnalyticsGoal.customText
         )
@@ -113,9 +116,13 @@ final class RunViewModel {
         let detector = SpikeDetector()
         var allAlerts: [SpikeAlert] = []
 
-        let successfulPlatforms = summary.results.compactMap { $0.platformData?.platform }
-        for platform in successfulPlatforms {
-            guard let pair = try? await database.twoLatestSnapshots(for: platform),
+        let successfulInstances: [PlatformInstance] = summary.results.compactMap { result in
+            guard let data = result.platformData else { return nil }
+            return PlatformInstance(platform: data.platform, instanceName: data.instanceName)
+        }
+        for instance in successfulInstances {
+            guard let pair = try? await database.twoLatestSnapshots(
+                for: instance.platform, instanceName: instance.instanceName),
                   pair.count == 2 else { continue }
             let alerts = detector.detect(current: pair[0], previous: pair[1])
             allAlerts.append(contentsOf: alerts)

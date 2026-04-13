@@ -8,17 +8,16 @@ import Security
 enum KeychainStore: Sendable {
     private static let service = "com.catehuston.SocialBrain"
 
-    // MARK: - Save
+    // MARK: - Save (instance-keyed)
 
-    /// Encodes `credentials` and stores them under the given platform's key.
-    /// Overwrites any existing entry for that platform.
-    static func save(_ credentials: Credentials, for platform: Platform) throws {
+    /// Encodes `credentials` and stores them under the given `PlatformInstance` key.
+    /// Overwrites any existing entry for that instance.
+    static func save(_ credentials: Credentials, for instance: PlatformInstance) throws {
         let data = try JSONSerialization.data(withJSONObject: credentials.values)
-        let account = platform.rawValue
+        let account = instance.id
 
-        // Try to update an existing item first.
         let updateQuery: [CFString: Any] = [
-            kSecClass:   kSecClassGenericPassword,
+            kSecClass:       kSecClassGenericPassword,
             kSecAttrService: service,
             kSecAttrAccount: account
         ]
@@ -26,7 +25,6 @@ enum KeychainStore: Sendable {
         let updateStatus = SecItemUpdate(updateQuery as CFDictionary, updateAttrs as CFDictionary)
 
         if updateStatus == errSecItemNotFound {
-            // Item doesn't exist yet — add it.
             let addQuery: [CFString: Any] = [
                 kSecClass:       kSecClassGenericPassword,
                 kSecAttrService: service,
@@ -42,16 +40,22 @@ enum KeychainStore: Sendable {
         }
     }
 
-    // MARK: - Load
+    /// Encodes `credentials` and stores them under the platform's default instance key.
+    /// Delegates to the instance-keyed overload.
+    static func save(_ credentials: Credentials, for platform: Platform) throws {
+        try save(credentials, for: PlatformInstance(platform: platform))
+    }
 
-    /// Returns the stored `Credentials` for the given platform, or `nil` if none.
-    static func load(for platform: Platform) throws -> Credentials? {
+    // MARK: - Load (instance-keyed)
+
+    /// Returns the stored `Credentials` for the given `PlatformInstance`, or `nil` if none.
+    static func load(for instance: PlatformInstance) throws -> Credentials? {
         let query: [CFString: Any] = [
-            kSecClass:            kSecClassGenericPassword,
-            kSecAttrService:      service,
-            kSecAttrAccount:      platform.rawValue,
-            kSecReturnData:       true,
-            kSecMatchLimit:       kSecMatchLimitOne
+            kSecClass:       kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: instance.id,
+            kSecReturnData:  true,
+            kSecMatchLimit:  kSecMatchLimitOne
         ]
         var result: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &result)
@@ -69,14 +73,19 @@ enum KeychainStore: Sendable {
         return Credentials(dict)
     }
 
-    // MARK: - Delete
+    /// Returns the stored `Credentials` for the platform's default instance, or `nil` if none.
+    static func load(for platform: Platform) throws -> Credentials? {
+        try load(for: PlatformInstance(platform: platform))
+    }
 
-    /// Removes any stored credentials for the given platform.
-    static func delete(for platform: Platform) throws {
+    // MARK: - Delete (instance-keyed)
+
+    /// Removes any stored credentials for the given `PlatformInstance`.
+    static func delete(for instance: PlatformInstance) throws {
         let query: [CFString: Any] = [
             kSecClass:       kSecClassGenericPassword,
             kSecAttrService: service,
-            kSecAttrAccount: platform.rawValue
+            kSecAttrAccount: instance.id
         ]
         let status = SecItemDelete(query as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
@@ -84,11 +93,21 @@ enum KeychainStore: Sendable {
         }
     }
 
-    // MARK: - Existence check
+    /// Removes any stored credentials for the platform's default instance.
+    static func delete(for platform: Platform) throws {
+        try delete(for: PlatformInstance(platform: platform))
+    }
 
-    /// Returns true if credentials exist for the platform.
+    // MARK: - Existence check (instance-keyed)
+
+    /// Returns true if credentials exist for the given `PlatformInstance`.
+    static func hasCredentials(for instance: PlatformInstance) -> Bool {
+        (try? load(for: instance)) != nil
+    }
+
+    /// Returns true if credentials exist for the platform's default instance.
     static func hasCredentials(for platform: Platform) -> Bool {
-        (try? load(for: platform)) != nil
+        hasCredentials(for: PlatformInstance(platform: platform))
     }
 }
 

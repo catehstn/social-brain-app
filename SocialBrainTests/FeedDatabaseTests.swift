@@ -49,7 +49,7 @@ struct FeedDatabaseTests {
         try await db.saveSnapshot(&snap2)
 
         let result = try await db.latestSnapshots()
-        #expect(result[.mastodon]?.collectedAt == newer)
+        #expect(result[PlatformInstance(platform: .mastodon)]?.collectedAt == newer)
         #expect(result.count == 1)
     }
 
@@ -57,7 +57,7 @@ struct FeedDatabaseTests {
     func latestSnapshotsMissingPlatform() async throws {
         let db = try makeDB()
         let result = try await db.latestSnapshots()
-        #expect(result[.mastodon] == nil)
+        #expect(result[PlatformInstance(platform: .mastodon)] == nil)
     }
 
     @Test("latestSnapshots returns one row per platform")
@@ -89,12 +89,12 @@ struct FeedDatabaseTests {
 
         let result = try await db.latestSnapshots()
         #expect(result.count == 3)
-        #expect(result[.mastodon] != nil)
-        #expect(result[.bluesky] != nil)
-        #expect(result[.buttondown] != nil)
-        #expect(result[.mastodon]?.collectedAt == now)
-        #expect(result[.bluesky]?.collectedAt == oneHourAgo)
-        #expect(result[.buttondown]?.collectedAt == twoHoursAgo)
+        #expect(result[PlatformInstance(platform: .mastodon)] != nil)
+        #expect(result[PlatformInstance(platform: .bluesky)] != nil)
+        #expect(result[PlatformInstance(platform: .buttondown)] != nil)
+        #expect(result[PlatformInstance(platform: .mastodon)]?.collectedAt == now)
+        #expect(result[PlatformInstance(platform: .bluesky)]?.collectedAt == oneHourAgo)
+        #expect(result[PlatformInstance(platform: .buttondown)]?.collectedAt == twoHoursAgo)
     }
 
     @Test("content round-trips through database")
@@ -110,10 +110,31 @@ struct FeedDatabaseTests {
         try await db.saveSnapshot(&snap)
 
         let result = try await db.latestSnapshots()
-        let data = try #require(result[.bluesky]?.metricsJSON)
+        let data = try #require(result[PlatformInstance(platform: .bluesky)]?.metricsJSON)
         #expect(!data.isEmpty)
 
         let decoded = try JSONDecoder().decode(BlueskyData.self, from: data)
         #expect(decoded.latestPostText == "test")
+    }
+
+    // MARK: - Suite 10.3 — DashboardViewModel uses instanceName
+
+    @Test("DashboardViewModel.load() produces non-empty series from matching (platform, instanceName) data")
+    @MainActor
+    func dashboardViewModelUsesInstanceName() async throws {
+        let db = try makeDB()
+        let runID = try await makeRun(in: db)
+
+        let metrics: [String: MetricValue] = ["followers_count": .int(1500)]
+        let data = PlatformData(platform: .mastodon, instanceName: "work", metrics: metrics)
+        var snap = try PlatformSnapshot(runID: runID, data: data)
+        try await db.saveSnapshot(&snap)
+
+        let instance = PlatformInstance(platform: .mastodon, instanceName: "work")
+        let vm = DashboardViewModel(database: db, initialInstance: instance)
+        vm.timeRange = .all
+        await vm.load()
+
+        #expect(!vm.series.isEmpty)
     }
 }

@@ -11,6 +11,7 @@ import Foundation
 /// - `top_event_type_1` … `top_event_type_3` – names of most-used event types
 struct CalendlyCollector: Collector {
     let platform: Platform = .calendly
+    var instanceName: String = "default"
     private let session: any URLSessionProtocol
     private let baseURL: URL
 
@@ -49,7 +50,7 @@ struct CalendlyCollector: Collector {
             metrics["top_event_type_\(index + 1)"] = .string(name)
         }
 
-        return PlatformData(platform: platform, metrics: metrics)
+        return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)
     }
 
     // MARK: - Private

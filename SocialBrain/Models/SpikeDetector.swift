@@ -121,6 +121,18 @@ struct SpikeDetector: Sendable {
         case .substack:
             return [("posts_published", "Posts Published"),
                     ("avg_open_rate", "Avg Open Rate")]
+        case .googleSearchConsole:
+            return [("clicks", "Clicks"),
+                    ("impressions", "Impressions"),
+                    ("ctr", "CTR"),
+                    ("avg_position", "Avg Position")]
+        case .buffer:
+            return [("sent_updates", "Sent Updates"),
+                    ("total_clicks", "Clicks"),
+                    ("total_reach", "Reach")]
+        case .hackerNews:
+            return [("mention_count", "Mentions"),
+                    ("total_points", "Points")]
         }
     }
 }

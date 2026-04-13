@@ -16,6 +16,7 @@ import Foundation
 /// - `avg_replies`      – average replies per recent post
 struct BlueskyCollector: Collector {
     let platform: Platform = .bluesky
+    var instanceName: String = "default"
 
     private let session: any URLSessionProtocol
     private let baseURL: URL
@@ -57,7 +58,7 @@ struct BlueskyCollector: Collector {
             metrics["avg_replies"] = .double(Double(avgReplies) / n)
         }
 
-        return PlatformData(platform: platform, metrics: metrics)
+        return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)
     }
 
     // MARK: - Private

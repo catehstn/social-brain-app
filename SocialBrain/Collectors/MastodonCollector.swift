@@ -16,6 +16,7 @@ import Foundation
 /// - `avg_replies`        – average replies per recent post
 struct MastodonCollector: Collector {
     let platform: Platform = .mastodon
+    var instanceName: String = "default"
     private let session: any URLSessionProtocol
 
     init(session: any URLSessionProtocol = URLSession.shared) {
@@ -55,7 +56,7 @@ struct MastodonCollector: Collector {
             metrics["avg_replies"]    = .double(Double(totalReplies) / n)
         }
 
-        return PlatformData(platform: platform, metrics: metrics)
+        return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)
     }
 
     // MARK: - Private
