@@ -78,9 +78,9 @@ struct PlatformCredentialSheet: View {
         case .goatCounter:
             permissionsNote("Permissions needed: Read access")
             field("API Key", key: "api_key", secure: true,
-                  help: "Settings → API tokens — enable Read access")
+                  help: "Click your username in the top menu → API")
             field("Site Code", key: "site_code",
-                  help: "Your GoatCounter subdomain — e.g. \"mysite\" from mysite.goatcounter.com")
+                  help: "The subdomain of your GoatCounter URL — e.g. \"mysite\" from mysite.goatcounter.com")
 
         case .vercel:
             permissionsNote("Permissions needed: full account access (tokens have no scope restrictions)")
