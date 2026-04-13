@@ -8,6 +8,7 @@ struct PlatformCredentialSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var values: [String: String] = [:]
+    @State private var labelText: String = ""
     @State private var errorMessage: String?
 
     var body: some View {
@@ -24,6 +25,7 @@ struct PlatformCredentialSheet: View {
         .frame(width: 480)
         .onAppear {
             values = viewModel.loadValues(for: instance)
+            labelText = InstanceLabels.label(for: instance) ?? ""
         }
     }
 
@@ -49,6 +51,17 @@ struct PlatformCredentialSheet: View {
                     .foregroundStyle(.red)
                     .font(.callout)
             }
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Label")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                TextField("Auto-detected from API", text: $labelText)
+                    .textFieldStyle(.roundedBorder)
+                Text("Shown in the sidebar and prompt. Leave blank to use the auto-detected name.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Divider()
             platformFields
         }
     }
@@ -317,6 +330,13 @@ struct PlatformCredentialSheet: View {
         let filtered = values.filter { !$0.value.isEmpty }
         do {
             try viewModel.save(filtered, for: instance)
+            // Persist manual label, or clear so auto-fetch can run.
+            let trimmed = labelText.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty {
+                InstanceLabels.removeLabel(for: instance)
+            } else {
+                InstanceLabels.setLabel(trimmed, for: instance)
+            }
             dismiss()
         } catch {
             errorMessage = error.localizedDescription
