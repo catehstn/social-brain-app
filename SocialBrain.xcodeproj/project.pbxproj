@@ -33,6 +33,7 @@
 		5081170C2BC0A9C21BE5F7AE /* Collector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34E4FEB4BA95665EB9B7D551 /* Collector.swift */; };
 		531853D5C5AE831BDD30E000 /* BackgroundRefreshScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CA3670FAFF76AEA37623FCB /* BackgroundRefreshScheduler.swift */; };
 		547445EE2C995915742EAA66 /* SidebarItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA311F586CAE425D2F001776 /* SidebarItem.swift */; };
+		5878699453E9E8884736EDCB /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 513AE74E252C7EFD1834FFA3 /* Assets.xcassets */; };
 		5A3BC438A6E27326D77E94DA /* FeedViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E3F715FA10EB4303470093 /* FeedViewModelTests.swift */; };
 		5A99A8B940BC0017AAEE4C64 /* PromptAssembler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03FE43F9DB323E4D268EBE00 /* PromptAssembler.swift */; };
 		5C18DFF0CD1A386ACA251EFF /* SubstackImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D2C781BEE3E368AAD52A071 /* SubstackImporter.swift */; };
@@ -124,6 +125,7 @@
 		47C394A535DB6447C77C9396 /* JetpackCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JetpackCollectorTests.swift; sourceTree = "<group>"; };
 		4D3D458C2796763AC8AFCC88 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		4FE9B2B544199166E6236C6E /* MockURLSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockURLSession.swift; sourceTree = "<group>"; };
+		513AE74E252C7EFD1834FFA3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		51E3F715FA10EB4303470093 /* FeedViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedViewModelTests.swift; sourceTree = "<group>"; };
 		5247D72A41BCA462D7B38811 /* SocialBrain.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SocialBrain.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		54CF9E65755F901741FE20F9 /* AmazonKDPImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmazonKDPImporter.swift; sourceTree = "<group>"; };
@@ -411,6 +413,7 @@
 				48C91AC045446C394F6C83C7 /* Models */,
 				D47B90D3AD12E6E432235DF3 /* Prompt */,
 				72ACFC5E1C0E22C17ABCBC6B /* Views */,
+				513AE74E252C7EFD1834FFA3 /* Assets.xcassets */,
 				1B2C0D11CC10BC41011D7105 /* Info.plist */,
 				B7DF7AC7A9D0E370E619975F /* SocialBrain.entitlements */,
 			);
@@ -469,6 +472,7 @@
 			buildConfigurationList = C90D6C35DB73F64E6DA5F2BA /* Build configuration list for PBXNativeTarget "SocialBrain" */;
 			buildPhases = (
 				F0489EFE006CE45212E24861 /* Sources */,
+				357E26BA20767002AF1B9656 /* Resources */,
 				9542BF40883A20A14A7DE29B /* Frameworks */,
 			);
 			buildRules = (
@@ -544,6 +548,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		357E26BA20767002AF1B9656 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5878699453E9E8884736EDCB /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		547DAE104F898320A5A08BEE /* Sources */ = {
