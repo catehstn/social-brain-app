@@ -1,491 +1,1061 @@
-# Feed View — Bug Fixes Implementation Plan
+# Multiple Platform Instances Implementation Plan (Issue #29)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use trycycle-executing to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Fix three open feed-related issues: human-readable card type badges (#20), @Observable migration (#21), and show stale reminders instead of "Nothing yet" empty state (#22).
+**Goal:** Support multiple named instances per platform so a user with two newsletters, two websites, or two social accounts can collect and display data for all of them.
 
-**Architecture:** All three changes are narrow and independent. They are sequenced so tests stay green at every commit: display-name first (no behavioural change), observable migration second (refactor only, tests stay green), empty-state fix third (behaviour change, test update required).
+**Architecture summary:**
+- New `PlatformInstance` type identifies one configured account on one platform
+- New `InstanceRegistry` (UserDefaults-backed) tracks which instances exist per platform
+- `KeychainStore` keys credentials by `"\(platform.rawValue):\(instanceName)"` instead of just `platform.rawValue`
+- `PlatformData` and `PlatformSnapshot` gain an `instanceName: String` field
+- A v2 database migration adds `instance_name` column to `platformSnapshot`
+- All database queries are updated to scope by `(platform, instanceName)`
+- `CollectorRegistry` and `CollectionEngine` iterate `PlatformInstance` instead of `Platform`
+- The Platforms UI shows per-instance rows with an "Add another X" button
 
-**Tech Stack:** Swift 6, SwiftUI/macOS 14+, Swift Testing framework (`@Suite`, `@Test`, `#expect`), `@Observable` macro (Observation framework, Swift 5.9+).
+**Tech Stack:** Swift 6, SwiftUI/macOS 14+, GRDB.swift 7.x, Swift Testing framework.
 
 ---
 
 ## Pre-flight gate
 
-Before touching anything, run the full unit test suite to confirm baseline is green:
+Before touching anything, confirm the baseline is green:
 
 ```bash
-cd /Users/cate/git/social-brain-app/.worktrees/feed-card-display-name
-xcodebuild test -scheme SocialBrain -destination 'platform=macOS' -only-testing:SocialBrainTests 2>&1 | tail -5
+xcodebuild test \
+  -scheme SocialBrain \
+  -destination 'platform=macOS' \
+  -only-testing:SocialBrainTests \
+  2>&1 | tail -5
 ```
 
 Expected: `** TEST SUCCEEDED **`
 
 ---
 
-## Task 1: Add `displayName` to `FeedCardType` (Issue #20)
+## Task 1: `PlatformInstance` model
 
-`FeedCardView` renders `Text(vm.card.cardType.rawValue)` which exposes programmer-style camelCase strings ("recentPost", "staleReminder") as visible UI badges. This is a pure additive change: add a computed property and update the view.
-
-**Files:**
-- Modify: `SocialBrain/Models/FeedCardType.swift`
-- Modify: `SocialBrain/Views/Feed/FeedCardView.swift`
-- Test: `SocialBrainTests/FeedCardBuilderTests.swift` (add 4 new assertions, no deletions)
-
-- [ ] **Step 1: Write failing test**
-
-Add to `SocialBrainTests/FeedCardBuilderTests.swift` inside the `FeedCardBuilder` suite:
-
-```swift
-@Test("FeedCardType displayName returns human-readable strings")
-func feedCardTypeDisplayName() {
-    #expect(FeedCardType.recentPost.displayName    == "Recent Post")
-    #expect(FeedCardType.metricHighlight.displayName == "Metric Highlight")
-    #expect(FeedCardType.upcomingEvent.displayName  == "Upcoming Event")
-    #expect(FeedCardType.staleReminder.displayName  == "Stale Reminder")
-}
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-```bash
-xcodebuild test -scheme SocialBrain -destination 'platform=macOS' \
-  -only-testing:SocialBrainTests/FeedCardBuilderTests 2>&1 | grep -E "error:|feedCardTypeDisplayName"
-```
-
-Expected: compile error — `value of type 'FeedCardType' has no member 'displayName'`
-
-- [ ] **Step 3: Implement `displayName` on `FeedCardType`**
-
-Edit `SocialBrain/Models/FeedCardType.swift`:
+**File:** `SocialBrain/Models/PlatformInstance.swift` (new)
 
 ```swift
 import Foundation
 
-enum FeedCardType: String, Codable, Sendable {
-    case recentPost
-    case metricHighlight
-    case upcomingEvent
-    case staleReminder
+/// Identifies one configured account on one platform.
+///
+/// Every platform always has at least one instance named `"default"`.
+/// Additional instances have a user-supplied label (e.g. `"my-blog"`, `"client-site"`).
+public struct PlatformInstance: Hashable, Sendable, Identifiable, Codable {
+    public let platform: Platform
+    /// `"default"` for the first instance; user-defined for extras.
+    public let instanceName: String
 
-    var displayName: String {
-        switch self {
-        case .recentPost:      return "Recent Post"
-        case .metricHighlight: return "Metric Highlight"
-        case .upcomingEvent:   return "Upcoming Event"
-        case .staleReminder:   return "Stale Reminder"
-        }
+    public var id: String { "\(platform.rawValue):\(instanceName)" }
+
+    /// Shows just the platform name for the default instance; includes the
+    /// label for additional instances (e.g. "GoatCounter — my-blog").
+    public var displayName: String {
+        instanceName == "default"
+            ? platform.displayName
+            : "\(platform.displayName) — \(instanceName)"
+    }
+
+    public init(platform: Platform, instanceName: String = "default") {
+        self.platform = platform
+        self.instanceName = instanceName
     }
 }
 ```
 
-- [ ] **Step 4: Update `FeedCardView` to use `displayName`**
-
-Edit `SocialBrain/Views/Feed/FeedCardView.swift`, change line 20 from:
-
-```swift
-Text(vm.card.cardType.rawValue)
-```
-
-to:
-
-```swift
-Text(vm.card.cardType.displayName)
-```
-
-- [ ] **Step 5: Run tests to verify they pass**
-
-```bash
-xcodebuild test -scheme SocialBrain -destination 'platform=macOS' \
-  -only-testing:SocialBrainTests 2>&1 | tail -5
-```
-
-Expected: `** TEST SUCCEEDED **`
-
-- [ ] **Step 6: Commit**
-
-```bash
-git -C /Users/cate/git/social-brain-app/.worktrees/feed-card-display-name \
-  add SocialBrain/Models/FeedCardType.swift \
-      SocialBrain/Views/Feed/FeedCardView.swift \
-      SocialBrainTests/FeedCardBuilderTests.swift
-git -C /Users/cate/git/social-brain-app/.worktrees/feed-card-display-name \
-  commit -m "Add FeedCardType.displayName for human-readable badge labels (#20)"
-```
+- [ ] Create `SocialBrain/Models/PlatformInstance.swift` with the struct above
+- [ ] Run `xcodegen generate` to include the new file in the project
+- [ ] Build: `xcodebuild build-for-testing -scheme SocialBrain -destination 'platform=macOS'`
 
 ---
 
-## Task 2: Migrate `FeedViewModel` and `FeedCardViewModel` to `@Observable` (Issue #21)
+## Task 2: `InstanceRegistry`
 
-All other ViewModels in the codebase (`DashboardViewModel`, `RunViewModel`, `PlatformsViewModel`, `HistoryViewModel`) use the `@Observable` macro with `@State` at call sites. `FeedViewModel` and `FeedCardViewModel` use the older `ObservableObject`/`@Published`/`@StateObject` pattern. This is a pure refactor — no behaviour changes.
+**File:** `SocialBrain/Models/InstanceRegistry.swift` (new)
 
-**Why `@Observable` over `ObservableObject`:**
-- Consistent with every other ViewModel in the project.
-- `@Observable` tracks per-property access rather than publishing everything; SwiftUI re-renders only the views that actually read a changed property.
-- Removes `@Published` annotations; `@StateObject` at call sites becomes `@State`.
-- `objectWillChange.send()` in `FeedCardViewModel.toggleExpand()` is unnecessary with `@Observable` (the macro synthesises observation automatically) and must be removed.
+Tracks which instance names exist per platform in `UserDefaults`.
 
-**Key invariants to preserve:**
-- `FeedViewModel.cards` must remain `var` (not `private(set)`) so `FeedCardView` can receive a `Binding<FeedCard>` via `$vm.cards[index]`.
-- `FeedCardViewModel` holds a `Binding<FeedCard>` to write expand state back through `FeedViewModel.cards`. This mechanism is unchanged; only the class declaration changes.
-- All existing tests must continue to pass without modification. Test access patterns (`vm.cards`, `vm.isLoading`, `vm.error`) work identically with `@Observable`.
-
-**Files:**
-- Modify: `SocialBrain/Views/Feed/FeedViewModel.swift`
-- Modify: `SocialBrain/Views/Feed/FeedCardViewModel.swift`
-- Modify: `SocialBrain/Views/Feed/FeedView.swift`
-- Modify: `SocialBrain/Views/Feed/FeedCardView.swift`
-
-No test file changes required — existing tests are already compatible with `@Observable`.
-
-- [ ] **Step 1: Confirm existing tests pass (baseline)**
-
-```bash
-xcodebuild test -scheme SocialBrain -destination 'platform=macOS' \
-  -only-testing:SocialBrainTests/FeedViewModelTests \
-  -only-testing:SocialBrainTests/FeedCardViewModelTests 2>&1 | tail -5
-```
-
-Expected: `** TEST SUCCEEDED **`
-
-- [ ] **Step 2: Migrate `FeedViewModel`**
-
-Replace the full contents of `SocialBrain/Views/Feed/FeedViewModel.swift`:
+Key format: `"instanceNames_<platform.rawValue>"` → `[String]` (JSON-encoded array).
 
 ```swift
-import SwiftUI
-import Observation
+enum InstanceRegistry {
+    // Exposed for test injection; defaults to UserDefaults.standard
+    static var defaults: UserDefaults = .standard
 
-@Observable
-@MainActor
-final class FeedViewModel {
-
-    // cards must be var (not private(set)) so FeedCardView can receive a
-    // Binding<FeedCard> via $vm.cards[index] for expand/collapse write-back.
-    var cards: [FeedCard] = []
-    private(set) var isLoading: Bool = false
-    private(set) var error: String?
-
-    private let database: AppDatabase
-    private let now: () -> Date
-
-    init(database: AppDatabase, now: @escaping @Sendable () -> Date = { Date() }) {
-        self.database = database
-        self.now = now
+    static func instances(for platform: Platform) -> [String] {
+        // Returns stored list; auto-seeds ["default"] on first access.
     }
 
-    func load() async {
-        isLoading = true
-        error = nil
-        do {
-            let snapshots = try await database.latestSnapshots()
-            cards = FeedCardBuilder.build(snapshots: snapshots, now: now())
-        } catch {
-            self.error = error.localizedDescription
+    static func add(instanceName: String, to platform: Platform) {
+        // Appends if not already present
+    }
+
+    static func remove(instanceName: String, from platform: Platform) {
+        // Does nothing if it would leave the list empty (prevents removing "default" if it's the only one)
+    }
+
+    static func allInstances() -> [PlatformInstance] {
+        // Returns PlatformInstance for every (platform, instanceName) pair
+    }
+
+    /// Removes all stored instance lists — for test teardown only.
+    static func resetAll() {
+        for platform in Platform.allCases {
+            defaults.removeObject(forKey: key(for: platform))
         }
-        isLoading = false
+    }
+
+    private static func key(for platform: Platform) -> String {
+        "instanceNames_\(platform.rawValue)"
     }
 }
 ```
 
-- [ ] **Step 3: Migrate `FeedCardViewModel`**
+- [ ] Create `SocialBrain/Models/InstanceRegistry.swift`
+- [ ] `defaults` is a `static var` so tests can inject a custom suite via `UserDefaults(suiteName:)`
+- [ ] `remove` guards against emptying the list (always leaves at least one instance)
+- [ ] Run `xcodegen generate`; build succeeds
 
-Replace the full contents of `SocialBrain/Views/Feed/FeedCardViewModel.swift`:
+---
+
+## Task 3: `KeychainStore` — instance-keyed overloads
+
+**File:** `SocialBrain/Keychain/KeychainStore.swift` (modify)
+
+Add overloads accepting `PlatformInstance`.  The account key changes from
+`platform.rawValue` to `"\(platform.rawValue):\(instanceName)"`.
+
+Add these methods:
 
 ```swift
-import SwiftUI
-import Observation
+// New instance-keyed API
+static func save(_ credentials: Credentials, for instance: PlatformInstance) throws
+static func load(for instance: PlatformInstance) throws -> Credentials?
+static func delete(for instance: PlatformInstance) throws
+static func hasCredentials(for instance: PlatformInstance) -> Bool
+```
 
-@Observable
-@MainActor
-final class FeedCardViewModel {
+Keep the existing `Platform`-only API intact; they simply delegate to the `"default"` instance:
 
-    // Binding into FeedViewModel.cards so expand state is shared.
-    private var cardBinding: Binding<FeedCard>
+```swift
+static func save(_ credentials: Credentials, for platform: Platform) throws {
+    try save(credentials, for: PlatformInstance(platform: platform))
+}
+// same for load, delete, hasCredentials
+```
 
-    init(card: Binding<FeedCard>) {
-        self.cardBinding = card
+The internal `account` string for the new overloads is `instance.id` (`"platform_raw:instanceName"`).
+
+- [ ] Modify `KeychainStore.swift`
+- [ ] Implement new overloads
+- [ ] Ensure existing `Platform`-only overloads delegate to new overloads (no code duplication)
+- [ ] Build succeeds
+
+---
+
+## Task 4: `PlatformData` — add `instanceName`
+
+**File:** `SocialBrain/Models/PlatformData.swift` (modify)
+
+Add `instanceName: String` with a default of `"default"`:
+
+```swift
+public struct PlatformData: Sendable, Codable {
+    public let platform: Platform
+    public let instanceName: String   // NEW
+    public let collectedAt: Date
+    public let metrics: [String: MetricValue]
+
+    public init(
+        platform: Platform,
+        instanceName: String = "default",   // NEW parameter
+        collectedAt: Date = .now,
+        metrics: [String: MetricValue]
+    ) { ... }
+}
+```
+
+- [ ] Modify `PlatformData.swift`
+- [ ] All existing callers pass no `instanceName` argument and get `"default"` — no call site changes required
+- [ ] Build succeeds
+
+---
+
+## Task 5: `PlatformSnapshot` — add `instanceName`
+
+**File:** `SocialBrain/Database/PlatformSnapshot.swift` (modify)
+
+```swift
+struct PlatformSnapshot: ... {
+    var id: Int64?
+    var runID: Int64
+    var platform: String
+    var instanceName: String   // NEW
+    var collectedAt: Date
+    var metricsJSON: Data
+
+    // ...
+
+    var instanceEnum: PlatformInstance? {   // NEW computed
+        guard let p = platformEnum else { return nil }
+        return PlatformInstance(platform: p, instanceName: instanceName)
     }
 
-    var card: FeedCard { cardBinding.wrappedValue }
-
-    var displaySnippet: String {
-        card.isExpanded ? card.snippet : FeedCardBuilder.truncate(card.snippet, limit: 100)
-    }
-
-    var isTruncated: Bool {
-        card.snippet.count > 100
-    }
-
-    func toggleExpand() {
-        cardBinding.wrappedValue.isExpanded.toggle()
-        // @Observable synthesises change notification automatically;
-        // no objectWillChange.send() needed.
+    init(runID: Int64, data: PlatformData) throws {
+        self.instanceName = data.instanceName   // NEW line
+        // existing assignments...
     }
 }
 ```
 
-- [ ] **Step 4: Update `FeedView` call site (`@StateObject` → `@State`)**
+- [ ] Modify `PlatformSnapshot.swift`
+- [ ] Add `instanceName: String` stored property
+- [ ] Add `instanceEnum` computed property
+- [ ] Update `init(runID:data:)` to copy `data.instanceName`
+- [ ] Build succeeds
 
-Replace the full contents of `SocialBrain/Views/Feed/FeedView.swift`:
+---
+
+## Task 6: Database migration `v2_instance_names`
+
+**File:** `SocialBrain/Database/AppDatabase.swift` (modify)
+
+Register a new migration after `v1_initial`:
 
 ```swift
-import SwiftUI
-
-struct FeedView: View {
-    @State private var vm: FeedViewModel
-    var onNavigate: (SidebarItem, Platform?) -> Void
-
-    init(database: AppDatabase, onNavigate: @escaping (SidebarItem, Platform?) -> Void) {
-        _vm = State(wrappedValue: FeedViewModel(database: database))
-        self.onNavigate = onNavigate
+migrator.registerMigration("v2_instance_names") { db in
+    try db.alter(table: "platformSnapshot") { t in
+        t.add(column: "instanceName", .text).notNull().defaults(to: "default")
     }
+    // Drop the old two-column index and re-create it with three columns
+    try db.execute(sql: "DROP INDEX IF EXISTS \"index_platformSnapshot_on_platform_collectedAt\"")
+    try db.create(
+        indexOn: "platformSnapshot",
+        columns: ["platform", "instanceName", "collectedAt"]
+    )
+}
+```
 
-    var body: some View {
-        Group {
-            if vm.isLoading {
-                ProgressView("Loading feed…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if vm.cards.filter({ $0.cardType != .staleReminder }).isEmpty {
-                ContentUnavailableView(
-                    "Nothing yet",
-                    systemImage: "rectangle.stack",
-                    description: Text("Run a collection to populate your feed.")
+Note: `eraseDatabaseOnSchemaChange = true` is guarded by `#if DEBUG` and only affects
+the migration runner's behaviour when the schema hash changes — it will drop and
+recreate the database in debug builds.  For unit tests this is fine because
+`makeInMemory()` always starts fresh.  In production (non-DEBUG) the migration runs
+incrementally and no data is lost.
+
+- [ ] Register `"v2_instance_names"` migration in `AppDatabase.migrator`
+- [ ] Build succeeds
+- [ ] Run unit test suite — existing migration tests still pass
+
+---
+
+## Task 7: `AppDatabase` query updates
+
+**File:** `SocialBrain/Database/AppDatabase.swift` (modify)
+
+Update all query helpers:
+
+```swift
+// Updated: add instanceName parameter
+func latestSnapshot(
+    for platform: Platform,
+    instanceName: String = "default"
+) throws -> PlatformSnapshot?
+
+func snapshots(
+    for platform: Platform,
+    instanceName: String = "default",
+    from: Date,
+    to: Date = .now
+) throws -> [PlatformSnapshot]
+
+func twoLatestSnapshots(
+    for platform: Platform,
+    instanceName: String = "default"
+) throws -> [PlatformSnapshot]
+
+// Return type changed from [Platform: PlatformSnapshot]
+func latestSnapshots() throws -> [PlatformInstance: PlatformSnapshot]
+func previousSnapshots() throws -> [PlatformInstance: PlatformSnapshot]
+
+// New: delete all snapshots for a specific instance
+func deleteSnapshots(for instance: PlatformInstance) throws
+```
+
+SQL changes:
+- Queries now filter on both `platform` and `instanceName` columns
+- `latestSnapshots()` groups by `(platform, instanceName)` and returns `PlatformInstance` keys
+- `previousSnapshots()` iterates `(platform, instanceName)` pairs
+
+Implementation notes for `latestSnapshots()`:
+
+```swift
+func latestSnapshots() throws -> [PlatformInstance: PlatformSnapshot] {
+    try dbWriter.read { db in
+        let rows = try PlatformSnapshot
+            .filter(sql: """
+                (platform, instanceName, collectedAt) IN (
+                    SELECT platform, instanceName, MAX(collectedAt)
+                    FROM platformSnapshot
+                    GROUP BY platform, instanceName
                 )
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        ForEach(vm.cards.indices, id: \.self) { index in
-                            FeedCardView(card: $vm.cards[index])
-                                .onTapGesture {
-                                    onNavigate(.dashboard, vm.cards[index].navigationTarget)
-                                }
-                                .accessibilityIdentifier("feedCard_\(vm.cards[index].id)")
-                        }
-                    }
-                    .padding(.vertical)
-                }
-            }
-        }
-        .navigationTitle("Feed")
-        .task { await vm.load() }
-        .refreshable { await vm.load() }
+                """)
+            .fetchAll(db)
+        return Dictionary(uniqueKeysWithValues: rows.compactMap { row in
+            guard let p = row.instanceEnum else { return nil }
+            return (p, row)
+        })
     }
 }
 ```
 
-Note: `$vm.cards[index]` — the `$` prefix binds to the `@State` wrapper's projected value (`Binding<FeedViewModel>`), and subscripting `.cards[index]` produces `Binding<FeedCard>`. This is the same mechanism that worked with `@StateObject`; it continues to work with `@State` + `@Observable`.
-
-- [ ] **Step 5: Update `FeedCardView` call site (`@StateObject` → `@State`)**
-
-Replace the full contents of `SocialBrain/Views/Feed/FeedCardView.swift`:
-
-```swift
-import SwiftUI
-
-struct FeedCardView: View {
-    // Binding writes back into FeedViewModel.cards — avoids stale local copy.
-    @Binding var card: FeedCard
-    @State private var vm: FeedCardViewModel
-
-    init(card: Binding<FeedCard>) {
-        self._card = card
-        _vm = State(wrappedValue: FeedCardViewModel(card: card))
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Label(vm.card.platform.displayName,
-                      systemImage: platformIcon(vm.card.platform))
-                    .font(.headline)
-                Spacer()
-                Text(vm.card.cardType.displayName)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Text(vm.displaySnippet)
-                .font(.body)
-                .lineLimit(vm.card.isExpanded ? nil : 3)
-
-            if vm.isTruncated {
-                Button(vm.card.isExpanded ? "Show less" : "Show more") {
-                    vm.toggleExpand()
-                }
-                .buttonStyle(.plain)
-                .font(.caption)
-                .accessibilityIdentifier("expandToggle_\(vm.card.id)")
-            }
-        }
-        .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
-        .padding(.horizontal)
-    }
-
-    private func platformIcon(_ platform: Platform) -> String {
-        switch platform {
-        case .mastodon:    return "bubble.left"
-        case .bluesky:     return "cloud"
-        case .buttondown:  return "envelope"
-        case .goatCounter: return "chart.line.uptrend.xyaxis"
-        case .vercel:      return "server.rack"
-        case .calendly:    return "calendar"
-        case .amazon:      return "shippingbox"
-        case .jetpack:     return "bolt"
-        case .linkedin:    return "person.crop.square"
-        case .oreilly:     return "book"
-        case .substack:    return "newspaper"
-        }
-    }
-}
-```
-
-- [ ] **Step 6: Run full test suite to verify refactor is clean**
-
-```bash
-xcodebuild test -scheme SocialBrain -destination 'platform=macOS' \
-  -only-testing:SocialBrainTests 2>&1 | tail -5
-```
-
-Expected: `** TEST SUCCEEDED **` — all 114+ tests must pass.
-
-- [ ] **Step 7: Commit**
-
-```bash
-git -C /Users/cate/git/social-brain-app/.worktrees/feed-card-display-name \
-  add SocialBrain/Views/Feed/FeedViewModel.swift \
-      SocialBrain/Views/Feed/FeedCardViewModel.swift \
-      SocialBrain/Views/Feed/FeedView.swift \
-      SocialBrain/Views/Feed/FeedCardView.swift
-git -C /Users/cate/git/social-brain-app/.worktrees/feed-card-display-name \
-  commit -m "Migrate FeedViewModel and FeedCardViewModel to @Observable (#21)"
-```
+- [ ] Update `latestSnapshot(for:)` to filter on `instanceName`
+- [ ] Update `snapshots(for:from:to:)` to filter on `instanceName`
+- [ ] Update `twoLatestSnapshots(for:)` to filter on `instanceName`
+- [ ] Update `latestSnapshots()` — new return type and GROUP BY
+- [ ] Update `previousSnapshots()` — new return type
+- [ ] Add `deleteSnapshots(for instance:)`
+- [ ] Build; fix any call-site compile errors from the return type changes
 
 ---
 
-## Task 3: Show stale reminders instead of "Nothing yet" empty state (Issue #22)
+## Task 8: `Collector` protocol + all collectors
 
-**Problem:** `FeedView` shows `ContentUnavailableView("Nothing yet")` when `cards.filter({ $0.cardType != .staleReminder }).isEmpty`. This is triggered when the only cards are stale reminders (e.g., user has file-export platforms configured but no collections yet). The result is that actionable "re-export your data" reminders are hidden behind an unhelpful empty state.
+**File:** `SocialBrain/Collectors/Collector.swift` (modify)
 
-**Fix:** Change the empty-state condition so it shows "Nothing yet" only when `cards` is completely empty (including stale reminders). When the only cards are stale reminders, show them — they are actionable.
+Add `instanceName` to the protocol:
 
-**Justification:** `FeedCardBuilder.build` always generates stale-reminder cards for the 4 file-export platforms (linkedin, substack, amazon, oreilly) when no snapshot exists. Hiding these on first launch leaves the user with no guidance. Showing them is the correct behaviour: "No LinkedIn data yet — export a file to get started."
+```swift
+protocol Collector: Sendable {
+    var platform: Platform { get }
+    var instanceName: String { get }   // NEW
+    func collect(since: Date?, credentials: Credentials) async throws -> PlatformData
+}
+
+// Default implementation so existing collectors need no changes:
+extension Collector {
+    var instanceName: String { "default" }
+}
+```
+
+**All 10 collector files** — no changes required because the default extension provides
+`instanceName = "default"`.  When a collector is instantiated for a specific instance
+it will be given the `instanceName` as a stored property.  Add a stored property to
+each collector:
+
+```swift
+struct ButtondownCollector: Collector {
+    var instanceName: String = "default"   // NEW stored property
+    let platform: Platform = .buttondown
+    // ...
+    func collect(since:credentials:) async throws -> PlatformData {
+        // Return data tagged with instanceName
+        return PlatformData(
+            platform: .buttondown,
+            instanceName: instanceName,   // NEW
+            collectedAt: .now,
+            metrics: [...]
+        )
+    }
+}
+```
+
+Apply this same change to all 10 non-file-export collectors.
+
+- [ ] Modify `Collector.swift` to add `instanceName` with default extension
+- [ ] Add `var instanceName: String = "default"` to each of the 10 collector structs
+- [ ] Update each collector's `collect(...)` to pass `instanceName` to `PlatformData(...)` init
+- [ ] Build succeeds
+
+---
+
+## Task 9: `CollectorRegistry` + `CollectionEngine`
+
+**File:** `SocialBrain/Collectors/CollectionEngine.swift` (modify)
+
+### `CollectorRegistry`
+
+```swift
+enum CollectorRegistry {
+    /// Returns all collectors for all instances with stored credentials.
+    static func configured(
+        instances: (Platform) -> [String] = InstanceRegistry.instances,
+        hasCredentials: (PlatformInstance) -> Bool = KeychainStore.hasCredentials
+    ) -> [any Collector] {
+        Platform.allCases.flatMap { platform in
+            instances(platform).compactMap { instanceName in
+                let instance = PlatformInstance(platform: platform, instanceName: instanceName)
+                guard hasCredentials(instance) else { return nil }
+                return collector(for: instance)
+            }
+        }
+    }
+
+    /// Returns the collector for a specific instance, or nil for file-export platforms.
+    static func collector(for instance: PlatformInstance) -> (any Collector)? {
+        switch instance.platform {
+        case .buttondown:
+            var c = ButtondownCollector(); c.instanceName = instance.instanceName; return c
+        case .goatCounter:
+            var c = GoatCounterCollector(); c.instanceName = instance.instanceName; return c
+        // ... same pattern for all API/token platforms
+        case .amazon, .linkedin, .oreilly, .substack:
+            return nil  // file-export platforms
+        }
+    }
+}
+```
+
+### `CollectionEngine`
+
+Change the `credentials` closure to accept `PlatformInstance`:
+
+```swift
+func run(
+    collectors: [any Collector],
+    credentials: @escaping @Sendable (PlatformInstance) throws -> Credentials?,
+    since: Date? = nil,
+    progress: (@Sendable (CollectionResult) async -> Void)? = nil
+) async throws -> CollectionSummary
+```
+
+Inside `run`, build the instance for each collector and use it to fetch credentials:
+
+```swift
+group.addTask {
+    let instance = PlatformInstance(platform: collector.platform, instanceName: collector.instanceName)
+    do {
+        guard let creds = try credentials(instance) else { ... }
+        let data = try await collector.collect(since: since, credentials: creds)
+        return .success(data)
+    } catch {
+        return .failure(platform: collector.platform, instanceName: collector.instanceName, error: error)
+    }
+}
+```
+
+### `CollectionResult` update
+
+```swift
+enum CollectionResult: Sendable {
+    case success(PlatformData)
+    case failure(platform: Platform, instanceName: String, error: Error)
+
+    var instance: PlatformInstance {
+        switch self {
+        case .success(let d):
+            return PlatformInstance(platform: d.platform, instanceName: d.instanceName)
+        case .failure(let p, let i, _):
+            return PlatformInstance(platform: p, instanceName: i)
+        }
+    }
+    // Keep .platform property for backwards compatibility
+    var platform: Platform { instance.platform }
+}
+```
+
+- [ ] Update `CollectorRegistry.configured()` to iterate `InstanceRegistry.allInstances()`
+- [ ] Update `CollectorRegistry.collector(for:)` to accept `PlatformInstance`
+- [ ] Update `CollectionResult.failure` to carry `instanceName`
+- [ ] Add `instance` computed property to `CollectionResult`
+- [ ] Update `CollectionEngine.run(credentials:)` closure type
+- [ ] Build; fix any call-site errors in `RunViewModel`
+
+---
+
+## Task 10: `RunViewModel` — update credentials closure
+
+**File:** `SocialBrain/Views/Run/RunViewModel.swift` (modify)
+
+Change the credentials closure from `(Platform) -> Credentials?` to
+`(PlatformInstance) -> Credentials?`:
+
+```swift
+let summary = try await engine.run(
+    collectors: CollectorRegistry.configured(),
+    credentials: { instance in
+        try KeychainStore.load(for: instance)
+    },
+    since: since,
+    progress: { result in ... }
+)
+```
+
+- [ ] Update `RunViewModel` credentials closure
+- [ ] Build succeeds
+
+---
+
+## Task 11: `PromptAssembler`
+
+**File:** `SocialBrain/Prompt/PromptAssembler.swift` (modify)
+
+Change `Input.snapshots` from `[Platform: PlatformSnapshot]` to
+`[PlatformInstance: PlatformSnapshot]`:
+
+```swift
+struct Input {
+    let periodLabel: String
+    let reportDate: Date
+    let snapshots: [PlatformInstance: PlatformSnapshot]   // changed
+    let goal: AnalyticsGoal
+    let goalCustomText: String
+}
+```
+
+Update section header logic: when a platform has exactly one instance, use the
+platform `displayName`; when it has two or more, use the instance `displayName`
+(which includes the label):
+
+```swift
+// Group snapshots by platform
+let byPlatform = Dictionary(grouping: snapshots.keys, by: \.platform)
+
+for platform in sortedPlatforms {
+    let instances = byPlatform[platform] ?? []
+    let multiInstance = instances.count > 1
+    for instance in instances.sorted(by: { $0.instanceName < $1.instanceName }) {
+        guard let snap = snapshots[instance] else { continue }
+        let header = multiInstance ? instance.displayName : platform.displayName
+        sections.append(format(snap, header: header))
+    }
+}
+```
+
+- [ ] Update `Input` struct
+- [ ] Update section header logic
+- [ ] Update `RunViewModel` to pass `[PlatformInstance: PlatformSnapshot]` to `PromptAssembler.Input`
+- [ ] Build succeeds
+
+---
+
+## Task 12: Feed / Spike / HighReach model updates
 
 **Files:**
-- Modify: `SocialBrain/Views/Feed/FeedView.swift`
-- Test: `SocialBrainTests/FeedViewModelTests.swift` (update 1 existing test + add 1 new test)
+- `SocialBrain/Models/FeedCardBuilder.swift` (modify)
+- `SocialBrain/Models/SpikeDetector.swift` (modify)
+- `SocialBrain/Models/HighReachDetector.swift` (modify)
+- `SocialBrain/Models/FeedCard.swift` (modify)
+- `SocialBrain/Views/Feed/FeedViewModel.swift` (modify)
 
-- [ ] **Step 1: Identify the test that documents the old wrong behaviour**
+The primary change: all functions that accept `[Platform: PlatformSnapshot]` now
+accept `[PlatformInstance: PlatformSnapshot]`.  `FeedCard` gains `instanceName`
+and its `displayTitle` shows the label when `instanceName != "default"`.
 
-The test `emptyDatabaseProducesStaleReminders` in `FeedViewModelTests.swift` asserts that `vm.cards` contains 4 stale reminder cards for an empty database. This is correct and should stay. However, `FeedView` was filtering these out of the visible list.
+- [ ] Update `FeedCardBuilder.build(snapshots:now:)` parameter type
+- [ ] Update `SpikeDetector` input type
+- [ ] Update `HighReachDetector` input type
+- [ ] Update `FeedCard` — add `instanceName: String`, update `displayTitle`
+- [ ] Update `FeedViewModel.load()` to call `database.latestSnapshots()` (which now returns `[PlatformInstance: PlatformSnapshot]`) and pass it through
+- [ ] Build succeeds
 
-The new assertion needed: when the database is empty, `vm.cards` is non-empty (contains stale reminders) and `.cards.isEmpty` is `false`.
+---
 
-- [ ] **Step 2: Write a failing test that exercises the new empty-state condition**
+## Task 13: Dashboard updates
 
-Add to `SocialBrainTests/FeedViewModelTests.swift`:
+**File:** `SocialBrain/Views/Dashboard/DashboardViewModel.swift` (modify)
+
+`DashboardViewModel` currently uses `Platform` as the picker and chart key.  With
+multiple instances the picker must show `PlatformInstance` values.  The `selectedPlatform`
+property becomes `selectedInstance: PlatformInstance`.
+
+Changes:
+- Add `allInstances: [PlatformInstance]` computed from `latestSnapshots()` keys
+- Replace `selectedPlatform: Platform` with `selectedInstance: PlatformInstance?`
+- Pass `instanceName` when calling `database.snapshots(for:instanceName:from:to:)`
+- Use `instance.displayName` in chart titles
+
+`DashboardView` picker and chart labels update accordingly.
+
+- [ ] Update `DashboardViewModel` to use `PlatformInstance` keys
+- [ ] Update `DashboardView` picker to use `allInstances`
+- [ ] Build succeeds
+
+---
+
+## Task 14: `PlatformsViewModel` — multi-instance management
+
+**File:** `SocialBrain/Views/Platforms/PlatformsViewModel.swift` (modify)
+
+Replace `configured: Set<Platform>` with `configuredInstances: [Platform: [String]]`
+(instance names grouped by platform):
 
 ```swift
-@Test("empty database cards array is non-empty (stale reminders present)")
-func emptyDatabaseHasNonEmptyCards() async throws {
-    let db = try makeDB()
-    let vm = FeedViewModel(database: db)
-    await vm.load()
-    // FeedView should NOT show "Nothing yet" — stale reminders are present
-    #expect(!vm.cards.isEmpty)
-}
-```
+@Observable
+@MainActor
+final class PlatformsViewModel {
+    private(set) var configuredInstances: [Platform: [String]] = [:]
 
-This test already passes with the current code (the ViewModel populates stale reminder cards); it documents the contract for the view.
-
-- [ ] **Step 3: Fix `FeedView` empty-state condition**
-
-In `SocialBrain/Views/Feed/FeedView.swift`, change the empty-state condition from:
-
-```swift
-} else if vm.cards.filter({ $0.cardType != .staleReminder }).isEmpty {
-```
-
-to:
-
-```swift
-} else if vm.cards.isEmpty {
-```
-
-The full updated body section:
-
-```swift
-var body: some View {
-    Group {
-        if vm.isLoading {
-            ProgressView("Loading feed…")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if vm.cards.isEmpty {
-            ContentUnavailableView(
-                "Nothing yet",
-                systemImage: "rectangle.stack",
-                description: Text("Run a collection to populate your feed.")
-            )
-        } else {
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    ForEach(vm.cards.indices, id: \.self) { index in
-                        FeedCardView(card: $vm.cards[index])
-                            .onTapGesture {
-                                onNavigate(.dashboard, vm.cards[index].navigationTarget)
-                            }
-                            .accessibilityIdentifier("feedCard_\(vm.cards[index].id)")
-                    }
-                }
-                .padding(.vertical)
+    func reload() {
+        configuredInstances = [:]
+        for platform in Platform.allCases {
+            let names = InstanceRegistry.instances(for: platform)
+            let configured = names.filter { name in
+                KeychainStore.hasCredentials(for: PlatformInstance(platform: platform, instanceName: name))
+            }
+            if !configured.isEmpty {
+                configuredInstances[platform] = configured
             }
         }
     }
-    .navigationTitle("Feed")
-    .task { await vm.load() }
-    .refreshable { await vm.load() }
+
+    func loadValues(for instance: PlatformInstance) -> [String: String] { ... }
+    func save(_ values: [String: String], for instance: PlatformInstance) throws { ... }
+    func delete(for instance: PlatformInstance) async throws {
+        try KeychainStore.delete(for: instance)
+        try await database.deleteSnapshots(for: instance)
+        InstanceRegistry.remove(instanceName: instance.instanceName, from: instance.platform)
+        reload()
+    }
+    func importFile(for instance: PlatformInstance, allowedExtensions: [String]) async throws { ... }
+
+    func addInstance(label: String, to platform: Platform) {
+        InstanceRegistry.add(instanceName: label, to: platform)
+    }
 }
 ```
 
-Note: `FeedCardBuilder.build` will only ever return an empty array if there are zero platforms configured and all snapshot collections return nothing — which in practice never happens because the 4 file-export platforms always generate stale reminders when no snapshot exists. The `"Nothing yet"` state is still reachable if `FeedCardBuilder.build` is called with a non-nil snapshot dictionary that is completely empty AND no file-export platforms have stale thresholds — but this cannot happen with the current builder logic. The condition `vm.cards.isEmpty` is therefore correct and sufficient.
+- [ ] Update `PlatformsViewModel` — replace `configured: Set<Platform>` with `configuredInstances: [Platform: [String]]`
+- [ ] Add `addInstance(label:to:)` and update `delete(for:)` to remove DB snapshots
+- [ ] Update `reload()`, `save`, `loadValues`, `importFile` to use `PlatformInstance`
+- [ ] Build succeeds
 
-- [ ] **Step 4: Run tests**
+---
 
-```bash
-xcodebuild test -scheme SocialBrain -destination 'platform=macOS' \
-  -only-testing:SocialBrainTests 2>&1 | tail -5
+## Task 15: `PlatformsView` + `PlatformCredentialSheet` UI
+
+**File:** `SocialBrain/Views/Platforms/PlatformsView.swift` (modify)
+
+Replace single row per platform with a grouped disclosure or list section per platform.
+Show existing instances with Edit/Delete buttons; add "+ Add another [platform]" button.
+
+```swift
+ForEach(sectionPlatforms, id: \.self) { platform in
+    let instances = viewModel.configuredInstances[platform] ?? []
+    Section(platform.displayName) {
+        if instances.isEmpty {
+            Button("Set Up") { ... }
+        } else {
+            ForEach(instances, id: \.self) { instanceName in
+                let inst = PlatformInstance(platform: platform, instanceName: instanceName)
+                instanceRow(inst)
+            }
+            Button("+ Add another \(platform.displayName)") {
+                addingInstanceFor = platform
+            }
+        }
+    }
+}
 ```
 
-Expected: `** TEST SUCCEEDED **`
+Add state: `@State private var addingInstanceFor: Platform?`
+Add sheet for adding new instances with a "Name this connection" text field.
 
-- [ ] **Step 5: Commit**
+**File:** `SocialBrain/Views/Platforms/PlatformCredentialSheet.swift` (modify)
+
+Add `instanceName: String` parameter (non-optional; defaults to `"default"`).
+When the sheet is invoked from the "Add another" flow, a text field "Name this
+connection" pre-populates with the user-entered label.  On save, register the
+instance in `InstanceRegistry` then save to Keychain.
+
+- [ ] Update `PlatformsView` — grouped sections with instance rows
+- [ ] Update `PlatformCredentialSheet` — accept `PlatformInstance` parameter
+- [ ] Wire "Add another" flow
+- [ ] Build succeeds
+
+---
+
+## Task 16: `xcodegen generate` + final build + run tests
 
 ```bash
-git -C /Users/cate/git/social-brain-app/.worktrees/feed-card-display-name \
-  add SocialBrain/Views/Feed/FeedView.swift \
-      SocialBrainTests/FeedViewModelTests.swift
-git -C /Users/cate/git/social-brain-app/.worktrees/feed-card-display-name \
-  commit -m "Show stale reminders instead of empty state when no API data yet (#22)"
+cd /Users/cate/git/social-brain-app/.worktrees/multi-instance-platforms
+xcodegen generate
+xcodebuild build-for-testing -scheme SocialBrain -destination 'platform=macOS'
+xcodebuild test \
+  -scheme SocialBrain \
+  -destination 'platform=macOS' \
+  -only-testing:SocialBrainTests \
+  2>&1 | tail -20
+```
+
+- [ ] All new test files included in project
+- [ ] Build succeeds (no errors, no warnings that weren't pre-existing)
+- [ ] All tests pass
+
+---
+
+## Task 17: Write new tests
+
+### `SocialBrainTests/PlatformInstanceTests.swift` (new)
+
+```swift
+@Suite("PlatformInstance Tests")
+struct PlatformInstanceTests {
+    @Test("id is platform:instanceName")
+    func idFormat() {
+        let inst = PlatformInstance(platform: .buttondown, instanceName: "newsletter-1")
+        #expect(inst.id == "buttondown:newsletter-1")
+    }
+
+    @Test("displayName omits label for default instance")
+    func displayNameDefault() {
+        let inst = PlatformInstance(platform: .mastodon)
+        #expect(inst.displayName == "Mastodon")
+    }
+
+    @Test("displayName includes label for non-default instance")
+    func displayNameNonDefault() {
+        let inst = PlatformInstance(platform: .goatCounter, instanceName: "my-blog")
+        #expect(inst.displayName == "GoatCounter — my-blog")
+    }
+
+    @Test("Two instances with same platform+name are equal")
+    func hashableEquality() {
+        let a = PlatformInstance(platform: .bluesky, instanceName: "work")
+        let b = PlatformInstance(platform: .bluesky, instanceName: "work")
+        #expect(a == b)
+        #expect(a.hashValue == b.hashValue)
+    }
+
+    @Test("Two instances with different names are not equal")
+    func hashableInequality() {
+        let a = PlatformInstance(platform: .bluesky, instanceName: "work")
+        let b = PlatformInstance(platform: .bluesky, instanceName: "personal")
+        #expect(a != b)
+    }
+}
+```
+
+### `SocialBrainTests/InstanceRegistryTests.swift` (new)
+
+Uses a test-specific `UserDefaults` suite to avoid polluting real defaults:
+
+```swift
+@Suite("InstanceRegistry Tests")
+struct InstanceRegistryTests {
+    private let suiteName = "com.test.InstanceRegistryTests"
+
+    init() {
+        // Inject test defaults and clear them
+        InstanceRegistry.defaults = UserDefaults(suiteName: suiteName)!
+        InstanceRegistry.resetAll()
+    }
+
+    @Test("Fresh platform auto-seeds default instance")
+    func autoSeeds() {
+        let names = InstanceRegistry.instances(for: .buttondown)
+        #expect(names == ["default"])
+    }
+
+    @Test("Adding an instance appends to the list")
+    func addInstance() {
+        InstanceRegistry.add(instanceName: "newsletter-2", to: .buttondown)
+        let names = InstanceRegistry.instances(for: .buttondown)
+        #expect(names.contains("newsletter-2"))
+        #expect(names.count == 2)
+    }
+
+    @Test("Removing an instance removes it")
+    func removeInstance() {
+        InstanceRegistry.add(instanceName: "extra", to: .mastodon)
+        InstanceRegistry.remove(instanceName: "extra", from: .mastodon)
+        let names = InstanceRegistry.instances(for: .mastodon)
+        #expect(!names.contains("extra"))
+    }
+
+    @Test("Cannot remove the last instance")
+    func cannotRemoveLast() {
+        InstanceRegistry.remove(instanceName: "default", from: .bluesky)
+        let names = InstanceRegistry.instances(for: .bluesky)
+        #expect(names == ["default"])  // still present
+    }
+
+    @Test("allInstances returns one entry per configured (platform, name) pair")
+    func allInstances() {
+        InstanceRegistry.add(instanceName: "second", to: .buttondown)
+        let all = InstanceRegistry.allInstances()
+        // buttondown should have 2 entries; every other platform should have 1
+        let buttondownInstances = all.filter { $0.platform == .buttondown }
+        #expect(buttondownInstances.count == 2)
+    }
+
+    @Test("Registry survives UserDefaults round-trip")
+    func roundTrip() {
+        InstanceRegistry.add(instanceName: "persisted", to: .vercel)
+        // Simulate restart by re-reading from the same defaults
+        let names = InstanceRegistry.instances(for: .vercel)
+        #expect(names.contains("persisted"))
+    }
+}
+```
+
+### `SocialBrainTests/MultiInstanceKeychainTests.swift` (new)
+
+```swift
+@Suite("Multi-Instance Keychain Tests")
+struct MultiInstanceKeychainTests {
+    private let inst1 = PlatformInstance(platform: .buttondown, instanceName: "newsletter-a")
+    private let inst2 = PlatformInstance(platform: .buttondown, instanceName: "newsletter-b")
+
+    // Clean up test keys before and after
+    init() throws {
+        try? KeychainStore.delete(for: inst1)
+        try? KeychainStore.delete(for: inst2)
+    }
+
+    @Test("Two instances of same platform stored independently")
+    func twoInstances() throws {
+        try KeychainStore.save(Credentials(["api_key": "key-a"]), for: inst1)
+        try KeychainStore.save(Credentials(["api_key": "key-b"]), for: inst2)
+        let creds1 = try KeychainStore.load(for: inst1)
+        let creds2 = try KeychainStore.load(for: inst2)
+        #expect(creds1?.apiKey == "key-a")
+        #expect(creds2?.apiKey == "key-b")
+    }
+
+    @Test("hasCredentials returns false before saving")
+    func missingCredentials() {
+        #expect(KeychainStore.hasCredentials(for: inst1) == false)
+    }
+
+    @Test("Platform-only API delegates to default instance")
+    func platformAPIDelegate() throws {
+        let defaultInst = PlatformInstance(platform: .mastodon)
+        try? KeychainStore.delete(for: defaultInst)
+        try KeychainStore.save(Credentials(["access_token": "tok"]), for: .mastodon)
+        let loaded = try KeychainStore.load(for: defaultInst)
+        #expect(loaded?.accessToken == "tok")
+    }
+
+    @Test("Deleting one instance leaves the other intact")
+    func deleteOneInstance() throws {
+        try KeychainStore.save(Credentials(["api_key": "a"]), for: inst1)
+        try KeychainStore.save(Credentials(["api_key": "b"]), for: inst2)
+        try KeychainStore.delete(for: inst1)
+        #expect(KeychainStore.hasCredentials(for: inst1) == false)
+        #expect(KeychainStore.hasCredentials(for: inst2) == true)
+    }
+}
+```
+
+### `SocialBrainTests/MultiInstanceDatabaseTests.swift` (new)
+
+```swift
+@Suite("Multi-Instance Database Tests")
+struct MultiInstanceDatabaseTests {
+
+    @Test("v2 migration adds instanceName column with default value")
+    func migrationAddsColumn() async throws {
+        let db = try AppDatabase.makeInMemory()
+        try await db.dbWriter.read { conn in
+            let columns = try Row.fetchAll(conn, sql: "PRAGMA table_info(platformSnapshot)")
+            let names = columns.map { $0["name"] as String }
+            #expect(names.contains("instanceName"))
+        }
+    }
+
+    @Test("latestSnapshot scopes to instanceName")
+    func latestSnapshotScoped() async throws {
+        let db = try AppDatabase.makeInMemory()
+        var run = CollectionRun(id: nil, startedAt: Date(timeIntervalSinceReferenceDate: 700_000_000), completedAt: nil, platformCount: 2, errorCount: 0)
+        try await db.saveRun(&run)
+        let runID = try #require(run.id)
+
+        let dataA = PlatformData(platform: .buttondown, instanceName: "newsletter-a", collectedAt: Date(timeIntervalSinceReferenceDate: 700_000_000), metrics: ["subscriber_count": .int(100)])
+        let dataB = PlatformData(platform: .buttondown, instanceName: "newsletter-b", collectedAt: Date(timeIntervalSinceReferenceDate: 700_000_000), metrics: ["subscriber_count": .int(200)])
+        var snapA = try PlatformSnapshot(runID: runID, data: dataA)
+        var snapB = try PlatformSnapshot(runID: runID, data: dataB)
+        try await db.saveSnapshot(&snapA)
+        try await db.saveSnapshot(&snapB)
+
+        let latest = try await db.latestSnapshot(for: .buttondown, instanceName: "newsletter-a")
+        let metrics = try latest?.decodedMetrics()
+        #expect(metrics?["subscriber_count"] == .int(100))
+    }
+
+    @Test("latestSnapshots returns PlatformInstance keys")
+    func latestSnapshotsKeys() async throws {
+        let db = try AppDatabase.makeInMemory()
+        var run = CollectionRun(id: nil, startedAt: Date(timeIntervalSinceReferenceDate: 700_000_000), completedAt: nil, platformCount: 2, errorCount: 0)
+        try await db.saveRun(&run)
+        let runID = try #require(run.id)
+
+        let dataA = PlatformData(platform: .mastodon, instanceName: "personal", collectedAt: Date(timeIntervalSinceReferenceDate: 700_000_000), metrics: [:])
+        let dataB = PlatformData(platform: .mastodon, instanceName: "work", collectedAt: Date(timeIntervalSinceReferenceDate: 700_010_000), metrics: [:])
+        var sA = try PlatformSnapshot(runID: runID, data: dataA)
+        var sB = try PlatformSnapshot(runID: runID, data: dataB)
+        try await db.saveSnapshot(&sA)
+        try await db.saveSnapshot(&sB)
+
+        let latest = try await db.latestSnapshots()
+        let instPersonal = PlatformInstance(platform: .mastodon, instanceName: "personal")
+        let instWork = PlatformInstance(platform: .mastodon, instanceName: "work")
+        #expect(latest[instPersonal] != nil)
+        #expect(latest[instWork] != nil)
+        #expect(latest.count == 2)
+    }
+
+    @Test("deleteSnapshots removes only the target instance")
+    func deleteSnapshotsScoped() async throws {
+        let db = try AppDatabase.makeInMemory()
+        var run = CollectionRun(id: nil, startedAt: Date(timeIntervalSinceReferenceDate: 700_000_000), completedAt: nil, platformCount: 2, errorCount: 0)
+        try await db.saveRun(&run)
+        let runID = try #require(run.id)
+
+        let dataA = PlatformData(platform: .goatCounter, instanceName: "site-a", collectedAt: Date(timeIntervalSinceReferenceDate: 700_000_000), metrics: [:])
+        let dataB = PlatformData(platform: .goatCounter, instanceName: "site-b", collectedAt: Date(timeIntervalSinceReferenceDate: 700_000_000), metrics: [:])
+        var sA = try PlatformSnapshot(runID: runID, data: dataA)
+        var sB = try PlatformSnapshot(runID: runID, data: dataB)
+        try await db.saveSnapshot(&sA)
+        try await db.saveSnapshot(&sB)
+
+        try await db.deleteSnapshots(for: PlatformInstance(platform: .goatCounter, instanceName: "site-a"))
+
+        let remaining = try await db.latestSnapshots()
+        #expect(remaining[PlatformInstance(platform: .goatCounter, instanceName: "site-a")] == nil)
+        #expect(remaining[PlatformInstance(platform: .goatCounter, instanceName: "site-b")] != nil)
+    }
+
+    @Test("Two instances of same platform produce two distinct dictionary entries")
+    func twoInstancesDistinct() async throws {
+        let db = try AppDatabase.makeInMemory()
+        var run = CollectionRun(id: nil, startedAt: Date(timeIntervalSinceReferenceDate: 700_000_000), completedAt: nil, platformCount: 2, errorCount: 0)
+        try await db.saveRun(&run)
+        let runID = try #require(run.id)
+
+        let d1 = PlatformData(platform: .buttondown, instanceName: "nl-1", collectedAt: Date(timeIntervalSinceReferenceDate: 700_000_000), metrics: ["subscriber_count": .int(10)])
+        let d2 = PlatformData(platform: .buttondown, instanceName: "nl-2", collectedAt: Date(timeIntervalSinceReferenceDate: 700_000_000), metrics: ["subscriber_count": .int(20)])
+        var s1 = try PlatformSnapshot(runID: runID, data: d1)
+        var s2 = try PlatformSnapshot(runID: runID, data: d2)
+        try await db.saveSnapshot(&s1)
+        try await db.saveSnapshot(&s2)
+
+        let latest = try await db.latestSnapshots()
+        let inst1 = PlatformInstance(platform: .buttondown, instanceName: "nl-1")
+        let inst2 = PlatformInstance(platform: .buttondown, instanceName: "nl-2")
+        let m1 = try latest[inst1]?.decodedMetrics()
+        let m2 = try latest[inst2]?.decodedMetrics()
+        #expect(m1?["subscriber_count"] == .int(10))
+        #expect(m2?["subscriber_count"] == .int(20))
+    }
+}
+```
+
+### `SocialBrainTests/MultiInstanceCollectorRegistryTests.swift` (new)
+
+```swift
+@Suite("Multi-Instance CollectorRegistry Tests")
+struct MultiInstanceCollectorRegistryTests {
+
+    @Test("configured() returns one collector per credentialed instance")
+    func configuredCollectors() {
+        let inst1 = PlatformInstance(platform: .buttondown, instanceName: "nl-a")
+        let inst2 = PlatformInstance(platform: .buttondown, instanceName: "nl-b")
+        let credentialed: Set<String> = [inst1.id, inst2.id]
+
+        let mockInstances: (Platform) -> [String] = { platform in
+            platform == .buttondown ? ["nl-a", "nl-b"] : ["default"]
+        }
+        let mockHasCredentials: (PlatformInstance) -> Bool = { credentialed.contains($0.id) }
+
+        let collectors = CollectorRegistry.configured(
+            instances: mockInstances,
+            hasCredentials: mockHasCredentials
+        )
+        let buttondownCollectors = collectors.filter { $0.platform == .buttondown }
+        #expect(buttondownCollectors.count == 2)
+        let names = Set(buttondownCollectors.map(\.instanceName))
+        #expect(names == ["nl-a", "nl-b"])
+    }
+
+    @Test("Instance without credentials is excluded")
+    func excludesUncredentialed() {
+        let mockInstances: (Platform) -> [String] = { _ in ["default"] }
+        let mockHasCredentials: (PlatformInstance) -> Bool = { _ in false }
+
+        let collectors = CollectorRegistry.configured(
+            instances: mockInstances,
+            hasCredentials: mockHasCredentials
+        )
+        #expect(collectors.isEmpty)
+    }
+
+    @Test("File-export platforms never appear in API collector list")
+    func fileExportExcluded() {
+        let mockInstances: (Platform) -> [String] = { _ in ["default"] }
+        let mockHasCredentials: (PlatformInstance) -> Bool = { _ in true }
+
+        let collectors = CollectorRegistry.configured(
+            instances: mockInstances,
+            hasCredentials: mockHasCredentials
+        )
+        let fileExportPlatforms: Set<Platform> = [.amazon, .linkedin, .oreilly, .substack]
+        let collectorPlatforms = Set(collectors.map(\.platform))
+        #expect(collectorPlatforms.isDisjoint(with: fileExportPlatforms))
+    }
+}
+```
+
+- [ ] Create all 5 new test files
+- [ ] Run `xcodegen generate`
+- [ ] Run full test suite: `xcodebuild test -scheme SocialBrain -destination 'platform=macOS' -only-testing:SocialBrainTests`
+- [ ] All tests pass
+
+---
+
+## Task 18: Commit
+
+```bash
+git add -A
+git commit -m "Add multi-instance platform support (issue #29)
+
+- PlatformInstance type identifies one configured account per platform
+- InstanceRegistry (UserDefaults) tracks instance names per platform
+- KeychainStore keyed by platform:instanceName; old Platform API delegates to default
+- PlatformData and PlatformSnapshot gain instanceName field
+- v2_instance_names DB migration adds column to platformSnapshot
+- All DB queries scope to (platform, instanceName)
+- CollectorRegistry iterates PlatformInstance; CollectionEngine credentials closure takes PlatformInstance
+- PlatformsView shows grouped instances with + Add another button
+- Dashboard, Feed, PromptAssembler all updated to PlatformInstance keys
+- 5 new test suites; all 144+ tests pass"
 ```
 
 ---
 
-## Final gate
+## Files summary
 
-Run the full unit test suite one last time to confirm all issues are resolved cleanly:
+### New files
+- `SocialBrain/Models/PlatformInstance.swift`
+- `SocialBrain/Models/InstanceRegistry.swift`
+- `SocialBrainTests/PlatformInstanceTests.swift`
+- `SocialBrainTests/InstanceRegistryTests.swift`
+- `SocialBrainTests/MultiInstanceKeychainTests.swift`
+- `SocialBrainTests/MultiInstanceDatabaseTests.swift`
+- `SocialBrainTests/MultiInstanceCollectorRegistryTests.swift`
 
-```bash
-xcodebuild test -scheme SocialBrain -destination 'platform=macOS' \
-  -only-testing:SocialBrainTests 2>&1 | tail -10
-```
-
-Expected: `** TEST SUCCEEDED **` with the same count as baseline or higher (due to new tests added in Tasks 1 and 3).
-
----
-
-## Ordering justification
-
-1. **Task 1 (displayName)** first — purely additive, no risk of breaking anything, makes Task 2's view update cleaner since `FeedCardView` already uses `displayName` in the updated code.
-2. **Task 2 (@Observable migration)** second — pure refactor. All existing tests pass without modification. Tasks 1 and 2 share a commit boundary.
-3. **Task 3 (empty state fix)** last — the only behaviour-changing task, requiring a test update. Keeping it last minimises the chance of confusing a refactor failure with a behaviour failure.
+### Modified files
+- `SocialBrain/Keychain/KeychainStore.swift`
+- `SocialBrain/Models/PlatformData.swift`
+- `SocialBrain/Database/PlatformSnapshot.swift`
+- `SocialBrain/Database/AppDatabase.swift`
+- `SocialBrain/Collectors/Collector.swift`
+- `SocialBrain/Collectors/CollectionEngine.swift`
+- All 10 collector files (add `var instanceName: String = "default"` + pass to `PlatformData`)
+- `SocialBrain/Prompt/PromptAssembler.swift`
+- `SocialBrain/Models/FeedCardBuilder.swift`
+- `SocialBrain/Models/SpikeDetector.swift`
+- `SocialBrain/Models/HighReachDetector.swift`
+- `SocialBrain/Models/FeedCard.swift`
+- `SocialBrain/Views/Platforms/PlatformsViewModel.swift`
+- `SocialBrain/Views/Platforms/PlatformsView.swift`
+- `SocialBrain/Views/Platforms/PlatformCredentialSheet.swift`
+- `SocialBrain/Views/Run/RunViewModel.swift`
+- `SocialBrain/Views/Dashboard/DashboardViewModel.swift`
+- `SocialBrain/Views/Feed/FeedViewModel.swift`
+- `SocialBrain/Views/Feed/FeedCardView.swift`
+- `SocialBrain/Views/Feed/FeedView.swift`
+- `SocialBrain.xcodeproj/project.pbxproj` (regenerated by xcodegen)
