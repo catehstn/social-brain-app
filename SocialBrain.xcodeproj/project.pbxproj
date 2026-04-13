@@ -81,6 +81,7 @@
 		B29F8E575E37C3A0B5B3B59A /* CollectionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 859D5802079DEAF815EA07E2 /* CollectionEngine.swift */; };
 		B9A1154B6BC0766DE56BF70A /* FeedPlatformData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6627A9F277A9FD7656876707 /* FeedPlatformData.swift */; };
 		B9CF0F5C2C11384271F38C7B /* RunView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4569F6BB49865EE31C402F28 /* RunView.swift */; };
+		AA11BB22CC33DD44EE55FF02 /* SetupGuideSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF01 /* SetupGuideSheet.swift */; };
 		BA10B571CC43CF7771959CC1 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84D1612ABA549F0415EA4184 /* OnboardingView.swift */; };
 		C740E7026EB2B18252077290 /* FeedDatabaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E83BC22CE0C5C53010A28382 /* FeedDatabaseTests.swift */; };
 		C7D2B785C1C8E1A2D0D09475 /* JetpackCollectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47C394A535DB6447C77C9396 /* JetpackCollectorTests.swift */; };
@@ -164,6 +165,7 @@
 		836CA271B1BC38157EA386DB /* InstanceRegistryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstanceRegistryTests.swift; sourceTree = "<group>"; };
 		840582BE27DC387CB01C285B /* AnalyticsGoal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsGoal.swift; sourceTree = "<group>"; };
 		84D1612ABA549F0415EA4184 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		AA11BB22CC33DD44EE55FF01 /* SetupGuideSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupGuideSheet.swift; sourceTree = "<group>"; };
 		84DDBF32B4FAE2B22DCB45DE /* RunViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RunViewModel.swift; sourceTree = "<group>"; };
 		859D5802079DEAF815EA07E2 /* CollectionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionEngine.swift; sourceTree = "<group>"; };
 		887C88E6C71E01161679B3B2 /* VercelCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VercelCollectorTests.swift; sourceTree = "<group>"; };
@@ -280,6 +282,7 @@
 			isa = PBXGroup;
 			children = (
 				84D1612ABA549F0415EA4184 /* OnboardingView.swift */,
+				AA11BB22CC33DD44EE55FF01 /* SetupGuideSheet.swift */,
 			);
 			path = Onboarding;
 			sourceTree = "<group>";
@@ -694,6 +697,7 @@
 				7A53CA94A18CD0DF713D9F5F /* MastodonCollector.swift in Sources */,
 				4DCF8F8574D64F757C791756 /* NotificationManager.swift in Sources */,
 				4F0487B2E118A141EF3F347B /* OReillyImporter.swift in Sources */,
+				AA11BB22CC33DD44EE55FF02 /* SetupGuideSheet.swift in Sources */,
 				BA10B571CC43CF7771959CC1 /* OnboardingView.swift in Sources */,
 				612EF2EA7D815191DCA3F6FE /* Platform.swift in Sources */,
 				8F85A9F319B4EF2680BB8523 /* PlatformCredentialSheet.swift in Sources */,

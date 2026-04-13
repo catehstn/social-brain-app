@@ -58,7 +58,8 @@ struct PlatformCredentialSheet: View {
         switch platform {
         case .buttondown:
             field("API Key", key: "api_key", secure: true,
-                  help: "Find it at buttondown.com/settings/api")
+                  help: "Find it at buttondown.com/settings/api",
+                  helpURL: URL(string: "https://buttondown.com/settings/api"))
 
         case .goatCounter:
             field("API Key", key: "api_key", secure: true,
@@ -68,7 +69,8 @@ struct PlatformCredentialSheet: View {
 
         case .vercel:
             field("Personal Access Token", key: "api_key", secure: true,
-                  help: "Create one at vercel.com/account/tokens")
+                  help: "Create one at vercel.com/account/tokens",
+                  helpURL: URL(string: "https://vercel.com/account/tokens"))
             field("Project ID or Name", key: "site_code",
                   help: "The Vercel project to track deployments for")
             field("Team ID (optional)", key: "team_id",
@@ -76,7 +78,8 @@ struct PlatformCredentialSheet: View {
 
         case .calendly:
             field("Personal Access Token", key: "api_key", secure: true,
-                  help: "Create one at calendly.com/integrations/api_webhooks")
+                  help: "Create one at calendly.com/integrations/api_webhooks",
+                  helpURL: URL(string: "https://calendly.com/integrations/api_webhooks"))
 
         case .mastodon:
             field("Instance URL", key: "instance_url",
@@ -88,13 +91,35 @@ struct PlatformCredentialSheet: View {
             field("Handle", key: "username",
                   help: "Your Bluesky handle — e.g. alice.bsky.social")
             field("App Password", key: "password", secure: true,
-                  help: "Create one in Settings → Privacy and Security → App Passwords")
+                  help: "Create one at bsky.app in Settings → Privacy and Security → App Passwords",
+                  helpURL: URL(string: "https://bsky.app/settings/app-passwords"))
 
         case .jetpack:
             field("WordPress.com Access Token", key: "access_token", secure: true,
-                  help: "Create one at developer.wordpress.com/apps/ — use the 'Test Application' flow to get a token for your own site")
+                  help: "Create one at developer.wordpress.com/apps/ — use the 'Test Application' flow",
+                  helpURL: URL(string: "https://developer.wordpress.com/apps/"))
             field("Site ID or Domain", key: "site_code",
                   help: "Your WordPress.com site ID (numeric) or domain — e.g. 12345678 or myblog.wordpress.com")
+
+        case .googleSearchConsole:
+            field("Client ID", key: "client_id", secure: true,
+                  help: "Create OAuth credentials at console.cloud.google.com → APIs & Services → Credentials",
+                  helpURL: URL(string: "https://console.cloud.google.com/apis/credentials"))
+            field("Client Secret", key: "client_secret", secure: true)
+            field("Refresh Token", key: "refresh_token", secure: true,
+                  help: "Get one via OAuth 2.0 Playground (select webmasters.readonly scope)",
+                  helpURL: URL(string: "https://developers.google.com/oauthplayground/"))
+            field("Site URL", key: "site_url",
+                  help: "Exactly as shown in Search Console — e.g. https://example.com/ or sc-domain:example.com")
+
+        case .buffer:
+            field("Access Token", key: "api_key", secure: true,
+                  help: "Create one at buffer.com/account/apps",
+                  helpURL: URL(string: "https://buffer.com/account/apps"))
+
+        case .hackerNews:
+            field("Domain to Track", key: "site_code",
+                  help: "Your domain — e.g. example.com (searches HN for mentions via Algolia, no auth needed)")
 
         case .amazon:
             importSection(
@@ -141,9 +166,6 @@ struct PlatformCredentialSheet: View {
                 buttonLabel: "Import CSV"
             )
 
-        default:
-            Text("This platform is not yet supported.")
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -179,7 +201,8 @@ struct PlatformCredentialSheet: View {
         _ label: String,
         key: String,
         secure: Bool = false,
-        help: String? = nil
+        help: String? = nil,
+        helpURL: URL? = nil
     ) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label)
@@ -194,9 +217,14 @@ struct PlatformCredentialSheet: View {
             }
             .textFieldStyle(.roundedBorder)
             if let help {
-                Text(help)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if let helpURL {
+                    Link(help, destination: helpURL)
+                        .font(.caption)
+                } else {
+                    Text(help)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
         }
     }
@@ -251,14 +279,17 @@ struct PlatformCredentialSheet: View {
     /// Keys that must be non-empty for the Save button to enable.
     private var requiredKeys: [String] {
         switch platform {
-        case .buttondown:  ["api_key"]
-        case .goatCounter: ["api_key", "site_code"]
-        case .vercel:      ["api_key", "site_code"]
-        case .calendly:    ["api_key"]
-        case .mastodon:    ["access_token", "instance_url"]
-        case .bluesky:     ["username", "password"]
-        case .jetpack:     ["access_token", "site_code"]
-        default:           []
+        case .buttondown:          ["api_key"]
+        case .goatCounter:         ["api_key", "site_code"]
+        case .vercel:              ["api_key", "site_code"]
+        case .calendly:            ["api_key"]
+        case .mastodon:            ["access_token", "instance_url"]
+        case .bluesky:             ["username", "password"]
+        case .jetpack:             ["access_token", "site_code"]
+        case .googleSearchConsole: ["client_id", "client_secret", "refresh_token", "site_url"]
+        case .buffer:              ["api_key"]
+        case .hackerNews:          ["site_code"]
+        default:                   []
         }
     }
 

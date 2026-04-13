@@ -13,6 +13,8 @@ struct OnboardingView: View {
     @State private var step: Step = .welcome
     @State private var selectedGoal: AnalyticsGoal = AnalyticsGoal.current
     @State private var customGoalText: String = AnalyticsGoal.customText
+    @State private var showGuide = false
+    @State private var guideAnchor = ""
 
     enum Step { case welcome, goal, connect, ready }
 
@@ -23,6 +25,9 @@ struct OnboardingView: View {
             footer
         }
         .frame(width: 560, height: 480)
+        .sheet(isPresented: $showGuide) {
+            SetupGuideSheet(anchor: guideAnchor)
+        }
     }
 
     // MARK: - Pages
@@ -210,13 +215,8 @@ struct OnboardingView: View {
     }
 
     private func openSetupGuide(anchor: String) {
-        guard let url = Bundle.main.url(forResource: "setup-guide", withExtension: "html") else { return }
-        // Append anchor as a fragment so the browser jumps to the right section.
-        var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)!
-        comps.fragment = anchor
-        if let final = comps.url {
-            NSWorkspace.shared.open(final)
-        }
+        guideAnchor = anchor
+        showGuide = true
     }
 
     private func step3Hint(icon: String, text: LocalizedStringKey) -> some View {
