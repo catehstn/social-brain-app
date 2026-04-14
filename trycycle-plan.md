@@ -23,11 +23,11 @@ All existing functionality is preserved: Set Up, Edit, Add Another Instance, fil
 
 This is the idiomatic pattern: `NavigationSplitView { sidebar } detail: { NavigationStack { … } }`.
 
-### PlatformDetailView replaces PlatformCredentialSheet
+### PlatformDetailView replaces PlatformCredentialSheet as primary entry point
 
-`PlatformCredentialSheet` is currently a modal `sheet`. In the redesigned flow, its content becomes a pushed `PlatformDetailView`. All existing form content (label field, platform fields, import section, OAuth section, footer with Save/Delete) moves into `PlatformDetailView`. The sheet is removed; no caller opens a sheet for the primary credential flow.
+`PlatformCredentialSheet` is currently a modal `sheet` opened directly from `PlatformsView`. In the redesigned flow, clicking a card pushes `PlatformDetailView` (a full-page pushed view) that lists configured instances and provides a "Set Up" / "Edit" path. The actual credential form (`PlatformCredentialSheet`) remains a modal sheet but is now opened from `PlatformDetailView` instead of from `PlatformsView`.
 
-**Exception:** The "Add another instance" sub-flow still uses a small sheet because it's a transient name-entry step, not a full credential form. This sheet remains unchanged.
+**Exception:** The "Add another instance" sub-flow still uses a small sheet because it's a transient name-entry step. This sheet is now in `PlatformDetailView`.
 
 ### Adaptive grid
 
@@ -37,7 +37,7 @@ Cards show:
 - SF Symbol icon (large, accent-coloured, see icon map below)
 - Platform display name
 - Status indicator: configured instances count, or "Not set up" in secondary colour
-- A "hidden" badge (eye.slash) if it ever needs to be shown in the "show hidden" list
+- A "hidden" badge (eye.slash) if shown in the "show hidden" list
 
 ### Hidden state — `PlatformVisibilityStore`
 
@@ -56,20 +56,42 @@ enum PlatformVisibilityStore {
 
 **Auto-show rule:** When a platform is hidden but then receives credentials (via Save or import), it is automatically made visible again. This is implemented in `PlatformsViewModel.save(_:for:)` and `PlatformsViewModel.importFile(for:allowedExtensions:)`.
 
-**Show hidden affordance:** A toolbar button (eye icon) toggles a `@State var showingHidden: Bool` in `PlatformsView`. When true, the grid shows hidden platforms with a dimmed card and "Show" button overlaid. Hidden + configured platforms are always visible (they cannot be hidden while actively in use — or if they somehow get into that state, the auto-show rule above fires on next configure).
+**Show hidden affordance:** A toolbar button (eye icon) toggles a `@State var showingHidden: Bool` in `PlatformsView`. When true, the grid shows hidden platforms with a dimmed card and "Show" button overlaid.
 
 ### PlatformsViewModel changes
 
-`PlatformsViewModel` gains:
+`PlatformsViewModel` gains a reactive `hiddenPlatforms: Set<Platform>` property (tracked by `@Observable`) and three methods:
+
 ```swift
-func hideplatform(_ platform: Platform)
-func showPlatform(_ platform: Platform)
-func isHidden(_ platform: Platform) -> Bool
+private(set) var hiddenPlatforms: Set<Platform> = []
+
+func hidePlatform(_ platform: Platform) {
+    PlatformVisibilityStore.hide(platform)
+    hiddenPlatforms.insert(platform)
+}
+
+func showPlatform(_ platform: Platform) {
+    PlatformVisibilityStore.show(platform)
+    hiddenPlatforms.remove(platform)
+}
+
+func isHidden(_ platform: Platform) -> Bool {
+    hiddenPlatforms.contains(platform)
+}
 ```
 
-These delegate to `PlatformVisibilityStore`. They are called from the view; no async work needed.
+`reload()` also refreshes `hiddenPlatforms`:
+```swift
+hiddenPlatforms = Set(Platform.allCases.filter { PlatformVisibilityStore.isHidden($0) })
+```
 
-`reload()` is unchanged.
+These are plain synchronous methods — no `@Published` needed since `@Observable` tracks property access automatically.
+
+Auto-show is added in `save(_:for:)` and `importFile(for:allowedExtensions:)` after `reload()`:
+```swift
+PlatformVisibilityStore.show(instance.platform)
+hiddenPlatforms.remove(instance.platform)
+```
 
 ### SF Symbol icon map
 
@@ -90,11 +112,7 @@ These delegate to `PlatformVisibilityStore`. They are called from the view; no a
 | Buffer | `tray.and.arrow.up.fill` |
 | Hacker News | `flame.fill` |
 
-Add `var sfSymbol: String` computed property to `Platform`.
-
-### Remove Credentials vs Remove Data
-
-File-import platforms already use "Remove Data" in the detail sheet footer. This remains unchanged. API platforms use "Remove Credentials". No change to copy.
+Add `var sfSymbol: String` computed property to `Platform`. The switch must cover all 14 platform cases exhaustively.
 
 ---
 
@@ -104,20 +122,19 @@ File-import platforms already use "Remove Data" in the detail sheet footer. This
 |---|---|
 | `SocialBrain/Models/PlatformVisibilityStore.swift` | UserDefaults-backed hidden state |
 | `SocialBrain/Views/Platforms/PlatformCard.swift` | Card component for grid |
-| `SocialBrain/Views/Platforms/PlatformDetailView.swift` | Pushed detail page (replaces sheet) |
+| `SocialBrain/Views/Platforms/PlatformDetailView.swift` | Pushed detail page (replaces PlatformsView's direct sheet) |
 
 ## Files to modify
 
 | File | Change |
 |---|---|
-| `SocialBrain/Models/Platform.swift` | Add `var sfSymbol: String` |
-| `SocialBrain/Views/Platforms/PlatformsView.swift` | Replace list with NavigationStack + LazyVGrid; add show-hidden toggle toolbar button |
-| `SocialBrain/Views/Platforms/PlatformsViewModel.swift` | Add hide/show/isHidden methods; auto-show on configure |
-| `SocialBrain/Views/Platforms/PlatformCredentialSheet.swift` | Keep for "Add another instance" sub-flow only; remove primary credential entry (moved to PlatformDetailView) |
+| `SocialBrain/Models/Platform.swift` | Add `var sfSymbol: String` (exhaustive over all 14 cases) |
+| `SocialBrain/Views/Platforms/PlatformsView.swift` | Replace list with NavigationStack + LazyVGrid; remove `addingInstanceFor`/`newInstanceLabel` state; add show-hidden toggle toolbar button |
+| `SocialBrain/Views/Platforms/PlatformsViewModel.swift` | Add `hiddenPlatforms` property; add `hidePlatform`, `showPlatform`, `isHidden` methods; update `reload()`; auto-show on configure |
 
 ## Files to delete
 
-None. `PlatformCredentialSheet` is retained for the add-another-instance sheet.
+None. `PlatformCredentialSheet` is retained unchanged — it is now opened as a sheet from `PlatformDetailView`.
 
 ---
 
@@ -130,8 +147,11 @@ struct PlatformsView: View {
     let database: AppDatabase
     @State private var viewModel: PlatformsViewModel
     @State private var showingHidden = false
-    @State private var addingInstanceFor: Platform?
-    @State private var newInstanceLabel: String = ""
+
+    init(database: AppDatabase) {
+        self.database = database
+        _viewModel = State(wrappedValue: PlatformsViewModel(database: database))
+    }
 
     var body: some View {
         NavigationStack {
@@ -157,16 +177,14 @@ struct PlatformsView: View {
                     Button {
                         showingHidden.toggle()
                     } label: {
-                        Label(showingHidden ? "Hide dismissed" : "Show dismissed", systemImage: showingHidden ? "eye.slash.fill" : "eye.slash")
+                        Label(showingHidden ? "Hide dismissed" : "Show dismissed",
+                              systemImage: showingHidden ? "eye.slash.fill" : "eye.slash")
                     }
-                    .opacity(hiddenPlatforms.isEmpty ? 0 : 1)  // only visible when there are hidden platforms
+                    .opacity(hiddenPlatforms.isEmpty ? 0 : 1)
                 }
             }
             .navigationDestination(for: Platform.self) { platform in
                 PlatformDetailView(platform: platform, viewModel: viewModel)
-            }
-            .sheet(item: $addingInstanceFor) { platform in
-                addInstanceSheet(for: platform)
             }
         }
         .onAppear { viewModel.reload() }
@@ -183,8 +201,9 @@ struct PlatformsView: View {
 ```
 
 Key points:
+- `addingInstanceFor`, `editingInstance`, and `newInstanceLabel` state vars are **removed** from `PlatformsView`; all instance management moves to `PlatformDetailView`.
 - `NavigationLink(value: platform)` uses the type-safe destination pattern with `navigationDestination(for: Platform.self)`.
-- The "add another instance" sheet is still presented from `PlatformDetailView` (the push page), not the grid. The `$addingInstanceFor` state in `PlatformsView` is removed since all instance management moves into `PlatformDetailView`. (See below.)
+- `Platform` already conforms to `Identifiable` via `id: String { rawValue }` — `ForEach` works correctly.
 
 ### `PlatformCard`
 
@@ -240,7 +259,7 @@ struct PlatformCard: View {
 
 ### `PlatformDetailView`
 
-This view is the full credential-management page. It replaces the modal sheet for all primary credential entry.
+This view is the platform overview page shown when a card is tapped. It lists configured instances and opens `PlatformCredentialSheet` as a sheet for editing.
 
 ```swift
 struct PlatformDetailView: View {
@@ -256,13 +275,12 @@ struct PlatformDetailView: View {
             Section {
                 let instances = viewModel.configuredInstances[platform] ?? []
                 if instances.isEmpty {
-                    // Not set up — show a Set Up button
                     Button("Set Up") {
                         editingInstance = PlatformInstance(platform: platform)
                     }
                     .buttonStyle(.bordered)
                 } else {
-                    ForEach(instances, id: { "\(platform.rawValue):\($0)" }) { instanceName in
+                    ForEach(instances, id: \.self) { instanceName in
                         let inst = PlatformInstance(platform: platform, instanceName: instanceName)
                         instanceRow(inst)
                     }
@@ -348,9 +366,11 @@ struct PlatformDetailView: View {
 }
 ```
 
-Note: `PlatformDetailView` pushes a `PlatformCredentialSheet` as a **sheet** (not a push) because credential entry is a focused modal task. This is intentional — keeping sheet semantics for credential forms while using push navigation for platform overview.
+Notes:
+- `ForEach(instances, id: \.self)` — `instances` is `[String]`, so using `\.self` as the key path is correct. (Do **not** use a closure for `id:` — `ForEach.init(_:id:content:)` takes a `KeyPath`, not a closure.)
+- `PlatformCredentialSheet` is presented as a **sheet** (not a push destination) to preserve its `@Environment(\.dismiss)` and `frame(width: 480)` presentation semantics, and to avoid breaking OAuth flows that call `dismiss()` on completion.
 
-`AuthType.displayName`:
+`AuthType.displayName` (add as extension in `Platform.swift` or a new file):
 ```swift
 extension AuthType {
     var displayName: String {
@@ -364,31 +384,47 @@ extension AuthType {
 }
 ```
 
+Note: `AuthType` has **four** cases in the current codebase (`.apiKey`, `.oauthToken`, `.fileExport`, `.noAuth`). The switch must cover all four or it will not compile.
+
 ### `PlatformsViewModel` additions
 
+Add `hiddenPlatforms` property and hide/show/isHidden methods. Update `reload()` to populate it. Auto-show in `save` and `importFile`:
+
 ```swift
+// New property (add alongside configuredInstances):
+private(set) var hiddenPlatforms: Set<Platform> = []
+
+// New methods:
 func hidePlatform(_ platform: Platform) {
     PlatformVisibilityStore.hide(platform)
+    hiddenPlatforms.insert(platform)
 }
 
 func showPlatform(_ platform: Platform) {
     PlatformVisibilityStore.show(platform)
+    hiddenPlatforms.remove(platform)
 }
 
 func isHidden(_ platform: Platform) -> Bool {
-    PlatformVisibilityStore.isHidden(platform)
+    hiddenPlatforms.contains(platform)
 }
+```
+
+In `reload()`, after populating `configuredInstances`, add:
+```swift
+hiddenPlatforms = Set(Platform.allCases.filter { PlatformVisibilityStore.isHidden($0) })
 ```
 
 In `save(_:for:)`, after `reload()`:
 ```swift
-// Auto-show when a platform receives credentials.
 PlatformVisibilityStore.show(instance.platform)
+hiddenPlatforms.remove(instance.platform)
 ```
 
-In `importFile(for:allowedExtensions:)`, after `reload()`:
+In `importFile(for:allowedExtensions:)`, after the `reload()` call at the end:
 ```swift
 PlatformVisibilityStore.show(instance.platform)
+hiddenPlatforms.remove(instance.platform)
 ```
 
 ### `PlatformVisibilityStore`
@@ -423,17 +459,15 @@ enum PlatformVisibilityStore {
 
 ---
 
-## PlatformCredentialSheet: retained scope
+## PlatformCredentialSheet: no changes
 
-`PlatformCredentialSheet` remains the sheet used inside `PlatformDetailView` for editing a specific `PlatformInstance`'s credentials. It is invoked as `sheet(item: $editingInstance)`.
-
-No structural changes to `PlatformCredentialSheet`. It already has all the credential fields, label, OAuth buttons, import buttons, and footer with Save/Delete.
+`PlatformCredentialSheet` is unchanged. It is now opened as a sheet from `PlatformDetailView` rather than from `PlatformsView`. Its existing `@Environment(\.dismiss)`, form fields, and footer (with "Remove Credentials" button) all remain identical.
 
 ---
 
 ## project.yml
 
-`project.yml` uses directory-level source globs (`sources: - SocialBrain`). New files under `SocialBrain/` and `SocialBrain/Views/Platforms/` and `SocialBrain/Models/` are automatically picked up. Run `xcodegen generate` after adding new files.
+`project.yml` uses directory-level source globs (`sources: - SocialBrain`). New files under `SocialBrain/Models/` and `SocialBrain/Views/Platforms/` are automatically picked up. Run `xcodegen generate` after adding new files.
 
 ---
 
@@ -443,23 +477,25 @@ No structural changes to `PlatformCredentialSheet`. It already has all the crede
 
 Location: `SocialBrainTests/PlatformVisibilityStoreTests.swift`
 
+All tests inject a temporary `UserDefaults(suiteName: UUID().uuidString)!` into `PlatformVisibilityStore.defaults` to avoid touching `UserDefaults.standard`.
+
 Tests:
 1. `testDefaultIsVisible` — freshly-created store returns `false` for `isHidden`
 2. `testHidePlatform` — hide then check `isHidden == true`
 3. `testShowPlatform` — hide then show, then `isHidden == false`
-4. `testShowAll` — hide multiple, `resetAll` removes all
-5. `testHiddenPlatformAutoShownOnSave` — inject `PlatformVisibilityStore.defaults = testDefaults`, hide a platform, call `viewModel.save(...)`, assert `isHidden == false`
-6. `testHiddenPlatformAutoShownOnImport` — same but via `viewModel.importFile(...)`
-
-All tests inject a temporary `UserDefaults(suiteName: UUID().uuidString)!` to avoid touching `UserDefaults.standard`.
+4. `testResetAll` — hide multiple, `resetAll()` removes all
+5. `testHiddenPlatformAutoShownOnSave` — inject temporary defaults; hide a platform; call `viewModel.save(...)` with an in-memory `AppDatabase`; assert `viewModel.isHidden(...) == false`
+6. `testHiddenPlatformAutoShownOnImport` — not easily unit-testable (requires NSOpenPanel); verify via the `PlatformVisibilityStore.show(...)` call path by calling `showPlatform` directly in a ViewModel test
 
 ### Unit tests — `PlatformSFSymbolTests.swift`
 
-1. `testAllPlatformsHaveSFSymbol` — iterate `Platform.allCases`, assert `sfSymbol` is a non-empty string (smoke test that the switch is exhaustive)
+Location: `SocialBrainTests/PlatformSFSymbolTests.swift`
+
+1. `testAllPlatformsHaveSFSymbol` — iterate `Platform.allCases` (all 14), assert `sfSymbol` is a non-empty string (exhaustiveness smoke test)
 
 ### Unit tests — `SidebarTests.swift` (existing, no changes needed)
 
-The existing `SidebarTests` already checks that `.platforms` is in `SidebarItem.allCases`. No changes.
+The existing `SidebarTests` already checks `.feed` in `SidebarItem.allCases`. No changes.
 
 ### Compilation gate
 
@@ -467,7 +503,7 @@ The existing `SidebarTests` already checks that `.platforms` is in `SidebarItem.
 xcodebuild build-for-testing -scheme SocialBrain -destination 'platform=macOS'
 ```
 
-This catches exhaustiveness failures in `sfSymbol` switch and any unresolved `NavigationLink` type errors.
+This catches exhaustiveness failures in `sfSymbol` and `AuthType.displayName` switches, and any unresolved `NavigationLink` type errors.
 
 ### Full test suite
 
@@ -475,18 +511,18 @@ This catches exhaustiveness failures in `sfSymbol` switch and any unresolved `Na
 xcodebuild test -scheme SocialBrain -only-testing SocialBrainTests -destination 'platform=macOS'
 ```
 
-All 201+ existing unit tests must remain green.
+All existing unit tests must remain green.
 
 ---
 
 ## Implementation order
 
 1. Add `PlatformVisibilityStore.swift` (new model)
-2. Add `sfSymbol` and `AuthType.displayName` to `Platform.swift` / `AuthType` (no breaking changes)
-3. Add `hidePlatform`, `showPlatform`, `isHidden` to `PlatformsViewModel`; add auto-show calls in `save` and `importFile`
+2. Add `sfSymbol` and `AuthType.displayName` extension to `Platform.swift` / `AuthType` (no breaking changes; all 14 cases covered)
+3. Add `hiddenPlatforms` property and `hidePlatform`, `showPlatform`, `isHidden` to `PlatformsViewModel`; update `reload()`; add auto-show calls in `save` and `importFile`
 4. Create `PlatformCard.swift`
 5. Create `PlatformDetailView.swift`
-6. Rewrite `PlatformsView.swift` (NavigationStack + LazyVGrid)
+6. Rewrite `PlatformsView.swift` (NavigationStack + LazyVGrid; remove `addingInstanceFor`/`editingInstance`/`newInstanceLabel` state vars)
 7. Run `xcodegen generate`
 8. Compilation gate + full unit test suite
 
@@ -494,46 +530,16 @@ All 201+ existing unit tests must remain green.
 
 ## Tricky boundaries and invariants
 
-**Hidden + configured auto-show:** A user could theoretically hide a platform, then use the CLI or another path to configure it without going through `PlatformsViewModel.save`. In that edge case the platform stays hidden even though it's configured. Acceptable — the user deliberately hid it, and the grid always shows the "Show all" affordance.
+**ForEach identity for String arrays:** `ForEach(instances, id: \.self)` is correct for `[String]`. Do not use a closure `id: { ... }` — `ForEach.init(_:id:content:)` requires a `KeyPath`, not a closure. Using a closure compiles to `ForEach.init(_:content:)` without stable identity and will cause SwiftUI diffing bugs or a type error.
 
-**NavigationDestination scope:** `navigationDestination(for: Platform.self)` must be inside the `NavigationStack`, not in a `List`. If the `LazyVGrid` is inside a `List`, the NavigationLink won't push — it must be inside a plain `ScrollView` wrapped by `NavigationStack`. The plan uses `ScrollView` + `LazyVGrid`, not `List`, for this reason.
+**AuthType.noAuth:** The current `AuthType` enum has four cases. Any `switch` over `AuthType` must include `.noAuth` (used by `.hackerNews`) or the compiler will reject it.
 
-**macOS NavigationLink with value:** On macOS 14+, `NavigationLink(value:)` inside a `NavigationStack` in the detail column of a `NavigationSplitView` works correctly and produces a push (breadcrumb navigation). This is confirmed macOS 14 SwiftUI behaviour.
+**Platform case count:** `Platform.allCases` has 14 cases in the current codebase: `.buttondown`, `.goatCounter`, `.vercel`, `.calendly`, `.amazon`, `.mastodon`, `.jetpack`, `.bluesky`, `.linkedin`, `.oreilly`, `.substack`, `.googleSearchConsole`, `.buffer`, `.hackerNews`. Any exhaustive switch over `Platform` must cover all 14.
 
-**Sheet vs push for PlatformCredentialSheet:** The credential sheet keeps its `@Environment(\.dismiss)` and `frame(width: 480)` presentation — these are correct for a sheet. Embedding it as a push destination would require converting it to a full-page view without sheet constraints, which would require more changes and potentially break the OAuth flows that call `dismiss()` to close the sheet on success. Keeping it as a sheet presented from `PlatformDetailView` is the correct minimal-change approach.
+**NavigationDestination scope:** `navigationDestination(for: Platform.self)` must be inside the `NavigationStack`. Using a plain `ScrollView` + `LazyVGrid` (not a `List`) is intentional — `NavigationLink(value:)` inside a `List` in a `NavigationSplitView` detail column uses sidebar-style selection rather than push navigation. The `ScrollView` + `LazyVGrid` path uses push navigation correctly on macOS 14+.
 
-**ForEach identity:** The existing `ForEach(instances, id: { "\(platform.rawValue):\($0)" })` pattern (introduced in the multi-instance PR to fix SwiftUI identity collisions) is preserved in `PlatformDetailView`.
+**Hidden + configured auto-show:** A user could theoretically hide a platform, then configure it via a path that bypasses `PlatformsViewModel.save` (e.g. directly via `KeychainStore`). In that edge case the platform stays hidden. Acceptable — the toolbar always exposes the "show hidden" affordance.
 
-**`@Observable` consistency:** `PlatformsViewModel` already uses `@Observable`. The new methods (`hidePlatform`, `showPlatform`, `isHidden`) are plain synchronous methods — no `@Published` needed since `PlatformVisibilityStore` is not observed. The grid re-renders reactively because `PlatformsView` re-renders on `viewModel.configuredInstances` changes. Hide/show triggers a view reload via `@State private var showingHidden` — an explicit toggle is needed since `PlatformVisibilityStore` is not observable. The hide button calls `viewModel.hidePlatform(platform)` and then relies on the `NavigationStack` popping back to the grid; the grid is then correctly repopulated from `PlatformVisibilityStore.isHidden`.
+**`@Observable` reactivity for `hiddenPlatforms`:** Because `PlatformsViewModel` uses `@Observable`, the `hiddenPlatforms: Set<Platform>` property is automatically tracked. Views that read `viewModel.isHidden(platform)` (which reads `hiddenPlatforms`) will re-render when `hiddenPlatforms` changes. No explicit `objectWillChange.send()` is needed.
 
-**Reactive hidden state:** `PlatformVisibilityStore` is not `@Observable`. To make `PlatformsView` re-render after hiding/showing, `PlatformsViewModel` should maintain a `@Published`-equivalent `hiddenPlatforms: Set<Platform>` property (since `@Observable` tracks property access). Add:
-```swift
-private(set) var hiddenPlatforms: Set<Platform> = []
-```
-and refresh it in `reloadHidden()` called from `hidePlatform`, `showPlatform`, and `reload`. Views read `viewModel.hiddenPlatforms` to compute visible vs hidden. This is clean because `@Observable` will correctly track reads of `hiddenPlatforms`.
-
-Updated `PlatformsViewModel`:
-```swift
-private(set) var hiddenPlatforms: Set<Platform> = []
-
-func hidePlatform(_ platform: Platform) {
-    PlatformVisibilityStore.hide(platform)
-    hiddenPlatforms.insert(platform)
-}
-
-func showPlatform(_ platform: Platform) {
-    PlatformVisibilityStore.show(platform)
-    hiddenPlatforms.remove(platform)
-}
-
-func isHidden(_ platform: Platform) -> Bool {
-    hiddenPlatforms.contains(platform)
-}
-
-func reload() {
-    // existing instance reload...
-    hiddenPlatforms = Set(Platform.allCases.filter { PlatformVisibilityStore.isHidden($0) })
-}
-```
-
-`PlatformsView` then uses `viewModel.hiddenPlatforms.contains(platform)` to filter; re-renders automatically when `hiddenPlatforms` changes.
+**Sheet vs push for PlatformCredentialSheet:** The credential sheet keeps its `@Environment(\.dismiss)` and `frame(width: 480)` presentation — these are correct for a sheet. Embedding it as a push destination would require converting it to a full-page view without sheet constraints, which would potentially break the OAuth flows that call `dismiss()` to close on success.
