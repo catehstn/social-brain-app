@@ -65,6 +65,8 @@
 		85D3921C27997386AF05423D /* VercelCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2128E07069D06A4F85D58B9B /* VercelCollector.swift */; };
 		89C769B555A5A38972AEC683 /* DatabaseMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D72B5277A4EB60AACEB252E /* DatabaseMigrationTests.swift */; };
 		8BA84A18D549C699BF91CF05 /* LinkedInImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EF7CDD83F7795AF4221844C /* LinkedInImporter.swift */; };
+		A5B6C7D8E9F0A1B2C3D4E5F6 /* LinkedInXLSXParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5D6E7F8A9B0C1D2E3F4A5B6 /* LinkedInXLSXParser.swift */; };
+		F6A7B8C9D0E1F2A3B4C5D6E7 /* MiniZIPReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6E7F8A9B0C1D2E3F4A5B6C7 /* MiniZIPReader.swift */; };
 		8CA49A53C2AC7231B44C85C0 /* InstanceRegistryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 836CA271B1BC38157EA386DB /* InstanceRegistryTests.swift */; };
 		8F85A9F319B4EF2680BB8523 /* PlatformCredentialSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7070B55F5A655D85ED8B2D69 /* PlatformCredentialSheet.swift */; };
 		900651ABFF265A05959EB848 /* CalendlyCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D02CD4FB1AACFCAB9CDC5A0 /* CalendlyCollector.swift */; };
@@ -103,6 +105,8 @@
 		EF6B4E4D6B44B9C02A8F32E5 /* FeedUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00CB5D85C4632224DD4F8EB8 /* FeedUITests.swift */; };
 		F07A0ED57639627A9D00CC94 /* HackerNewsCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20AEED312641FBC088302881 /* HackerNewsCollector.swift */; };
 		FB2B0CB801E20E4DDD2F7A2A /* CollectionRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE4B04405ACA0E4E56CBD7BA /* CollectionRun.swift */; };
+		C3D4E5F6A7B8C9D0E1F2A3B4 /* MastodonOAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F2 /* MastodonOAuth.swift */; };
+		D4E5F6A7B8C9D0E1F2A3B4C5 /* WordPressOAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7B8C9D0E1F2A3 /* WordPressOAuth.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -180,6 +184,8 @@
 		887C88E6C71E01161679B3B2 /* VercelCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VercelCollectorTests.swift; sourceTree = "<group>"; };
 		8D2C781BEE3E368AAD52A071 /* SubstackImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubstackImporter.swift; sourceTree = "<group>"; };
 		8EF7CDD83F7795AF4221844C /* LinkedInImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedInImporter.swift; sourceTree = "<group>"; };
+		C5D6E7F8A9B0C1D2E3F4A5B6 /* LinkedInXLSXParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedInXLSXParser.swift; sourceTree = "<group>"; };
+		D6E7F8A9B0C1D2E3F4A5B6C7 /* MiniZIPReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniZIPReader.swift; sourceTree = "<group>"; };
 		90650275C1573C7BE32CD277 /* OReillyImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OReillyImporter.swift; sourceTree = "<group>"; };
 		91EEBFF4721EA1C96F99BD92 /* setup-guide.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = "setup-guide.html"; sourceTree = "<group>"; };
 		9586342EA6BD306DA372AC3A /* PlatformsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformsViewModel.swift; sourceTree = "<group>"; };
@@ -222,6 +228,8 @@
 		FA2BAEB2923B9E65E8E39568 /* ButtondownCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButtondownCollectorTests.swift; sourceTree = "<group>"; };
 		FAAAC8C465952D5111BCE709 /* LinkedInImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedInImporterTests.swift; sourceTree = "<group>"; };
 		FC45E6B188F3C9F6832156DD /* SpikeDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeDetectorTests.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F6A7B8C9D0E1F2 /* MastodonOAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonOAuth.swift; sourceTree = "<group>"; };
+		B2C3D4E5F6A7B8C9D0E1F2A3 /* WordPressOAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordPressOAuth.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -341,6 +349,8 @@
 				20AEED312641FBC088302881 /* HackerNewsCollector.swift */,
 				233B30A951BEC219E0C67B33 /* JetpackCollector.swift */,
 				8EF7CDD83F7795AF4221844C /* LinkedInImporter.swift */,
+				C5D6E7F8A9B0C1D2E3F4A5B6 /* LinkedInXLSXParser.swift */,
+				D6E7F8A9B0C1D2E3F4A5B6C7 /* MiniZIPReader.swift */,
 				1B63D76C0BF2AC6095ABE3CD /* MastodonCollector.swift */,
 				90650275C1573C7BE32CD277 /* OReillyImporter.swift */,
 				8D2C781BEE3E368AAD52A071 /* SubstackImporter.swift */,
@@ -472,6 +482,15 @@
 			path = Keychain;
 			sourceTree = "<group>";
 		};
+		E5F6A7B8C9D0E1F2A3B4C5D6 /* OAuth */ = {
+			isa = PBXGroup;
+			children = (
+				A1B2C3D4E5F6A7B8C9D0E1F2 /* MastodonOAuth.swift */,
+				B2C3D4E5F6A7B8C9D0E1F2A3 /* WordPressOAuth.swift */,
+			);
+			path = OAuth;
+			sourceTree = "<group>";
+		};
 		E68AF64706F624C98A42DD37 /* SocialBrain */ = {
 			isa = PBXGroup;
 			children = (
@@ -480,6 +499,7 @@
 				EEFA635E8307B8E31973813C /* Database */,
 				E2EDE5A49AE339730815A81B /* Keychain */,
 				48C91AC045446C394F6C83C7 /* Models */,
+				E5F6A7B8C9D0E1F2A3B4C5D6 /* OAuth */,
 				D47B90D3AD12E6E432235DF3 /* Prompt */,
 				96920A82AF6692D26A6A9CF0 /* Resources */,
 				72ACFC5E1C0E22C17ABCBC6B /* Views */,
@@ -719,7 +739,10 @@
 				3DF0243C592A170BD8F961C3 /* JetpackCollector.swift in Sources */,
 				6D3A626D844241244E88D4BD /* KeychainStore.swift in Sources */,
 				8BA84A18D549C699BF91CF05 /* LinkedInImporter.swift in Sources */,
+				A5B6C7D8E9F0A1B2C3D4E5F6 /* LinkedInXLSXParser.swift in Sources */,
+				F6A7B8C9D0E1F2A3B4C5D6E7 /* MiniZIPReader.swift in Sources */,
 				7A53CA94A18CD0DF713D9F5F /* MastodonCollector.swift in Sources */,
+				C3D4E5F6A7B8C9D0E1F2A3B4 /* MastodonOAuth.swift in Sources */,
 				4DCF8F8574D64F757C791756 /* NotificationManager.swift in Sources */,
 				4F0487B2E118A141EF3F347B /* OReillyImporter.swift in Sources */,
 				BA10B571CC43CF7771959CC1 /* OnboardingView.swift in Sources */,
@@ -743,6 +766,7 @@
 				AAB8502F1F7DC7636BBA245E /* SpikeDetector.swift in Sources */,
 				5C18DFF0CD1A386ACA251EFF /* SubstackImporter.swift in Sources */,
 				85D3921C27997386AF05423D /* VercelCollector.swift in Sources */,
+				D4E5F6A7B8C9D0E1F2A3B4C5 /* WordPressOAuth.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

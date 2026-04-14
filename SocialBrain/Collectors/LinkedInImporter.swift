@@ -32,6 +32,11 @@ struct LinkedInImporter {
     }
 
     func parse(data: Data) throws -> PlatformData {
+        // Detect XLSX (ZIP magic bytes PK\x03\x04) and delegate to the XLSX parser.
+        if data.count > 4, data[data.startIndex] == 0x50, data[data.startIndex + 1] == 0x4B {
+            return try LinkedInXLSXParser().parse(data: data)
+        }
+
         guard let csv = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) else {
             throw ImportError.emptyFile
         }
