@@ -5,6 +5,7 @@ struct PlatformCard: View {
     let platform: Platform
     let viewModel: PlatformsViewModel
     var isHiddenCard: Bool = false
+    var isSelected: Bool = false
 
     var body: some View {
         VStack(spacing: 12) {
@@ -23,9 +24,18 @@ struct PlatformCard: View {
         }
         .padding()
         .frame(maxWidth: .infinity, minHeight: 140)
-        .background(.background.secondary)
+        .background {
+            RoundedRectangle(cornerRadius: 12)
+                .fill(isSelected ? Color.accentColor.opacity(0.12) : Color(nsColor: .controlBackgroundColor))
+        }
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(.separator, lineWidth: 0.5))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(
+                    isSelected ? Color.accentColor : Color(nsColor: .separatorColor),
+                    lineWidth: isSelected ? 1.5 : 0.5
+                )
+        )
         .opacity(isHiddenCard ? 0.5 : 1)
     }
 

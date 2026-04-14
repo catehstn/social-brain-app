@@ -94,10 +94,10 @@ struct PlatformCredentialSheet: View {
                   help: "Required only if the project belongs to a team")
 
         case .calendly:
-            permissionsNote("Permissions needed: check the \"default\" scope (read user info and scheduled events)")
+            permissionsNote("Permissions needed: full read access (personal access tokens grant access to all API endpoints — no scope selection needed)")
             field("Personal Access Token", key: "api_key", secure: true,
-                  help: "Create one at calendly.com/integrations/api_webhooks",
-                  helpURL: URL(string: "https://calendly.com/integrations/api_webhooks"))
+                  help: "Create one at app.calendly.com/integrations/api_webhooks",
+                  helpURL: URL(string: "https://app.calendly.com/integrations/api_webhooks"))
 
         case .mastodon:
             permissionsNote("Permissions needed: read (grants access to profile and posts)")

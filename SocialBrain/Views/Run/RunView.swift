@@ -158,11 +158,18 @@ struct RunView: View {
     }
 
     private var platformResultList: some View {
-        List(viewModel.completedPlatforms, id: \.platform) { result in
+        List(viewModel.completedPlatforms, id: \.instance.id) { result in
             HStack {
                 Image(systemName: result.isSuccess ? "checkmark.circle.fill" : "xmark.circle.fill")
                     .foregroundStyle(result.isSuccess ? .green : .red)
-                Text(result.platform.displayName)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(result.platform.displayName)
+                    if let subtitle = instanceSubtitle(for: result.instance) {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 Spacer()
                 if let error = result.error {
                     Text(error.localizedDescription)
@@ -174,6 +181,12 @@ struct RunView: View {
         }
         .listStyle(.inset)
         .frame(maxHeight: 260)
+    }
+
+    private func instanceSubtitle(for instance: PlatformInstance) -> String? {
+        if let label = InstanceLabels.label(for: instance) { return label }
+        if instance.instanceName != "default" { return instance.instanceName }
+        return nil
     }
 
     private func statBadge(label: String, value: String, color: Color) -> some View {

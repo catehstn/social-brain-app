@@ -5,6 +5,7 @@ struct PlatformsView: View {
     let database: AppDatabase
     @State private var viewModel: PlatformsViewModel
     @State private var showingHidden = false
+    @State private var selectedPlatform: Platform?
     @State private var dropTargeted = false
     @State private var dropErrorMessage: String?
 
@@ -14,41 +15,53 @@ struct PlatformsView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 180, maximum: 240), spacing: 16)],
-                    spacing: 16
-                ) {
-                    ForEach(visiblePlatforms) { platform in
-                        NavigationLink(value: platform) {
-                            PlatformCard(platform: platform, viewModel: viewModel)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    if showingHidden {
-                        ForEach(hiddenPlatforms) { platform in
-                            PlatformCard(platform: platform, viewModel: viewModel, isHiddenCard: true)
-                        }
-                    }
-                }
-                .padding()
-            }
-            .navigationTitle("Platforms")
-            .toolbar {
-                ToolbarItem(placement: .automatic) {
+        ScrollView {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: 180, maximum: 240), spacing: 16)],
+                spacing: 16
+            ) {
+                ForEach(visiblePlatforms) { platform in
                     Button {
-                        showingHidden.toggle()
+                        selectedPlatform = (selectedPlatform == platform) ? nil : platform
                     } label: {
-                        Label(
-                            showingHidden ? "Hide dismissed" : "Show dismissed",
-                            systemImage: showingHidden ? "eye.slash.fill" : "eye.slash"
-                        )
+                        PlatformCard(platform: platform, viewModel: viewModel,
+                                     isSelected: selectedPlatform == platform)
                     }
-                    .opacity(hiddenPlatforms.isEmpty ? 0 : 1)
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button("Hide \(platform.displayName)") {
+                            viewModel.hidePlatform(platform)
+                            if selectedPlatform == platform { selectedPlatform = nil }
+                        }
+                    }
+                }
+                if showingHidden {
+                    ForEach(hiddenPlatforms) { platform in
+                        PlatformCard(platform: platform, viewModel: viewModel, isHiddenCard: true)
+                    }
                 }
             }
-            .navigationDestination(for: Platform.self) { platform in
+            .padding()
+        }
+        .navigationTitle("Platforms")
+        .toolbar {
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    showingHidden.toggle()
+                } label: {
+                    Label(
+                        showingHidden ? "Hide dismissed" : "Show dismissed",
+                        systemImage: showingHidden ? "eye.slash.fill" : "eye.slash"
+                    )
+                }
+                .opacity(hiddenPlatforms.isEmpty ? 0 : 1)
+            }
+        }
+        .inspector(isPresented: Binding(
+            get: { selectedPlatform != nil },
+            set: { if !$0 { selectedPlatform = nil } }
+        )) {
+            if let platform = selectedPlatform {
                 PlatformDetailView(platform: platform, viewModel: viewModel)
             }
         }

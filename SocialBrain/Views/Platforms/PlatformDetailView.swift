@@ -64,14 +64,12 @@ struct PlatformDetailView: View {
     }
 
     private func instanceRow(_ inst: PlatformInstance) -> some View {
-        HStack {
+        let label = InstanceLabels.label(for: inst)
+        let subtitle = label ?? (inst.instanceName != "default" ? inst.instanceName : nil)
+        return HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text(inst.platform.displayName)
-                if let label = InstanceLabels.label(for: inst) {
-                    Text(label).font(.caption).foregroundStyle(.secondary)
-                } else if inst.instanceName != "default" {
-                    Text(inst.instanceName).font(.caption).foregroundStyle(.secondary)
-                }
+                Text(subtitle ?? "Default account")
+                    .font(.body)
             }
             Spacer()
             Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
