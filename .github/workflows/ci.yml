@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.3.app
+
+      - name: Resolve packages
+        run: xcodebuild -resolvePackageDependencies -scheme SocialBrain
+
+      - name: Run unit tests
+        run: |
+          xcodebuild test \
+            -scheme SocialBrain \
+            -destination 'platform=macOS' \
+            -only-testing:SocialBrainTests \
+            | xcpretty || xcodebuild test \
+              -scheme SocialBrain \
+              -destination 'platform=macOS' \
+              -only-testing:SocialBrainTests
+
+  ui-tests:
+    name: UI Tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.3.app
+
+      - name: Resolve packages
+        run: xcodebuild -resolvePackageDependencies -scheme SocialBrain
+
+      - name: Run UI tests
+        run: |
+          xcodebuild test \
+            -scheme SocialBrain \
+            -destination 'platform=macOS' \
+            -only-testing:SocialBrainUITests \
+            | xcpretty || xcodebuild test \
+              -scheme SocialBrain \
+              -destination 'platform=macOS' \
+              -only-testing:SocialBrainUITests
