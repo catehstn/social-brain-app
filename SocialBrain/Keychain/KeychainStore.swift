@@ -26,10 +26,12 @@ enum KeychainStore: Sendable {
 
         if updateStatus == errSecItemNotFound {
             let addQuery: [CFString: Any] = [
-                kSecClass:       kSecClassGenericPassword,
-                kSecAttrService: service,
-                kSecAttrAccount: account,
-                kSecValueData:   data
+                kSecClass:            kSecClassGenericPassword,
+                kSecAttrService:      service,
+                kSecAttrAccount:      account,
+                kSecValueData:        data,
+                // Allow access after first unlock without requiring user confirmation.
+                kSecAttrAccessible:   kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
             ]
             let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
             guard addStatus == errSecSuccess else {
@@ -101,8 +103,19 @@ enum KeychainStore: Sendable {
     // MARK: - Existence check (instance-keyed)
 
     /// Returns true if credentials exist for the given `PlatformInstance`.
+    ///
+    /// Does NOT request the secret data — avoids triggering Keychain ACL prompts
+    /// when used purely for existence checks (e.g. in `reload()`).
     static func hasCredentials(for instance: PlatformInstance) -> Bool {
-        (try? load(for: instance)) != nil
+        let query: [CFString: Any] = [
+            kSecClass:       kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: instance.id,
+            kSecReturnData:  false,
+            kSecMatchLimit:  kSecMatchLimitOne
+        ]
+        var result: CFTypeRef?
+        return SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess
     }
 
     /// Returns true if credentials exist for the platform's default instance.

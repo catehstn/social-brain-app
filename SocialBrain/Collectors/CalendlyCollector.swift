@@ -21,6 +21,20 @@ struct CalendlyCollector: Collector {
         self.baseURL = baseURL
     }
 
+    func fetchLabel(credentials: Credentials) async -> String? {
+        guard let apiKey = credentials.apiKey else { return nil }
+        let url = baseURL.appendingPathComponent("users/me")
+        var req = URLRequest(url: url)
+        req.setBearerToken(apiKey)
+        guard let (data, response) = try? await session.data(for: req),
+              let http = response as? HTTPURLResponse, http.statusCode == 200 else { return nil }
+        struct Response: Decodable {
+            struct Resource: Decodable { let name: String }
+            let resource: Resource
+        }
+        return try? JSONDecoder().decode(Response.self, from: data).resource.name
+    }
+
     func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
         guard let apiKey = credentials.apiKey else {
             throw CollectorError.missingCredential("api_key")

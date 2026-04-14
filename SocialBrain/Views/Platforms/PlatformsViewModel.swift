@@ -11,6 +11,9 @@ final class PlatformsViewModel {
     /// Instance names grouped by platform for configured instances only.
     private(set) var configuredInstances: [Platform: [String]] = [:]
 
+    /// Platforms currently hidden from the main grid.
+    private(set) var hiddenPlatforms: Set<Platform> = []
+
     private let database: AppDatabase
 
     init(database: AppDatabase) {
@@ -19,7 +22,7 @@ final class PlatformsViewModel {
 
     // MARK: - API credential actions
 
-    /// Refreshes `configuredInstances` by checking the Keychain for each (platform, instance).
+    /// Refreshes `configuredInstances` and `hiddenPlatforms` from Keychain and UserDefaults.
     func reload() {
         configuredInstances = [:]
         for platform in Platform.allCases {
@@ -31,6 +34,26 @@ final class PlatformsViewModel {
                 configuredInstances[platform] = configured
             }
         }
+        hiddenPlatforms = Set(Platform.allCases.filter { PlatformVisibilityStore.isHidden($0) })
+    }
+
+    // MARK: - Visibility
+
+    /// Hides a platform from the main grid and persists the state.
+    func hidePlatform(_ platform: Platform) {
+        PlatformVisibilityStore.hide(platform)
+        hiddenPlatforms.insert(platform)
+    }
+
+    /// Shows a previously hidden platform and persists the state.
+    func showPlatform(_ platform: Platform) {
+        PlatformVisibilityStore.show(platform)
+        hiddenPlatforms.remove(platform)
+    }
+
+    /// Returns `true` if the platform is currently hidden from the grid.
+    func isHidden(_ platform: Platform) -> Bool {
+        hiddenPlatforms.contains(platform)
     }
 
     /// Returns the currently stored credential values for an instance (empty dict if none).
@@ -38,11 +61,22 @@ final class PlatformsViewModel {
         (try? KeychainStore.load(for: instance))?.values ?? [:]
     }
 
-    /// Saves the given values to the Keychain for the specified instance.
+    /// Saves the given values to the Keychain for the specified instance,
+    /// then asynchronously fetches a display label from the platform API.
     func save(_ values: [String: String], for instance: PlatformInstance) throws {
-        try KeychainStore.save(Credentials(values), for: instance)
+        let credentials = Credentials(values)
+        try KeychainStore.save(credentials, for: instance)
         InstanceRegistry.add(instanceName: instance.instanceName, to: instance.platform)
         reload()
+        // Auto-show the platform if it was previously hidden.
+        PlatformVisibilityStore.show(instance.platform)
+        hiddenPlatforms.remove(instance.platform)
+        Task {
+            guard let collector = CollectorRegistry.collector(for: instance) else { return }
+            if let label = await collector.fetchLabel(credentials: credentials) {
+                InstanceLabels.setLabel(label, for: instance)
+            }
+        }
     }
 
     /// Removes credentials for an instance from the Keychain and its snapshot data.
@@ -50,6 +84,7 @@ final class PlatformsViewModel {
         try KeychainStore.delete(for: instance)
         try await database.deleteSnapshots(for: instance)
         InstanceRegistry.remove(instanceName: instance.instanceName, from: instance.platform)
+        InstanceLabels.removeLabel(for: instance)
         reload()
     }
 
@@ -102,6 +137,9 @@ final class PlatformsViewModel {
         try KeychainStore.save(Credentials(["imported": "true"]), for: instance)
         InstanceRegistry.add(instanceName: instance.instanceName, to: instance.platform)
         reload()
+        // Auto-show the platform if it was previously hidden.
+        PlatformVisibilityStore.show(instance.platform)
+        hiddenPlatforms.remove(instance.platform)
 
         // Reset the stale-export reminder clock.
         let notificationManager = NotificationManager.shared

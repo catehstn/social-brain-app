@@ -29,6 +29,10 @@ struct BlueskyCollector: Collector {
         self.baseURL = baseURL
     }
 
+    func fetchLabel(credentials: Credentials) async -> String? {
+        credentials.username
+    }
+
     func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
         guard let handle = credentials.username else {
             throw CollectorError.missingCredential("username")

@@ -29,6 +29,12 @@ struct GoogleSearchConsoleCollector: Collector {
         self.session = session
     }
 
+    func fetchLabel(credentials: Credentials) async -> String? {
+        guard let siteURL = credentials["site_url"] else { return nil }
+        // Strip scheme and trailing slash for a compact label.
+        return URL(string: siteURL)?.host ?? siteURL
+    }
+
     func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
         guard let refreshToken = credentials["refresh_token"] else {
             throw CollectorError.missingCredential("refresh_token")
