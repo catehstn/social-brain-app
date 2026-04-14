@@ -1,9 +1,12 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct PlatformsView: View {
     let database: AppDatabase
     @State private var viewModel: PlatformsViewModel
     @State private var showingHidden = false
+    @State private var dropTargeted = false
+    @State private var dropErrorMessage: String?
 
     init(database: AppDatabase) {
         self.database = database
@@ -50,6 +53,49 @@ struct PlatformsView: View {
             }
         }
         .onAppear { viewModel.reload() }
+        .alert("Import Error", isPresented: Binding(
+            get: { dropErrorMessage != nil },
+            set: { if !$0 { dropErrorMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { dropErrorMessage = nil }
+        } message: {
+            if let msg = dropErrorMessage { Text(msg) }
+        }
+        .overlay {
+            if dropTargeted {
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(Color.accentColor, lineWidth: 3)
+                    .background(Color.accentColor.opacity(0.08).clipShape(RoundedRectangle(cornerRadius: 10)))
+                    .overlay(
+                        VStack(spacing: 8) {
+                            Image(systemName: "square.and.arrow.down")
+                                .font(.largeTitle)
+                            Text("Drop to import")
+                                .font(.headline)
+                        }
+                        .foregroundStyle(Color.accentColor)
+                    )
+                    .allowsHitTesting(false)
+            }
+        }
+        .onDrop(of: [.fileURL], isTargeted: $dropTargeted) { providers in
+            guard !providers.isEmpty else { return false }
+            for provider in providers {
+                _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                    guard let url else { return }
+                    Task { @MainActor in
+                        do {
+                            try await viewModel.handleDroppedFile(at: url)
+                        } catch ImportError.cancelled {
+                            // no-op
+                        } catch {
+                            dropErrorMessage = error.localizedDescription
+                        }
+                    }
+                }
+            }
+            return true
+        }
     }
 
     private var visiblePlatforms: [Platform] {

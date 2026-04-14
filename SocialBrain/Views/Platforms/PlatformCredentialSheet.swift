@@ -10,6 +10,7 @@ struct PlatformCredentialSheet: View {
     @State private var values: [String: String] = [:]
     @State private var labelText: String = ""
     @State private var errorMessage: String?
+    @State private var isConnecting = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -102,8 +103,22 @@ struct PlatformCredentialSheet: View {
             permissionsNote("Permissions needed: read (grants access to profile and posts)")
             field("Instance URL", key: "instance_url",
                   help: "The base URL of your instance — e.g. https://mastodon.social")
-            field("Access Token", key: "access_token", secure: true,
-                  help: "Settings → Development → New application — enable the read scope")
+            if let token = values["access_token"], !token.isEmpty {
+                Label("Connected", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .font(.callout)
+            }
+            Button {
+                connectMastodon()
+            } label: {
+                if isConnecting {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Label("Sign in with Mastodon", systemImage: "arrow.up.right.square")
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isConnecting || (values["instance_url"] ?? "").isEmpty)
 
         case .bluesky:
             permissionsNote("Permissions needed: full access (app passwords have no scope restrictions)")
@@ -115,11 +130,28 @@ struct PlatformCredentialSheet: View {
 
         case .jetpack:
             permissionsNote("Permissions needed: global scope (required to read stats)")
-            field("WordPress.com Access Token", key: "access_token", secure: true,
-                  help: "Create one at developer.wordpress.com/apps/ — use the Test Application flow, request global scope",
+            field("Client ID", key: "client_id",
+                  help: "Create an app at developer.wordpress.com/apps and copy the Client ID",
                   helpURL: URL(string: "https://developer.wordpress.com/apps/"))
+            field("Client Secret", key: "client_secret", secure: true)
             field("Site ID or Domain", key: "site_code",
                   help: "Your WordPress.com site ID (numeric) or domain — e.g. 12345678 or myblog.wordpress.com")
+            if let token = values["access_token"], !token.isEmpty {
+                Label("Connected", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .font(.callout)
+            }
+            Button {
+                connectWordPress()
+            } label: {
+                if isConnecting {
+                    ProgressView().controlSize(.small)
+                } else {
+                    Label("Sign in with WordPress.com", systemImage: "arrow.up.right.square")
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(isConnecting || (values["client_id"] ?? "").isEmpty || (values["client_secret"] ?? "").isEmpty || (values["site_code"] ?? "").isEmpty)
 
         case .googleSearchConsole:
             permissionsNote("Permissions needed: https://www.googleapis.com/auth/webmasters.readonly")
@@ -158,13 +190,13 @@ struct PlatformCredentialSheet: View {
         case .linkedin:
             importSection(
                 instructions: """
-                    1. Go to LinkedIn Settings → Data Privacy → Get a copy of your data
-                    2. Request an archive and wait for the download email (usually minutes)
-                    3. Extract the ZIP — find "Share Statistics.csv" inside
-                    4. Click Import CSV below to load it
+                    1. Go to linkedin.com/analytics/creator/content (link below)
+                    2. Click Export in the top right — the file downloads instantly
+                    3. Click Import below to load it (CSV or XLSX accepted)
                     """,
-                extensions: ["csv"],
-                buttonLabel: "Import CSV"
+                helpURL: URL(string: "https://www.linkedin.com/analytics/creator/content/?metricType=IMPRESSIONS&timeRange=past_90_days"),
+                extensions: ["csv", "xlsx"],
+                buttonLabel: "Import File"
             )
 
         case .oreilly:
@@ -195,6 +227,7 @@ struct PlatformCredentialSheet: View {
     @ViewBuilder
     private func importSection(
         instructions: String,
+        helpURL: URL? = nil,
         extensions: [String],
         buttonLabel: String = "Import File"
     ) -> some View {
@@ -202,6 +235,10 @@ struct PlatformCredentialSheet: View {
             Text(instructions)
                 .font(.callout)
                 .foregroundStyle(.secondary)
+            if let helpURL {
+                Link("Open export page ↗", destination: helpURL)
+                    .font(.callout)
+            }
             Button {
                 Task {
                     do {
@@ -272,7 +309,7 @@ struct PlatformCredentialSheet: View {
         HStack {
             let isConfigured = (viewModel.configuredInstances[platform] ?? []).contains(instance.instanceName)
             if isConfigured {
-                Button("Remove Credentials", role: .destructive) {
+                Button(isFileImportPlatform ? "Remove Data" : "Remove Credentials", role: .destructive) {
                     Task {
                         do {
                             try await viewModel.delete(for: instance)
@@ -284,8 +321,8 @@ struct PlatformCredentialSheet: View {
                 }
             }
             Spacer()
-            // File-import platforms complete via the Import button in the form body.
-            if !isFileImportPlatform {
+            // File-import and OAuth platforms complete via buttons in the form body.
+            if !isFileImportPlatform && !isOAuthPlatform {
                 Button("Save") { save() }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
@@ -302,6 +339,10 @@ struct PlatformCredentialSheet: View {
         }
     }
 
+    private var isOAuthPlatform: Bool {
+        platform == .mastodon || platform == .jetpack
+    }
+
     private var canSave: Bool {
         requiredKeys.allSatisfy { !(values[$0] ?? "").isEmpty }
     }
@@ -315,11 +356,59 @@ struct PlatformCredentialSheet: View {
         case .calendly:            ["api_key"]
         case .mastodon:            ["access_token", "instance_url"]
         case .bluesky:             ["username", "password"]
-        case .jetpack:             ["access_token", "site_code"]
+        case .jetpack:             ["client_id", "client_secret", "site_code"]
         case .googleSearchConsole: ["client_id", "client_secret", "refresh_token", "site_url"]
         case .buffer:              ["api_key"]
         case .hackerNews:          ["site_code"]
         default:                   []
+        }
+    }
+
+    // MARK: - OAuth
+
+    @MainActor
+    private func connectMastodon() {
+        let rawURL = (values["instance_url"] ?? "").trimmingCharacters(in: .whitespaces)
+        guard !rawURL.isEmpty else { errorMessage = "Enter your instance URL first."; return }
+        let urlString = rawURL.hasPrefix("http") ? rawURL : "https://\(rawURL)"
+        guard let instanceURL = URL(string: urlString) else {
+            errorMessage = "The instance URL is not valid."
+            return
+        }
+        isConnecting = true
+        Task {
+            defer { isConnecting = false }
+            do {
+                let token = try await MastodonOAuth.authenticate(instanceURL: instanceURL)
+                values["access_token"] = token
+                save()
+            } catch OAuthError.cancelled {
+                // user dismissed the browser — no-op
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    @MainActor
+    private func connectWordPress() {
+        guard let clientID = values["client_id"], !clientID.isEmpty,
+              let clientSecret = values["client_secret"], !clientSecret.isEmpty else {
+            errorMessage = "Enter your Client ID and Client Secret first."
+            return
+        }
+        isConnecting = true
+        Task {
+            defer { isConnecting = false }
+            do {
+                let token = try await WordPressOAuth.authenticate(clientID: clientID, clientSecret: clientSecret)
+                values["access_token"] = token
+                save()
+            } catch OAuthError.cancelled {
+                // user dismissed the browser — no-op
+            } catch {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 

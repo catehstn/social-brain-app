@@ -87,6 +87,12 @@ struct PlatformsViewModelHiddenTests {
     @MainActor
     @Test("reload() reads hidden state from PlatformVisibilityStore")
     func testReloadRestoresHiddenState() throws {
+        // Own isolated suite set up inside the test body to avoid racing with
+        // PlatformVisibilityStoreTests.init() resetting the same static.
+        let suite = UserDefaults(suiteName: "com.test.reloadHidden.\(UUID().uuidString)")!
+        PlatformVisibilityStore.defaults = suite
+        PlatformVisibilityStore.resetAll()
+
         let db = try AppDatabase.makeInMemory()
         let viewModel = PlatformsViewModel(database: db)
         // Write directly to store (simulating prior app session)

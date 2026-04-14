@@ -102,7 +102,11 @@ final class PlatformsViewModel {
     /// should treat this as a no-op rather than an error to display).
     func importFile(for instance: PlatformInstance, allowedExtensions: [String]) async throws {
         let url = try await selectFile(allowedExtensions: allowedExtensions)
+        try await importFile(at: url, for: instance)
+    }
 
+    /// Imports a file at a known URL for a known platform instance.
+    func importFile(at url: URL, for instance: PlatformInstance) async throws {
         let rawData = try Data(contentsOf: url)
         let platformData: PlatformData
 
@@ -119,7 +123,48 @@ final class PlatformsViewModel {
             throw ImportError.unsupportedPlatform(instance.platform)
         }
 
-        // Persist as a one-platform collection run + snapshot.
+        try await saveImport(platformData, for: instance)
+    }
+
+    /// Tries to auto-detect the platform from a dropped file and import it.
+    /// Tries each compatible importer and uses the first that succeeds.
+    func handleDroppedFile(at url: URL) async throws {
+        let data = try Data(contentsOf: url)
+        let ext = url.pathExtension.lowercased()
+
+        let candidates: [(Platform, () throws -> PlatformData)]
+        switch ext {
+        case "csv":
+            candidates = [
+                (.linkedin, { try LinkedInImporter().parse(data: data) }),
+                (.substack, { try SubstackImporter().parse(data: data) }),
+            ]
+        case "tsv", "txt", "text":
+            candidates = [
+                (.amazon,  { try AmazonKDPImporter().parse(data: data) }),
+                (.oreilly, { try OReillyImporter().parse(data: data) }),
+            ]
+        case "eml":
+            candidates = [(.oreilly, { try OReillyImporter().parse(data: data) })]
+        case "xlsx":
+            candidates = [(.linkedin, { try LinkedInXLSXParser().parse(data: data) })]
+        default:
+            throw ImportError.unsupportedExtension
+        }
+
+        for (platform, parse) in candidates {
+            if let platformData = try? parse() {
+                let instance = PlatformInstance(platform: platform)
+                try await saveImport(platformData, for: instance)
+                return
+            }
+        }
+        throw ImportError.unrecognisedFormat
+    }
+
+    // MARK: - Private import helpers
+
+    private func saveImport(_ platformData: PlatformData, for instance: PlatformInstance) async throws {
         var run = CollectionRun(
             id: nil,
             startedAt: .now,
@@ -173,11 +218,15 @@ final class PlatformsViewModel {
 enum ImportError: LocalizedError {
     case cancelled
     case unsupportedPlatform(Platform)
+    case unsupportedExtension
+    case unrecognisedFormat
 
     var errorDescription: String? {
         switch self {
-        case .cancelled:                return nil
+        case .cancelled:                  return nil
         case .unsupportedPlatform(let p): return "File import is not yet supported for \(p.displayName)."
+        case .unsupportedExtension:       return "Drop a CSV, TSV, TXT, or XLSX file to import."
+        case .unrecognisedFormat:         return "The file format wasn't recognised. Make sure you're dropping a LinkedIn, Substack, Amazon KDP, or O'Reilly export."
         }
     }
 }
