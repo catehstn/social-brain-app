@@ -71,7 +71,10 @@ enum WordPressOAuth {
                 session.presentationContextProvider = provider
                 _session  = session
                 _provider = provider
-                session.start()
+                // A second hop defers start() past the current layout cycle,
+                // avoiding the "-layoutSubtreeIfNeeded on a view which is already
+                // being laid out" recursion on macOS.
+                DispatchQueue.main.async { session.start() }
             }
         }
     }
@@ -113,10 +116,3 @@ enum WordPressOAuth {
     }
 }
 
-// MARK: - Presentation context
-
-private final class ContextProvider: NSObject, ASWebAuthenticationPresentationContextProviding {
-    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        NSApp.keyWindow ?? NSApp.mainWindow ?? NSApp.windows.first ?? NSWindow()
-    }
-}
