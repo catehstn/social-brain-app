@@ -20,8 +20,16 @@ final class SocialBrainUITests: XCTestCase {
         XCTAssert(app.staticTexts["Welcome to Social Brain"].waitForExistence(timeout: 5))
     }
 
+    func testOnboardingWizardAdvancesToGoalPage() throws {
+        XCTAssert(app.staticTexts["Welcome to Social Brain"].waitForExistence(timeout: 5))
+        app.buttons["Next"].click()
+        XCTAssert(app.staticTexts["What's Your Goal?"].waitForExistence(timeout: 3))
+    }
+
     func testOnboardingWizardAdvancesToConnectPage() throws {
         XCTAssert(app.staticTexts["Welcome to Social Brain"].waitForExistence(timeout: 5))
+        app.buttons["Next"].click()
+        XCTAssert(app.staticTexts["What's Your Goal?"].waitForExistence(timeout: 3))
         app.buttons["Next"].click()
         XCTAssert(app.staticTexts["Connect Your Platforms"].waitForExistence(timeout: 3))
     }
@@ -29,13 +37,15 @@ final class SocialBrainUITests: XCTestCase {
     func testOnboardingWizardBackButtonReturnsToWelcome() throws {
         XCTAssert(app.staticTexts["Welcome to Social Brain"].waitForExistence(timeout: 5))
         app.buttons["Next"].click()
-        XCTAssert(app.staticTexts["Connect Your Platforms"].waitForExistence(timeout: 3))
+        XCTAssert(app.staticTexts["What's Your Goal?"].waitForExistence(timeout: 3))
         app.buttons["Back"].click()
         XCTAssert(app.staticTexts["Welcome to Social Brain"].waitForExistence(timeout: 3))
     }
 
     func testOnboardingWizardCompletesAndDismisses() throws {
         XCTAssert(app.staticTexts["Welcome to Social Brain"].waitForExistence(timeout: 5))
+        app.buttons["Next"].click()
+        XCTAssert(app.staticTexts["What's Your Goal?"].waitForExistence(timeout: 3))
         app.buttons["Next"].click()
         XCTAssert(app.staticTexts["Connect Your Platforms"].waitForExistence(timeout: 3))
         app.buttons["Next"].click()
@@ -46,15 +56,23 @@ final class SocialBrainUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["Welcome to Social Brain"].exists)
     }
 
+    // MARK: - Helpers
+
+    /// Clicks through the wizard when it appears. The wizard has four steps —
+    /// welcome, goal, connect, ready — so this is three Nexts, then Get Started.
+    /// Keep in step with `OnboardingView.Step`.
+    private func completeOnboardingIfPresent() {
+        guard app.staticTexts["Welcome to Social Brain"].waitForExistence(timeout: 3) else { return }
+        app.buttons["Next"].click()
+        app.buttons["Next"].click()
+        app.buttons["Next"].click()
+        app.buttons["Get Started"].click()
+    }
+
     // MARK: - Main run flow
 
     func testMainWindowShowsRunView() throws {
-        // Skip onboarding if it appears.
-        if app.staticTexts["Welcome to Social Brain"].waitForExistence(timeout: 3) {
-            app.buttons["Next"].click()
-            app.buttons["Next"].click()
-            app.buttons["Get Started"].click()
-        }
+        completeOnboardingIfPresent()
         XCTAssert(app.staticTexts["Run"].waitForExistence(timeout: 5))
     }
 
@@ -62,11 +80,7 @@ final class SocialBrainUITests: XCTestCase {
 
     /// Skips onboarding and navigates to the Platforms pane.
     private func navigateToPlatforms() {
-        if app.staticTexts["Welcome to Social Brain"].waitForExistence(timeout: 3) {
-            app.buttons["Next"].click()
-            app.buttons["Next"].click()
-            app.buttons["Get Started"].click()
-        }
+        completeOnboardingIfPresent()
         // Click Platforms in the sidebar
         let platformsItem = app.outlines.cells["Platforms"]
         if platformsItem.waitForExistence(timeout: 5) {
