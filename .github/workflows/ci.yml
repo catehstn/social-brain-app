@@ -19,6 +19,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Install xcbeautify
+        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+
       - name: Show toolchain
         run: xcodebuild -version
 
@@ -43,16 +46,28 @@ jobs:
             -scheme SocialBrain \
             -destination 'platform=macOS' \
             -only-testing:SocialBrainTests \
+            -resultBundlePath TestResults-unit.xcresult \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY=- \
             DEVELOPMENT_TEAM= \
-            | xcpretty
+            | xcbeautify --renderer github-actions
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.job }}-xcresult
+          path: '*.xcresult'
+          retention-days: 7
 
   ui-tests:
     name: UI Tests
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v5
+
+      - name: Install xcbeautify
+        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
 
       - name: Cache SPM dependencies
         uses: actions/cache@v4
@@ -71,16 +86,28 @@ jobs:
             -scheme SocialBrain \
             -destination 'platform=macOS' \
             -only-testing:SocialBrainUITests \
+            -resultBundlePath TestResults-ui.xcresult \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY=- \
             DEVELOPMENT_TEAM= \
-            | xcpretty
+            | xcbeautify --renderer github-actions
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.job }}-xcresult
+          path: '*.xcresult'
+          retention-days: 7
 
   release-build:
     name: Release Build
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v5
+
+      - name: Install xcbeautify
+        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
 
       - name: Cache SPM dependencies
         uses: actions/cache@v4
@@ -99,4 +126,4 @@ jobs:
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY=- \
             DEVELOPMENT_TEAM= \
-            | xcpretty
+            | xcbeautify --renderer github-actions
