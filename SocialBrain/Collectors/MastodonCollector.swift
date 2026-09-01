@@ -110,7 +110,7 @@ struct MastodonCollector: Collector {
     private func makeDecoder() -> JSONDecoder {
         let d = JSONDecoder()
         d.keyDecodingStrategy = .convertFromSnakeCase
-        d.dateDecodingStrategy = .iso8601
+        d.dateDecodingStrategy = .iso8601Flexible
         return d
     }
 }

@@ -97,7 +97,7 @@ struct CalendlyCollector: Collector {
         let (data, response) = try await session.data(for: req)
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .iso8601Flexible
         let decoded = try decodeJSON(EventsResponse.self, from: data, response: response, decoder: decoder)
         return decoded.collection
     }
