@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class FeedUITests: XCTestCase {
     var app: XCUIApplication!
 
