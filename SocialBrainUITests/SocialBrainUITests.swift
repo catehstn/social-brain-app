@@ -4,7 +4,7 @@ import XCTest
 final class SocialBrainUITests: XCTestCase {
     let app = XCUIApplication()
 
-    override func setUpWithError() throws {
+    override func setUp() async throws {
         continueAfterFailure = false
         // Reset onboarding state so the wizard always appears on launch.
         app.launchArguments += ["-hasCompletedOnboarding", "0"]

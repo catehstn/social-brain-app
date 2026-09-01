@@ -54,6 +54,15 @@ xcodebuild test -scheme SocialBrain -destination 'platform=macOS' \
   -only-testing:SocialBrainTests
 ```
 
+One suite is opt-in: `SetupURLTests` checks the platform setup links against
+the live web, so it's skipped by default to keep the suite hermetic. Run it
+deliberately when you change a setup URL:
+
+```sh
+RUN_NETWORK_TESTS=1 xcodebuild test -scheme SocialBrain \
+  -destination 'platform=macOS' -only-testing:SocialBrainTests/SetupURLTests
+```
+
 **Don't run `SocialBrainUITests` locally.** They launch the full app and take over
 your screen. CI runs them on every push and pull request.
 
