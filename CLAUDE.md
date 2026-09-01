@@ -18,13 +18,16 @@ analysis in Claude. It is a ground-up Swift rewrite of the original Python CLI t
   URLSession. There is no Python subprocess or bundled runtime.
 - **SwiftUI** for all UI. macOS 14+ target.
 - **Swift Package Manager** for all dependencies. No CocoaPods or Carthage.
+- **The `.xcodeproj` is checked in and hand-edited.** There is no XcodeGen step;
+  `Info.plist` and `SocialBrain.entitlements` are tracked in git.
 - **SQLite via GRDB.swift** for the local analytics store (replaces analytics.xlsx).
 - **Keychain** (via the Security framework) for all credential storage. No plaintext
   config files.
 - **Swift Charts** for the dashboard (week / month / 3 month / all time views).
 - **ASWebAuthenticationSession** for OAuth flows (Mastodon, Jetpack).
 - **UserNotifications** for stale-export reminders.
-- **BGTaskScheduler** for the morning auto-refresh.
+- **NSBackgroundActivityScheduler** for the morning auto-refresh. (`BGTaskScheduler`
+  is iOS-only and unavailable on native macOS.)
 
 ## Project structure
 
@@ -79,16 +82,17 @@ protocol Collector {
 ```
 
 Platforms are grouped by integration difficulty for the onboarding UI:
-- **Easy (API key):** Buttondown, GoatCounter, Vercel, Calendly, Amazon
+- **Easy (API key):** Buttondown, GoatCounter, Calendly, Amazon KDP, Google Search Console, Buffer
 - **Medium (OAuth / token):** Mastodon, Jetpack, Bluesky
 - **Hard (file export):** LinkedIn, O'Reilly, Substack
+- **No auth:** Hacker News
 
 ## App Store considerations
 
 - All file access via `NSOpenPanel` or drag-and-drop with security-scoped bookmarks.
 - No network calls outside of declared domains (add to entitlements as needed).
 - Credentials stored in Keychain only — never in UserDefaults or on disk unencrypted.
-- Background refresh via BGTaskScheduler (registered in Info.plist).
+- Background refresh via NSBackgroundActivityScheduler (no Info.plist key needed).
 - Sandbox entitlements: outgoing network connections, read/write to user-selected files.
 
 ## Prompt size and cost

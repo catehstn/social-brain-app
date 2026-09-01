@@ -800,7 +800,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.catehuston.SocialBrainTests;
 				SDKROOT = macosx;
-				SWIFT_VERSION = 6.3;
+				SWIFT_VERSION = 6.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SocialBrain.app/Contents/MacOS/SocialBrain";
 			};
 			name = Debug;
@@ -875,7 +875,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.catehuston.SocialBrainTests;
 				SDKROOT = macosx;
-				SWIFT_VERSION = 6.3;
+				SWIFT_VERSION = 6.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SocialBrain.app/Contents/MacOS/SocialBrain";
 			};
 			name = Release;
@@ -957,7 +957,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.catehuston.SocialBrainUITests;
 				SDKROOT = macosx;
-				SWIFT_VERSION = 6.3;
+				SWIFT_VERSION = 6.0;
 				TEST_TARGET_NAME = SocialBrain;
 			};
 			name = Release;
@@ -979,7 +979,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.catehuston.SocialBrain;
 				SDKROOT = macosx;
-				SWIFT_VERSION = 6.3;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
 		};
@@ -1000,7 +1000,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.catehuston.SocialBrain;
 				SDKROOT = macosx;
-				SWIFT_VERSION = 6.3;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
 		};
@@ -1018,7 +1018,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.catehuston.SocialBrainUITests;
 				SDKROOT = macosx;
-				SWIFT_VERSION = 6.3;
+				SWIFT_VERSION = 6.0;
 				TEST_TARGET_NAME = SocialBrain;
 			};
 			name = Debug;

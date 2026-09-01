@@ -6,49 +6,97 @@ on:
   pull_request:
     branches: [main]
 
+# Cancel superseded runs on the same branch. macOS runners bill at a 10x
+# minute multiplier, so redundant runs are the expensive kind.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   unit-tests:
     name: Unit Tests
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.3.app
+      - name: Show toolchain
+        run: xcodebuild -version
+
+      - name: Cache SPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-
 
       - name: Resolve packages
         run: xcodebuild -resolvePackageDependencies -scheme SocialBrain
 
+      # `shell: bash -eo pipefail` is load-bearing. Without pipefail, piping
+      # xcodebuild into a formatter reports the FORMATTER's exit code, so a
+      # failed build shows up as a green run — which is exactly how a broken
+      # build sat unnoticed on main. Do not remove it.
       - name: Run unit tests
+        shell: bash -eo pipefail {0}
         run: |
           xcodebuild test \
             -scheme SocialBrain \
             -destination 'platform=macOS' \
             -only-testing:SocialBrainTests \
-            | xcpretty || xcodebuild test \
-              -scheme SocialBrain \
-              -destination 'platform=macOS' \
-              -only-testing:SocialBrainTests
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM= \
+            | xcpretty
 
   ui-tests:
     name: UI Tests
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.3.app
+      - name: Cache SPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-
 
       - name: Resolve packages
         run: xcodebuild -resolvePackageDependencies -scheme SocialBrain
 
       - name: Run UI tests
+        shell: bash -eo pipefail {0}
         run: |
           xcodebuild test \
             -scheme SocialBrain \
             -destination 'platform=macOS' \
             -only-testing:SocialBrainUITests \
-            | xcpretty || xcodebuild test \
-              -scheme SocialBrain \
-              -destination 'platform=macOS' \
-              -only-testing:SocialBrainUITests
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM= \
+            | xcpretty
+
+  release-build:
+    name: Release Build
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cache SPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-
+
+      - name: Build Release configuration
+        shell: bash -eo pipefail {0}
+        run: |
+          xcodebuild build \
+            -scheme SocialBrain \
+            -destination 'platform=macOS' \
+            -configuration Release \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM= \
+            | xcpretty

@@ -1,7 +1,7 @@
 # Xcode
 *.xcodeproj/xcuserdata/
+*.xcuserstate
 *.xcworkspace/xcuserdata/
-*.xcworkspace/xcshareddata/
 DerivedData/
 *.ipa
 *.dSYM.zip
@@ -10,10 +10,6 @@ DerivedData/
 # Swift Package Manager
 .build/
 .swiftpm/
-
-# Generated
-SocialBrain/Info.plist
-SocialBrain/SocialBrain.entitlements
 
 # OS
 .DS_Store
