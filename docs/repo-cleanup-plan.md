@@ -138,63 +138,63 @@ succeed on a runner with no Apple account).
 
 ---
 
-## 5. Proposed issue restructuring
+## 5. Issue restructuring — done
 
-### Labels to add
+Labels created: `P0` `P1` `P2`, `area:build` `area:ci` `area:design`
+`area:collectors` `area:docs`, and `blocked`. All 11 existing issues relabelled.
 
-Currently only GitHub's nine defaults are in use, with no priority signal at all.
+Milestones created and populated:
 
-**Priority:** `P0` (blocks other work) · `P1` (next) · `P2` (someday)
-**Area:** `area:build` · `area:ci` · `area:design` · `area:collectors` · `area:docs`
-**State:** `blocked`
+**M1 — Runnable again** *(clone, build, test, ship a change with confidence)*
+- #47 P1 — Wire up SocialBrainMCP as a real target, or remove it
+- #48 P1 — Tests for the Google Search Console, Hacker News and Buffer collectors
+- #49 P1 — Tests for LinkedInXLSXParser and MiniZIPReader
+- #43 P2 — Retire the Vercel collector
+- #51 P2 — Decide the CI vs local Xcode version policy
 
-### Milestones to add
+**M2 — Design pass** *(the five screens, rebuilt from the brief)*
+- #38–#42 P1 — Design pass: Feed, Run, Platforms, Dashboard, Onboarding
+- #46 P2 — Rewrite the Platforms grid UI tests
+- #50 P2 — Tests for the Mastodon and WordPress OAuth flows
+- #32 P2 — Manual testing checklist *(rewrite after the redesign, not before)*
 
-- **M1 — Runnable again** — anyone can clone, build, test, and ship a change with confidence.
-- **M2 — Design pass** — the five screens rebuilt from the brief's mockups.
-- **M3 — Ship** — signing, distribution, the setup guide hosted.
+**M3 — Ship**
+- #28 P1 — Host the platform setup guide on the web
+- #36 P1 — Development Team and data-protection keychain
 
-### Existing issues
+**No milestone**
+- #17 P2 `blocked` — LinkedIn Partners Program *(genuinely waiting on a third party)*
+- #35 P2 — social-media-as-[name] skill docs *(unrelated to the app; consider
+  moving to another repo)*
 
-| # | Title | Proposed |
-|---|---|---|
-| #17 | LinkedIn API: Partners Program | `blocked`, `P2`, no milestone. Genuinely waiting on a third party. |
-| #28 | Host platform setup guide on the web | `P1`, `area:docs`, **M3**. Nearly done — enable Pages on `docs/`. |
-| #32 | Manual testing checklist | `P2`, `area:docs`, **M2**. Rewrite after the design pass, not before. |
-| #35 | How to create a social-media-as-[name] skill | `P2`, `area:docs`. Unrelated to the app — consider moving to another repo. |
-| #36 | Development Team + data-protection keychain | `P1`, `area:build`, **M3**. Needed to ship; not needed to develop. |
-| #38–#42 | Design pass ×5 | `P1`, `area:design`, **M2**. Keep as-is; they're correctly scoped once #1 is settled. |
-| #43 | Retire Vercel collector | `P2`, `area:collectors`, **M1**. Touches 10 files — small but not trivial. |
+Several issues from the original proposal were never filed because PR #44
+resolved them directly: the project-file conflict, the PR #34 decision, the CI
+rewrite, the Release build job, and repo hygiene.
 
-### New issues to file
-
-| Proposed title | Labels | Milestone |
-|---|---|---|
-| Resolve project.yml vs checked-in .xcodeproj | `P0` `area:build` | M1 |
-| Decide fate of PR #34 (rebase or close as superseded) | `P0` `area:build` | M1 |
-| Wire up SocialBrainMCP as a real target, or remove it | `P1` `area:build` | M1 |
-| Add tests for GoogleSearchConsole, HackerNews, Buffer collectors | `P1` `area:collectors` | M1 |
-| Add tests for LinkedInXLSXParser and MiniZIPReader | `P1` `area:collectors` | M1 |
-| Add tests for the Mastodon and WordPress OAuth flows | `P2` `area:collectors` | M2 |
-| CI: drop the double test run, cache SPM, commit a shared scheme | `P1` `area:ci` | M1 |
-| CI: add a Release-configuration build job | `P2` `area:ci` | M2 |
-| Repo hygiene: untrack xcuserstate, prune merged branches, set description | `P2` `area:build` | M1 |
+Also applied: repo description set, and `delete_branch_on_merge` enabled so
+merged branches stop accumulating.
 
 ### Suggested order
 
-1. Resolve the project-file conflict (#new) — everything else compiles through it.
-2. Decide PR #34 — it rots further every week.
-3. CI fixes — so the test additions actually gate anything.
-4. Backfill collector tests — restores the CLAUDE.md guarantee before the UI churns.
-5. MCP decision, Vercel retirement — clears dead weight.
-6. *Then* the design pass (#38–#42).
+1. **#47** — decide the MCP question. It's the last piece of the repo that
+   claims to be buildable and isn't.
+2. **#48, #49** — backfill collector and parser tests, restoring the guarantee
+   CLAUDE.md already states. #49 first: `MiniZIPReader` parses untrusted binary
+   input with no tests at all.
+3. **#43, #51** — clear dead weight and settle the toolchain question.
+4. *Then* M2. The design pass is the interesting work, and it lands on a repo
+   that can actually verify itself.
 
----
+## 6. Deliberately not done
 
-## 6. What I'd do next, pending your go-ahead
+Two items from the original plan need a decision rather than an action:
 
-**Already safe to do (local files only):** write the README, fix the CI workflow, untrack the xcuserstate file, relocate `trycycle-plan.md`.
-
-**Needs your approval (mutates GitHub):** create labels and milestones, relabel the 11 existing issues, file the 9 new ones, enable `delete_branch_on_merge`, prune the 15 merged branches, enable Pages.
-
-**Needs your decision, not just approval:** the project.yml-vs-.xcodeproj call, and PR #34.
+- **Pruning the 15 merged branches.** `delete_branch_on_merge` is now on, so
+  this stops getting worse, but deleting the existing ones is irreversible.
+  Worth keeping `platforms-inspector-run-labels` regardless — it holds the
+  inspector-drawer UI work from the closed PR #34, which is useful reference
+  during #40.
+- **Enabling GitHub Pages for `docs/`** (issue #28). This repo is private;
+  Pages would publish `docs/index.html` to the public web. That's the intent
+  of #28, but it's an exposure decision, not a settings tidy-up — so it should
+  be made explicitly rather than folded into a cleanup.
