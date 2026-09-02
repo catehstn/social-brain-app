@@ -2,10 +2,17 @@
 
 Written 2026-09-01.
 
-**Applied so far** (branch `repo-cleanup`): the project-file resolution, the CI
-rewrite, the README, and the repo-hygiene items in section 4. **Not applied:** all
-GitHub mutations in section 5 (labels, milestones, issue changes), and the PR #34
-decision.
+**Status:** sections 1–4 are done, in PR #44 — the repo builds again and all three
+CI jobs are green on both Xcode 16.4 (CI) and 26.6 (local). PR #34 was closed as
+superseded, with its collector work salvaged into PR #45. The Platforms UI tests
+are skipped pending #40, tracked in #46.
+
+**Still to do:** the GitHub mutations in section 5 — labels, milestones, relabelling
+the existing issues, and filing the new ones.
+
+Getting the build honest turned up three bugs that no amount of reading would have
+found, including one that breaks the Mastodon, Bluesky and Calendly collectors
+against their live APIs. See PR #44 for the detail.
 
 ---
 
