@@ -48,9 +48,22 @@ enum WordPressOAuth {
                 let session = ASWebAuthenticationSession(
                     url: url,
                     callbackURLScheme: callbackScheme
-                ) { callbackURL, error in
-                    _session  = nil
-                    _provider = nil
+                ) { @Sendable callbackURL, error in
+                    // @Sendable is load-bearing. This enum is @MainActor, so
+                    // without it the closure inherits that isolation — but
+                    // ASWebAuthenticationSession invokes the handler on an XPC
+                    // reply queue (com.apple.NSXPCConnection…SafariLaunchAgent),
+                    // not the main queue. Under Swift 6 that trips an executor
+                    // precondition (swift_task_isCurrentExecutor →
+                    // dispatch_assert_queue → EXC_BREAKPOINT) the instant the
+                    // callback fires, crashing the app on every completed
+                    // sign-in. Marking it @Sendable stops the inheritance so it
+                    // runs wherever AuthenticationServices calls it.
+                    // Clearing the statics hops back to the main actor.
+                    Task { @MainActor in
+                        _session  = nil
+                        _provider = nil
+                    }
                     if let error {
                         let nsErr = error as NSError
                         let cancelled = (error as? ASWebAuthenticationSessionError)?.code == .canceledLogin
