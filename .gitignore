@@ -11,6 +11,9 @@ DerivedData/
 .build/
 .swiftpm/
 
+# Agent worktrees (git repos in their own right — never commit these)
+.claude/worktrees/
+
 # OS
 .DS_Store
 .worktrees

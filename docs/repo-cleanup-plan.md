@@ -7,8 +7,8 @@ CI jobs are green on both Xcode 16.4 (CI) and 26.6 (local). PR #34 was closed as
 superseded, with its collector work salvaged into PR #45. The Platforms UI tests
 are skipped pending #40, tracked in #46.
 
-**Still to do:** the GitHub mutations in section 5 — labels, milestones, relabelling
-the existing issues, and filing the new ones.
+**Also done since:** labels and milestones created, all existing issues relabelled,
+and the new issues filed (#47–#51, #55–#61).
 
 Getting the build honest turned up three bugs that no amount of reading would have
 found, including one that breaks the Mastodon, Bluesky and Calendly collectors
@@ -149,13 +149,20 @@ Milestones created and populated:
 - #47 P1 — Wire up SocialBrainMCP as a real target, or remove it
 - #48 P1 — Tests for the Google Search Console, Hacker News and Buffer collectors
 - #49 P1 — Tests for LinkedInXLSXParser and MiniZIPReader
+- #55 P1 — LinkedIn XLSX import fails on string-typed metric cells
 - #43 P2 — Retire the Vercel collector
 - #51 P2 — Decide the CI vs local Xcode version policy
+- #58 P2 — Make test isolation structural rather than order-dependent
+- #59 P2 — CI and project-file housekeeping
+- #60 P2 — Decide what to do with SetupURLTests (it has never passed)
 
 **M2 — Design pass** *(the five screens, rebuilt from the brief)*
 - #38–#42 P1 — Design pass: Feed, Run, Platforms, Dashboard, Onboarding
+- #61 P1 — Design brief promises a mentions synthesis that doesn't exist
 - #46 P2 — Rewrite the Platforms grid UI tests
 - #50 P2 — Tests for the Mastodon and WordPress OAuth flows
+- #56 P2 — Demo mode with seeded mock data
+- #57 P2 — File imports give almost no confirmation of what was imported
 - #32 P2 — Manual testing checklist *(rewrite after the redesign, not before)*
 
 **M3 — Ship**
@@ -185,16 +192,32 @@ merged branches stop accumulating.
 4. *Then* M2. The design pass is the interesting work, and it lands on a repo
    that can actually verify itself.
 
-## 6. Deliberately not done
+## 6. Repo settings and branches — done
 
-Two items from the original plan need a decision rather than an action:
+- 15 merged branches deleted; `delete_branch_on_merge` enabled so they stop
+  accumulating.
+- Repo description set.
 
-- **Pruning the 15 merged branches.** `delete_branch_on_merge` is now on, so
-  this stops getting worse, but deleting the existing ones is irreversible.
-  Worth keeping `platforms-inspector-run-labels` regardless — it holds the
-  inspector-drawer UI work from the closed PR #34, which is useful reference
-  during #40.
-- **Enabling GitHub Pages for `docs/`** (issue #28). This repo is private;
-  Pages would publish `docs/index.html` to the public web. That's the intent
-  of #28, but it's an exposure decision, not a settings tidy-up — so it should
-  be made explicitly rather than folded into a cleanup.
+Six branches remain besides `main`, all deliberately:
+
+| Branch | Why it's still there |
+|---|---|
+| `oreilly-eml-parser` | PR #45 |
+| `claude-md-conventions` | PR #52 |
+| `oauth-callback-isolation` | PR #54 |
+| `platforms-inspector-run-labels` | **Kept as reference.** Holds the inspector-drawer UI work from closed PR #34, useful during #40. Delete after the Platforms redesign lands. |
+| `linkedin-xlsx-oauth-fixes` | Squash-merged as #33, so git reports it unmerged — `gh api repos/catehstn/social-brain-app/pulls/33` returns `merged: true`, which is the evidence. Its diff against `main` is *not* purely subtractive (it re-adds the deleted `project.yml`), so don't judge it from the diff. Safe to delete; flagged rather than deleted because "merged" isn't provable from the commit graph. |
+| `bas-questions-and-issues` | Someone else's branch, from closed PR #53. Not ours to delete. |
+
+## 7. Still needing a decision
+
+- **Enabling GitHub Pages for `docs/`** (issue #28). This repo is private; Pages
+  would publish `docs/index.html` to the public web. That's the intent of #28,
+  but it's an exposure decision, not a settings tidy-up, so it should be made
+  explicitly rather than folded into a cleanup.
+- **The Xcode version gap** (issue #51) — CI floats on the runner default while
+  local is newer. That gap has already caught one real bug and cost two
+  round-trips.
+- **Whether `SetupURLTests` is worth keeping** (issue #60) — it has never passed.
+- **Mentions synthesis** (issue #61) — the design brief promises it; the code
+  doesn't have it. Settle before M2 starts.

@@ -89,10 +89,11 @@ SocialBrain/
   OAuth/        ASWebAuthenticationSession flows (Mastodon, WordPress)
   Keychain/     Credential storage via the Security framework
   Prompt/       Prompt assembly
-  Views/        SwiftUI, one directory per screen, each `View` + `ViewModel`
+  Views/        SwiftUI, one directory per screen; most pair a `View` with a
+                `ViewModel` (Onboarding, Settings and Sidebar have no ViewModel)
 SocialBrainTests/     Unit tests
 SocialBrainUITests/   UI tests (CI only)
-SocialBrainMCP/       MCP server — NOT currently part of any build target
+SocialBrainMCP/       MCP server — NOT currently part of any build target (#47)
 docs/                 Design brief, platform setup guide, plans
 ```
 
