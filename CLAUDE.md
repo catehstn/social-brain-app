@@ -60,9 +60,11 @@ docs/                   # Design brief, setup guide, plans
 
 - Run unit tests locally before and after every change:
   `xcodebuild test -scheme SocialBrain -destination 'platform=macOS' -only-testing:SocialBrainTests`
-- **Do NOT run `SocialBrainUITests` locally** — UI tests launch the full macOS app and
-  are disruptive during development. They run automatically on CI (GitHub Actions) on
-  every push and PR.
+- **Do NOT run `SocialBrainUITests` locally** — they launch the full macOS app and
+  take over the screen. They are kept out of the default `SocialBrain` scheme for
+  this reason, so ⌘U and a bare `xcodebuild test -scheme SocialBrain` are safe.
+  CI runs them via the separate `SocialBrain-UITests` scheme on every push and PR.
+  If you add a UI test target, add it to that scheme — not the default one.
 - All unit tests must pass before opening a PR.
 - **Add tests for every collector** — mock URLSession responses, assert the parsed
   model matches expected values.

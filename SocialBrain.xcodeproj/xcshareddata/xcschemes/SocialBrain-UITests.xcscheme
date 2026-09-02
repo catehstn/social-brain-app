@@ -13,9 +13,6 @@
          </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
-   <!-- UI tests are NOT in this scheme: they launch the full app and take over
-        the screen, so Cmd-U must not run them. They live in the
-        SocialBrain-UITests scheme, which is what CI uses. -->
    <TestAction
       buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
@@ -25,9 +22,9 @@
          <TestableReference skipped = "NO">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "987D0EC5A07FF812AB1389C3"
-               BuildableName = "SocialBrainTests.xctest"
-               BlueprintName = "SocialBrainTests"
+               BlueprintIdentifier = "28A74FECBA111CA2614C4A40"
+               BuildableName = "SocialBrainUITests.xctest"
+               BlueprintName = "SocialBrainUITests"
                ReferencedContainer = "container:SocialBrain.xcodeproj">
             </BuildableReference>
          </TestableReference>

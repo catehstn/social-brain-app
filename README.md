@@ -65,8 +65,18 @@ TEST_RUNNER_RUN_NETWORK_TESTS=1 xcodebuild test -scheme SocialBrain \
   -destination 'platform=macOS' -only-testing:SocialBrainTests/SetupURLTests
 ```
 
-**Don't run `SocialBrainUITests` locally.** They launch the full app and take over
-your screen. CI runs them on every push and pull request.
+### Schemes
+
+There are two, deliberately:
+
+| Scheme | Contains | Use |
+|---|---|---|
+| `SocialBrain` | app + `SocialBrainTests` | Everyday work. ⌘U is safe. |
+| `SocialBrain-UITests` | app + `SocialBrainUITests` | CI only. |
+
+UI tests launch the full app and take over your screen, so they're kept out of
+the default scheme rather than merely discouraged. CI runs them on every push
+and pull request via the second scheme. Run them locally only if you mean it.
 
 ## Where things live
 

@@ -80,15 +80,14 @@ jobs:
           restore-keys: ${{ runner.os }}-spm-
 
       - name: Resolve packages
-        run: xcodebuild -resolvePackageDependencies -scheme SocialBrain
+        run: xcodebuild -resolvePackageDependencies -scheme SocialBrain-UITests
 
       - name: Run UI tests
         shell: bash -eo pipefail {0}
         run: |
           xcodebuild test \
-            -scheme SocialBrain \
+            -scheme SocialBrain-UITests \
             -destination 'platform=macOS' \
-            -only-testing:SocialBrainUITests \
             -resultBundlePath TestResults-ui.xcresult \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY=- \
