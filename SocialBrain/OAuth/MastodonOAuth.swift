@@ -14,10 +14,18 @@ enum MastodonOAuth {
     private static let callbackURI    = "socialbrain://oauth/mastodon"
 
     // Strong references kept for the duration of the ASWebAuthenticationSession.
-    // nonisolated(unsafe) lets DispatchQueue.main.async assign these
-    // without a Swift concurrency actor-isolation error.
-    nonisolated(unsafe) private static var _session:  ASWebAuthenticationSession?
-    nonisolated(unsafe) private static var _provider: ContextProvider?
+    // These stay MainActor-isolated on purpose. The completion handler below is
+    // @Sendable (and so nonisolated) to avoid an executor-precondition crash, so
+    // marking these nonisolated(unsafe) would let someone write to them straight
+    // from that handler — on the XPC callback thread, racing the main-thread
+    // write below, and releasing an ObjC object cross-thread. That is exactly
+    // the bug this file already had once. Keeping the isolation means the
+    // compiler flags it — "main actor-isolated static property '_session' can
+    // not be mutated from a Sendable closure". Verified: it is a warning, not
+    // an error, so it is a tripwire rather than a barrier. Still infinitely
+    // better than nonisolated(unsafe), which says nothing at all.
+    private static var _session:  ASWebAuthenticationSession?
+    private static var _provider: ContextProvider?
 
     // MARK: - Public
 
@@ -77,8 +85,12 @@ enum MastodonOAuth {
                     // callback fires, crashing the app on every completed
                     // sign-in. Marking it @Sendable stops the inheritance so it
                     // runs wherever AuthenticationServices calls it.
-                    // Clearing the statics hops back to the main actor.
-                    Task { @MainActor in
+                    // Clearing hops back to the main queue — the same lane the
+                    // assignment above uses, so the two stay FIFO-ordered with
+                    // respect to each other. (An unstructured Task would also
+                    // work today, but reaches the main actor by a different
+                    // route and makes the ordering harder to reason about.)
+                    DispatchQueue.main.async {
                         _session  = nil
                         _provider = nil
                     }
@@ -100,8 +112,12 @@ enum MastodonOAuth {
                 }
                 let provider = ContextProvider()
                 session.presentationContextProvider = provider
-                _session  = session
-                _provider = provider
+                // Already on the main thread — DispatchQueue.main.async put us
+                // here — so asserting the isolation is sound.
+                MainActor.assumeIsolated {
+                    _session  = session
+                    _provider = provider
+                }
                 // A second hop defers start() past the current layout cycle,
                 // avoiding the "-layoutSubtreeIfNeeded on a view which is already
                 // being laid out" recursion on macOS.

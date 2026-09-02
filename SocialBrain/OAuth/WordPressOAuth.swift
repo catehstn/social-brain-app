@@ -20,8 +20,14 @@ enum WordPressOAuth {
     static let authURL  = URL(string: "https://public-api.wordpress.com/oauth2/authorize")!
     static let tokenURL = URL(string: "https://public-api.wordpress.com/oauth2/token")!
 
-    nonisolated(unsafe) private static var _session:  ASWebAuthenticationSession?
-    nonisolated(unsafe) private static var _provider: ContextProvider?
+    // Strong references kept for the duration of the ASWebAuthenticationSession.
+    // These stay MainActor-isolated on purpose — see the matching note in
+    // MastodonOAuth. The completion handler is @Sendable and therefore
+    // nonisolated, so nonisolated(unsafe) here would let a future edit write to
+    // them from the XPC callback thread, racing the main-thread write below.
+    // As isolated, that edit gets a compiler warning instead of silence.
+    private static var _session:  ASWebAuthenticationSession?
+    private static var _provider: ContextProvider?
 
     // MARK: - Public
 
@@ -59,8 +65,12 @@ enum WordPressOAuth {
                     // callback fires, crashing the app on every completed
                     // sign-in. Marking it @Sendable stops the inheritance so it
                     // runs wherever AuthenticationServices calls it.
-                    // Clearing the statics hops back to the main actor.
-                    Task { @MainActor in
+                    // Clearing hops back to the main queue — the same lane the
+                    // assignment above uses, so the two stay FIFO-ordered with
+                    // respect to each other. (An unstructured Task would also
+                    // work today, but reaches the main actor by a different
+                    // route and makes the ordering harder to reason about.)
+                    DispatchQueue.main.async {
                         _session  = nil
                         _provider = nil
                     }
@@ -82,8 +92,12 @@ enum WordPressOAuth {
                 }
                 let provider = ContextProvider()
                 session.presentationContextProvider = provider
-                _session  = session
-                _provider = provider
+                // Already on the main thread — DispatchQueue.main.async put us
+                // here — so asserting the isolation is sound.
+                MainActor.assumeIsolated {
+                    _session  = session
+                    _provider = provider
+                }
                 // A second hop defers start() past the current layout cycle,
                 // avoiding the "-layoutSubtreeIfNeeded on a view which is already
                 // being laid out" recursion on macOS.
