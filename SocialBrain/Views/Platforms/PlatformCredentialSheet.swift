@@ -94,10 +94,10 @@ struct PlatformCredentialSheet: View {
                   help: "Required only if the project belongs to a team")
 
         case .calendly:
-            permissionsNote("Permissions needed: check the \"default\" scope (read user info and scheduled events)")
+            permissionsNote("Permissions needed: user_info_read (for profile) and scheduling_read (for events)")
             field("Personal Access Token", key: "api_key", secure: true,
-                  help: "Create one at calendly.com/integrations/api_webhooks",
-                  helpURL: URL(string: "https://calendly.com/integrations/api_webhooks"))
+                  help: "Create one at app.calendly.com/integrations/api_webhooks",
+                  helpURL: URL(string: "https://app.calendly.com/integrations/api_webhooks"))
 
         case .mastodon:
             permissionsNote("Permissions needed: read (grants access to profile and posts)")
@@ -202,12 +202,12 @@ struct PlatformCredentialSheet: View {
         case .oreilly:
             importSection(
                 instructions: """
-                    1. Save your monthly O'Reilly author report email as a plain-text .txt file
-                       (in Mail.app: File → Save As → Plain Text, or copy the email body to a text file)
-                    2. Click Import TXT below to load it
+                    1. Find the "Payment Remittance Advice" email from payables@oreilly.com
+                    2. In Mail.app: File → Save As → select "Raw Message Source" (.eml)
+                    3. Click Import EML below to load it
                     """,
-                extensions: ["txt", "text", "eml"],
-                buttonLabel: "Import TXT"
+                extensions: ["eml", "txt"],
+                buttonLabel: "Import EML"
             )
 
         case .substack:
