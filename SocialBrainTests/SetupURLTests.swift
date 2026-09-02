@@ -4,12 +4,25 @@ import Foundation
 /// Verifies that every setup URL used in the credential sheet and setup guide
 /// is reachable (returns HTTP 2xx or 3xx).
 ///
-/// Run this manually when adding or changing setup URLs:
-///   xcodebuild test -scheme SocialBrain -only-testing SocialBrainTests/SetupURLTests
+/// This suite makes live network calls, so it is **opt-in**. Every other test in
+/// the target is hermetic, and CI must stay that way — a link-rot check that
+/// fails because a vendor added bot protection is not a signal about this code.
+/// (developer.wordpress.com now returns 403 to a HEAD request even with a
+/// browser User-Agent, which is what surfaced this.)
 ///
-/// These tests are tagged `.network` so they can be excluded from offline CI:
-///   xcodebuild test -scheme SocialBrain -skip-testing SocialBrainTests/SetupURLTests
-@Suite("Setup URL reachability")
+/// Run it deliberately when adding or changing setup URLs. The `TEST_RUNNER_`
+/// prefix is required: xcodebuild strips it and forwards the rest into the test
+/// host. A bare `RUN_NETWORK_TESTS=1` does NOT reach the test process — the
+/// suite skips and the run exits 0, which looks like a pass.
+///   TEST_RUNNER_RUN_NETWORK_TESTS=1 xcodebuild test -scheme SocialBrain \
+///     -destination 'platform=macOS' -only-testing:SocialBrainTests/SetupURLTests
+@Suite(
+    "Setup URL reachability",
+    .enabled(
+        if: ProcessInfo.processInfo.environment["RUN_NETWORK_TESTS"] != nil,
+        "set TEST_RUNNER_RUN_NETWORK_TESTS=1 to check setup URLs against the live web"
+    )
+)
 struct SetupURLTests {
 
     /// Every setup URL that can be verified with a HEAD request.

@@ -105,7 +105,7 @@ struct BlueskyCollector: Collector {
         let (data, response) = try await session.data(for: req)
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .iso8601Flexible
         let feed = try decodeJSON(FeedResponse.self, from: data, response: response, decoder: decoder)
 
         let posts = feed.feed.compactMap { item -> PostMetrics? in

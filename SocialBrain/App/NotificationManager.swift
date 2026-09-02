@@ -10,6 +10,16 @@ actor NotificationManager {
 
     // MARK: - Authorization
 
+    /// Reads the current authorization status.
+    ///
+    /// `UNNotificationSettings` is not `Sendable`, so it must not cross an
+    /// isolation boundary into this actor. Reading the one field we need in a
+    /// `nonisolated` context means only `UNAuthorizationStatus` — a plain
+    /// Sendable enum — is ever returned.
+    private nonisolated static func authorizationStatus() async -> UNAuthorizationStatus {
+        await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+    }
+
     /// Requests notification permission if not already granted.
     /// Silently ignores denial; notifications are a convenience, not critical.
     func requestAuthorization() async {
@@ -30,8 +40,7 @@ actor NotificationManager {
     ///   - platform: The file-export platform to remind about.
     ///   - lastImportDate: The date of the most recent successful import.
     func scheduleStaleExportReminder(for platform: Platform, lastImportDate: Date) async {
-        let settings = await UNUserNotificationCenter.current().notificationSettings()
-        guard settings.authorizationStatus == .authorized else { return }
+        guard await Self.authorizationStatus() == .authorized else { return }
 
         let thresholdSeconds = StalenessThreshold.threshold(for: platform) ?? (30 * 24 * 3600)
         let thresholdDays = Int(thresholdSeconds / 86400)
@@ -78,8 +87,7 @@ actor NotificationManager {
     /// - Parameter alerts: The spike alerts to report. Does nothing when the array is empty.
     func sendSpikeAlerts(_ alerts: [SpikeAlert]) async {
         guard !alerts.isEmpty else { return }
-        let settings = await UNUserNotificationCenter.current().notificationSettings()
-        guard settings.authorizationStatus == .authorized else { return }
+        guard await Self.authorizationStatus() == .authorized else { return }
 
         let content = UNMutableNotificationContent()
         if alerts.count == 1 {

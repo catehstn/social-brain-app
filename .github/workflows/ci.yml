@@ -6,49 +6,129 @@ on:
   pull_request:
     branches: [main]
 
+# Cancel superseded runs on the same branch. macOS runners bill at a 10x
+# minute multiplier, so redundant runs are the expensive kind.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   unit-tests:
     name: Unit Tests
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.3.app
+      - name: Show toolchain
+        run: xcodebuild -version
+
+      - name: Install xcbeautify
+        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+
+      - name: Cache SPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-
 
       - name: Resolve packages
         run: xcodebuild -resolvePackageDependencies -scheme SocialBrain
 
+      # `shell: bash -eo pipefail` is load-bearing. Without pipefail, piping
+      # xcodebuild into a formatter reports the FORMATTER's exit code, so a
+      # failed build shows up as a green run — which is exactly how a broken
+      # build sat unnoticed on main. Do not remove it.
       - name: Run unit tests
+        shell: bash -eo pipefail {0}
         run: |
           xcodebuild test \
             -scheme SocialBrain \
             -destination 'platform=macOS' \
             -only-testing:SocialBrainTests \
-            | xcpretty || xcodebuild test \
-              -scheme SocialBrain \
-              -destination 'platform=macOS' \
-              -only-testing:SocialBrainTests
+            -resultBundlePath TestResults-unit.xcresult \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM= \
+            | xcbeautify --renderer github-actions
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.job }}-xcresult
+          path: '*.xcresult'
+          retention-days: 7
 
   ui-tests:
     name: UI Tests
     runs-on: macos-15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.3.app
+      - name: Show toolchain
+        run: xcodebuild -version
+
+      - name: Install xcbeautify
+        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+
+      - name: Cache SPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-
 
       - name: Resolve packages
-        run: xcodebuild -resolvePackageDependencies -scheme SocialBrain
+        run: xcodebuild -resolvePackageDependencies -scheme SocialBrain-UITests
 
       - name: Run UI tests
+        shell: bash -eo pipefail {0}
         run: |
           xcodebuild test \
+            -scheme SocialBrain-UITests \
+            -destination 'platform=macOS' \
+            -resultBundlePath TestResults-ui.xcresult \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM= \
+            | xcbeautify --renderer github-actions
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.job }}-xcresult
+          path: '*.xcresult'
+          retention-days: 7
+
+  release-build:
+    name: Release Build
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Show toolchain
+        run: xcodebuild -version
+
+      - name: Install xcbeautify
+        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+
+      - name: Cache SPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-
+
+      - name: Build Release configuration
+        shell: bash -eo pipefail {0}
+        run: |
+          xcodebuild build \
             -scheme SocialBrain \
             -destination 'platform=macOS' \
-            -only-testing:SocialBrainUITests \
-            | xcpretty || xcodebuild test \
-              -scheme SocialBrain \
-              -destination 'platform=macOS' \
-              -only-testing:SocialBrainUITests
+            -configuration Release \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM= \
+            | xcbeautify --renderer github-actions

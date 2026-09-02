@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		03E57B365A3F826FDCAB8124 /* SpikeDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC45E6B188F3C9F6832156DD /* SpikeDetectorTests.swift */; };
+		92F2BBD0283D4563B9E3F4FB /* ISO8601DecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D99545779F1740D98B000C30 /* ISO8601DecodingTests.swift */; };
 		0434DB34C669B38CFF30CF6E /* MultiInstanceDatabaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3C41D3F3B0270D6350F2348 /* MultiInstanceDatabaseTests.swift */; };
 		049BD8642DBF39AFE6BEA7C2 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 8FD1535BDA3E5C8AE0DD0037 /* GRDB */; };
 		07EB2774970E7FDB3EAC6E83 /* SubstackImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2505C743A6696B343E4774E /* SubstackImporterTests.swift */; };
@@ -52,6 +53,7 @@
 		66BC947276B7C0460FCA4EDA /* PlatformData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AD4BFD9258E2AC05FFEEDC7 /* PlatformData.swift */; };
 		671A13C339113B6931F39DCA /* GoalBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E51178C97A9FDB0FAB33FDA /* GoalBadgeView.swift */; };
 		6A3AA757B49ECEBBB8AE4A21 /* BlueskyCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AC1E6FBE27355FF4A5F9ED4 /* BlueskyCollector.swift */; };
+		4465C3B466264EC7A0D00B83 /* ISO8601Decoding.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9F1B4890B1D44EE83E17FA3 /* ISO8601Decoding.swift */; };
 		6D3A626D844241244E88D4BD /* KeychainStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A290D89F7ADB49E8A7DA7195 /* KeychainStore.swift */; };
 		70C6E23BAA351CEA23FAEC57 /* AnalyticsGoal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 840582BE27DC387CB01C285B /* AnalyticsGoal.swift */; };
 		72347FDF4C2CF2A0B8EE3CF1 /* FeedCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1EB793400C8F96F1F83CBCF /* FeedCard.swift */; };
@@ -133,6 +135,7 @@
 		07E6CC0A277E7F1ADDBE207F /* GoatCounterCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoatCounterCollector.swift; sourceTree = "<group>"; };
 		0AA5FEEB657E076A0A25BF49 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		0AC1E6FBE27355FF4A5F9ED4 /* BlueskyCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BlueskyCollector.swift; sourceTree = "<group>"; };
+		E9F1B4890B1D44EE83E17FA3 /* ISO8601Decoding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ISO8601Decoding.swift; sourceTree = "<group>"; };
 		18110278BC5F67DA7BFA424F /* FeedCardBuilderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedCardBuilderTests.swift; sourceTree = "<group>"; };
 		1AD4BFD9258E2AC05FFEEDC7 /* PlatformData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformData.swift; sourceTree = "<group>"; };
 		1B2C0D11CC10BC41011D7105 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -228,6 +231,7 @@
 		FA2BAEB2923B9E65E8E39568 /* ButtondownCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButtondownCollectorTests.swift; sourceTree = "<group>"; };
 		FAAAC8C465952D5111BCE709 /* LinkedInImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedInImporterTests.swift; sourceTree = "<group>"; };
 		FC45E6B188F3C9F6832156DD /* SpikeDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeDetectorTests.swift; sourceTree = "<group>"; };
+		D99545779F1740D98B000C30 /* ISO8601DecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ISO8601DecodingTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6A7B8C9D0E1F2 /* MastodonOAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonOAuth.swift; sourceTree = "<group>"; };
 		B2C3D4E5F6A7B8C9D0E1F2A3 /* WordPressOAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordPressOAuth.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -339,6 +343,7 @@
 			children = (
 				54CF9E65755F901741FE20F9 /* AmazonKDPImporter.swift */,
 				0AC1E6FBE27355FF4A5F9ED4 /* BlueskyCollector.swift */,
+				E9F1B4890B1D44EE83E17FA3 /* ISO8601Decoding.swift */,
 				60871A8EA0FAEDB8DA8FA7B3 /* BufferCollector.swift */,
 				801F1E9ADC1711F447E9F944 /* ButtondownCollector.swift */,
 				3D02CD4FB1AACFCAB9CDC5A0 /* CalendlyCollector.swift */,
@@ -451,6 +456,7 @@
 				623DE38C88FED64C2371FD12 /* SidebarTests.swift */,
 				F38A28EA239666AB10ACAEA3 /* SocialBrainTests.swift */,
 				FC45E6B188F3C9F6832156DD /* SpikeDetectorTests.swift */,
+				D99545779F1740D98B000C30 /* ISO8601DecodingTests.swift */,
 				D2505C743A6696B343E4774E /* SubstackImporterTests.swift */,
 				887C88E6C71E01161679B3B2 /* VercelCollectorTests.swift */,
 			);
@@ -695,6 +701,7 @@
 				201DD632FD1D2D7811D799F0 /* SidebarTests.swift in Sources */,
 				A34D99688ABEC06792FD7CDD /* SocialBrainTests.swift in Sources */,
 				03E57B365A3F826FDCAB8124 /* SpikeDetectorTests.swift in Sources */,
+				92F2BBD0283D4563B9E3F4FB /* ISO8601DecodingTests.swift in Sources */,
 				07EB2774970E7FDB3EAC6E83 /* SubstackImporterTests.swift in Sources */,
 				9354A382ADCA63501A491527 /* VercelCollectorTests.swift in Sources */,
 			);
@@ -709,6 +716,7 @@
 				33AFDAD2603FD51B00CA689A /* AppDatabase.swift in Sources */,
 				531853D5C5AE831BDD30E000 /* BackgroundRefreshScheduler.swift in Sources */,
 				6A3AA757B49ECEBBB8AE4A21 /* BlueskyCollector.swift in Sources */,
+				4465C3B466264EC7A0D00B83 /* ISO8601Decoding.swift in Sources */,
 				6446F2668347478543B8C673 /* BufferCollector.swift in Sources */,
 				A8CD2064A0E8BA9E95C2C4AC /* ButtondownCollector.swift in Sources */,
 				900651ABFF265A05959EB848 /* CalendlyCollector.swift in Sources */,
@@ -800,7 +808,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.catehuston.SocialBrainTests;
 				SDKROOT = macosx;
-				SWIFT_VERSION = 6.3;
+				SWIFT_VERSION = 6.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SocialBrain.app/Contents/MacOS/SocialBrain";
 			};
 			name = Debug;
@@ -875,7 +883,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.catehuston.SocialBrainTests;
 				SDKROOT = macosx;
-				SWIFT_VERSION = 6.3;
+				SWIFT_VERSION = 6.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SocialBrain.app/Contents/MacOS/SocialBrain";
 			};
 			name = Release;
@@ -957,7 +965,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.catehuston.SocialBrainUITests;
 				SDKROOT = macosx;
-				SWIFT_VERSION = 6.3;
+				SWIFT_VERSION = 6.0;
 				TEST_TARGET_NAME = SocialBrain;
 			};
 			name = Release;
@@ -979,7 +987,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.catehuston.SocialBrain;
 				SDKROOT = macosx;
-				SWIFT_VERSION = 6.3;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
 		};
@@ -1000,7 +1008,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.catehuston.SocialBrain;
 				SDKROOT = macosx;
-				SWIFT_VERSION = 6.3;
+				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
 		};
@@ -1018,7 +1026,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.catehuston.SocialBrainUITests;
 				SDKROOT = macosx;
-				SWIFT_VERSION = 6.3;
+				SWIFT_VERSION = 6.0;
 				TEST_TARGET_NAME = SocialBrain;
 			};
 			name = Debug;
