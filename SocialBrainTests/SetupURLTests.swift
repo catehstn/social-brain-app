@@ -10,14 +10,17 @@ import Foundation
 /// (developer.wordpress.com now returns 403 to a HEAD request even with a
 /// browser User-Agent, which is what surfaced this.)
 ///
-/// Run it deliberately when adding or changing setup URLs:
-///   RUN_NETWORK_TESTS=1 xcodebuild test -scheme SocialBrain \
+/// Run it deliberately when adding or changing setup URLs. The `TEST_RUNNER_`
+/// prefix is required: xcodebuild strips it and forwards the rest into the test
+/// host. A bare `RUN_NETWORK_TESTS=1` does NOT reach the test process — the
+/// suite skips and the run exits 0, which looks like a pass.
+///   TEST_RUNNER_RUN_NETWORK_TESTS=1 xcodebuild test -scheme SocialBrain \
 ///     -destination 'platform=macOS' -only-testing:SocialBrainTests/SetupURLTests
 @Suite(
     "Setup URL reachability",
     .enabled(
         if: ProcessInfo.processInfo.environment["RUN_NETWORK_TESTS"] != nil,
-        "set RUN_NETWORK_TESTS=1 to check setup URLs against the live web"
+        "set TEST_RUNNER_RUN_NETWORK_TESTS=1 to check setup URLs against the live web"
     )
 )
 struct SetupURLTests {

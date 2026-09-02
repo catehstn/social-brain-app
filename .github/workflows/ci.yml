@@ -19,11 +19,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Install xcbeautify
-        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
-
       - name: Show toolchain
         run: xcodebuild -version
+
+      - name: Install xcbeautify
+        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
 
       - name: Cache SPM dependencies
         uses: actions/cache@v4
@@ -66,6 +66,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Show toolchain
+        run: xcodebuild -version
+
       - name: Install xcbeautify
         run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
 
@@ -105,6 +108,9 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v5
+
+      - name: Show toolchain
+        run: xcodebuild -version
 
       - name: Install xcbeautify
         run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify

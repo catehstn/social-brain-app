@@ -33,19 +33,20 @@ analysis in Claude. It is a ground-up Swift rewrite of the original Python CLI t
 
 ```
 SocialBrain/
-  App/                  # App entry point, AppDelegate if needed
-  Collectors/           # One file per platform (Mastodon.swift, Bluesky.swift, …)
+  App/                  # Entry point, background refresh, notifications
+  Collectors/           # One file per platform (MastodonCollector.swift, …)
   Database/             # GRDB schema, migrations, query helpers
-  Models/               # Shared data types
-  Views/                # SwiftUI views
-    Onboarding/
-    Dashboard/
-    Settings/
-    Run/
+  Keychain/             # Credential storage via the Security framework
+  Models/               # Shared types, feed cards, spike/reach detection
+  OAuth/                # ASWebAuthenticationSession flows
   Prompt/               # Prompt assembly logic
-  MCP/                  # MCP server (later phase)
-SocialBrainTests/
-SocialBrainUITests/
+  Resources/            # Bundled setup guide
+  Views/                # SwiftUI — one directory per screen, View + ViewModel
+    Onboarding/ Dashboard/ Feed/ History/ Platforms/ Run/ Settings/ Sidebar/
+SocialBrainTests/       # Unit tests (Swift Testing)
+SocialBrainUITests/     # UI tests — CI only, they take over the screen
+SocialBrainMCP/         # MCP server — NOT in any build target, see #47
+docs/                   # Design brief, setup guide, plans
 ```
 
 ## Git workflow
@@ -75,21 +76,30 @@ Each collector lives in `Collectors/<Platform>.swift` and conforms to a shared
 `Collector` protocol:
 
 ```swift
-protocol Collector {
+protocol Collector: Sendable {
     var platform: Platform { get }
+    /// The instance name for this collector. Defaults to `"default"`.
+    var instanceName: String { get }
     func collect(since: Date?, credentials: Credentials) async throws -> PlatformData
+    /// Human-readable label for this instance (newsletter name, handle, …).
+    /// Called once after credentials are saved. `nil` if none can be determined.
+    func fetchLabel(credentials: Credentials) async -> String?
 }
 ```
 
 Platforms are grouped by integration difficulty for the onboarding UI:
-- **Easy (API key):** Buttondown, GoatCounter, Calendly, Amazon KDP, Google Search Console, Buffer
-- **Medium (OAuth / token):** Mastodon, Jetpack, Bluesky
-- **Hard (file export):** LinkedIn, O'Reilly, Substack
+- **Easy (API key):** Buttondown, GoatCounter, Calendly, Buffer, Vercel
+- **Medium (OAuth / token):** Mastodon, Jetpack, Bluesky, Google Search Console
+- **Hard (file export):** Amazon KDP, LinkedIn, O'Reilly, Substack
 - **No auth:** Hacker News
+
+`Platform.authType` is the source of truth — update it and this list together.
 
 ## App Store considerations
 
-- All file access via `NSOpenPanel` or drag-and-drop with security-scoped bookmarks.
+- All file access via `NSOpenPanel` or drag-and-drop. **Security-scoped bookmarks
+  are not implemented yet** — imports read the file once during the drop. Needed
+  before any feature re-reads a file across launches.
 - No network calls outside of declared domains (add to entitlements as needed).
 - Credentials stored in Keychain only — never in UserDefaults or on disk unencrypted.
 - Background refresh via NSBackgroundActivityScheduler (no Info.plist key needed).

@@ -20,7 +20,6 @@ actor NotificationManager {
         await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
     }
 
-
     /// Requests notification permission if not already granted.
     /// Silently ignores denial; notifications are a convenience, not critical.
     func requestAuthorization() async {

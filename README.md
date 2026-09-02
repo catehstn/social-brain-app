@@ -56,10 +56,12 @@ xcodebuild test -scheme SocialBrain -destination 'platform=macOS' \
 
 One suite is opt-in: `SetupURLTests` checks the platform setup links against
 the live web, so it's skipped by default to keep the suite hermetic. Run it
-deliberately when you change a setup URL:
+deliberately when you change a setup URL. The `TEST_RUNNER_` prefix is required —
+xcodebuild strips it and forwards the rest to the test host; without it the
+variable never arrives and the suite silently skips:
 
 ```sh
-RUN_NETWORK_TESTS=1 xcodebuild test -scheme SocialBrain \
+TEST_RUNNER_RUN_NETWORK_TESTS=1 xcodebuild test -scheme SocialBrain \
   -destination 'platform=macOS' -only-testing:SocialBrainTests/SetupURLTests
 ```
 
@@ -99,17 +101,24 @@ docs/                 Design brief, platform setup guide, plans
 The SQLite store lives at:
 
 ```
-~/Library/Application Support/SocialBrain/analytics.sqlite
+~/Library/Containers/com.catehuston.SocialBrain/Data/Library/Application Support/SocialBrain/analytics.sqlite
 ```
+
+The app is sandboxed, so `Application Support` resolves inside its container —
+not to `~/Library/Application Support`, which is where you'd think to look.
 
 ### Platforms
 
 Grouped by how much work they are to connect:
 
-- **API key** — Buttondown, GoatCounter, Calendly, Amazon KDP, Google Search Console, Buffer
-- **OAuth / token** — Mastodon, Bluesky, Jetpack (WordPress.com)
-- **File export** — LinkedIn (XLSX), O'Reilly (email), Substack (CSV)
+- **API key** — Buttondown, GoatCounter, Calendly, Buffer, Vercel
+- **OAuth / token** — Mastodon, Bluesky, Jetpack (WordPress.com), Google Search Console
+- **File export** — Amazon KDP, LinkedIn (XLSX), O'Reilly (email), Substack (CSV)
 - **No auth** — Hacker News
+
+Groupings come from `Platform.authType` in `SocialBrain/Models/Platform.swift` —
+check there rather than trusting this list. Vercel still ships but is slated for
+removal in #43.
 
 Per-platform setup instructions are in `docs/index.html`.
 

@@ -28,7 +28,10 @@
                ReferencedContainer = "container:SocialBrain.xcodeproj">
             </BuildableReference>
          </TestableReference>
-         <TestableReference skipped = "NO">
+         <!-- UI tests launch the full app and take over the screen, so they are
+              skipped in the shared scheme. CI runs them explicitly with
+              -only-testing:SocialBrainUITests and is unaffected. -->
+         <TestableReference skipped = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "28A74FECBA111CA2614C4A40"

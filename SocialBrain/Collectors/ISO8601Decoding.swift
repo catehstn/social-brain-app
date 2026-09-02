@@ -35,9 +35,13 @@ extension JSONDecoder.DateDecodingStrategy {
 /// once and shared.
 ///
 /// `nonisolated(unsafe)` is required because the type is not `Sendable`. It is
-/// safe here: both instances are fully configured at initialisation and only
-/// ever read from afterwards, and date formatters are documented as thread-safe
-/// for parsing once configured.
+/// safe here because both instances are fully configured at initialisation and
+/// only ever read from afterwards — never mutated, so there is no shared mutable
+/// state to race on. (Note that Apple documents `DateFormatter` as thread-safe,
+/// but makes no such guarantee for `ISO8601DateFormatter`, which descends from
+/// `Formatter` directly. The immutability argument is what holds here, not a
+/// documented guarantee. `Date.ISO8601FormatStyle` is `Sendable` and would drop
+/// the annotation entirely if this ever needs revisiting.)
 private enum ISO8601Parsers {
     nonisolated(unsafe) static let withFractionalSeconds: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
