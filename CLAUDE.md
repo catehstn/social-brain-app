@@ -41,17 +41,20 @@ SocialBrain/
   OAuth/                # ASWebAuthenticationSession flows
   Prompt/               # Prompt assembly logic
   Resources/            # Bundled setup guide
-  Views/                # SwiftUI — one directory per screen, View + ViewModel
+  Views/                # SwiftUI — one directory per screen; most pair a View
+                        # with a ViewModel (Onboarding, Settings and Sidebar don't)
     Onboarding/ Dashboard/ Feed/ History/ Platforms/ Run/ Settings/ Sidebar/
 SocialBrainTests/       # Unit tests (Swift Testing)
 SocialBrainUITests/     # UI tests — CI only, they take over the screen
 SocialBrainMCP/         # MCP server — NOT in any build target, see #47
+SocialBrainMCPTests/    # Tests for it — also unbuilt, same decision
 docs/                   # Design brief, setup guide, plans
 ```
 
 ## Git workflow
 
-- **Always create a new branch** before making any commits. Never commit to `main`.
+- **Always create a new branch** before making any commits. Never commit to `main`,
+  and never force-push to it.
 - **Branch from `origin/main`, not local `main`:**
   `git fetch origin && git checkout -b <name> origin/main`. Local `main` can be
   ahead of origin when a push was rejected, and branching from it silently drags
@@ -103,11 +106,19 @@ app, and a documented test command that silently skipped and exited 0.
 | Refactor with no behaviour change | None required |
 | UI / view-layer change | UI test in `SocialBrainUITests/` if it changes a flow, not just appearance |
 
-"Add tests for every collector" is the floor, not the ceiling. The gaps that
-accumulated here — `MiniZIPReader`, `LinkedInXLSXParser`, both OAuth flows —
-were all things that were neither a collector nor a migration.
-- UI tests for the onboarding wizard and main run flow live in `SocialBrainUITests/`
-  and are maintained for CI.
+"Add tests for every collector" was both **under-enforced and under-scoped**.
+Under-enforced: three collectors shipped with no tests at all
+(`GoogleSearchConsoleCollector`, `HackerNewsCollector`, `BufferCollector` — #48).
+Under-scoped: the parsers and OAuth flows (`MiniZIPReader`,
+`LinkedInXLSXParser`, both OAuth types — #49, #50) fell outside the rule
+entirely, being neither a collector nor a migration. The table above widens the
+scope; enforcement is on whoever reviews the PR.
+
+**Carve-out for UI tests.** The five Platforms UI tests are `XCTSkip`-ed pending
+the redesign (#40, #46), and UI tests are not run locally. So for a PR that
+changes a Platforms flow before #40 lands, don't write a UI test you can't run
+against a screen that's about to be replaced — say so in the PR description
+instead. Everywhere else the table applies.
 
 ## CI
 
@@ -126,8 +137,13 @@ were all things that were neither a collector nor a migration.
   `TEST_RUNNER_` prefix to reach the test host. Run it and confirm the test count
   is non-zero.
 - **Run the tests locally before pushing.** macOS runners bill at a **10x** minute
-  multiplier, so the ~2,000 free minutes/month are really ~200 macOS-minutes. Three
-  jobs fire on every push. Pushing to find out is not free.
+  multiplier, so the ~2,000 free minutes/month are really ~200 macOS-minutes. The
+  workflow triggers on pushes to `main` and on pull requests, so a feature-branch
+  push runs nothing until a PR exists — after that, all three jobs fire on every
+  push to it. Pushing to find out is not free.
+- **Every job needs `timeout-minutes`.** GitHub's default is 360. A hung macOS
+  job at 6 hours x 10 = 3,600 billed minutes, which is 18x the monthly
+  allowance — from one stuck step.
 - CI floats on the runner's default Xcode; local development is on a newer one.
   That gap has already caught a real bug (see `ISO8601Decoding.swift`) and also
   costs a round-trip when a failure doesn't reproduce locally. Policy is being
@@ -135,7 +151,7 @@ were all things that were neither a collector nor a migration.
 
 ## Issue tracking
 
-Filing an issue is not finished until it has all three:
+Filing an issue is not finished until it carries these:
 
 | Field | Rule |
 |---|---|
@@ -143,6 +159,16 @@ Filing an issue is not finished until it has all three:
 | Area | **Always.** Exactly one of `area:build` `area:ci` `area:design` `area:collectors` `area:docs`. |
 | Milestone | **Always**, unless genuinely un-schedulable. `M1 — Runnable again`, `M2 — Design pass`, `M3 — Ship`. |
 | `blocked` | **Only if** waiting on something outside this repo. Then it gets no milestone. |
+
+## Living docs
+
+**Doc updates go in the same PR as the code change, never a follow-up.**
+
+`docs/design-brief.md` and `docs/repo-cleanup-plan.md` are living docs referenced
+from here and from the README. When a change makes one of them wrong, fix it in
+the same PR. They go stale fast, and a stale doc is worse than no doc because it
+gets trusted: #61 exists because the design brief promises a mentions synthesis
+the code has never had, and the design pass was about to be planned from it.
 
 ## README
 
@@ -155,8 +181,9 @@ command in there doesn't work as written, that's a bug.
 
 ## Collectors
 
-Each collector lives in `Collectors/<Platform>.swift` and conforms to a shared
-`Collector` protocol:
+Each collector lives in `Collectors/` — `<Platform>Collector.swift` for API-backed
+sources, `<Platform>Importer.swift` for file-export ones — and conforms to a
+shared `Collector` protocol:
 
 ```swift
 protocol Collector: Sendable {
@@ -193,6 +220,17 @@ Platforms are grouped by integration difficulty for the onboarding UI:
 - The prompt assembly logic (Prompt/) should mirror the trimming behaviour of the
   original analyse.py — counts and summaries, not full lists.
 - Measure generated prompt size after significant changes.
+
+## Code quality
+
+- Don't add features, refactors or abstractions beyond what was asked. If you
+  spot something worth doing, file an issue rather than widening the diff.
+- Don't add error handling for scenarios that cannot happen. It reads as though
+  the case is reachable and sends the next person hunting for it.
+- **Keep this file true.** When a process changes, update `CLAUDE.md` in the same
+  PR. Every factual claim in here is load-bearing: a future agent acts on it
+  without re-verifying, so a wrong line causes wrong work later. Two rounds of
+  review on #44 and #52 each found false statements in these docs.
 
 ## PR description
 

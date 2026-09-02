@@ -16,6 +16,7 @@ jobs:
   unit-tests:
     name: Unit Tests
     runs-on: macos-15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
 
@@ -63,6 +64,7 @@ jobs:
   ui-tests:
     name: UI Tests
     runs-on: macos-15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
 
@@ -105,6 +107,7 @@ jobs:
   release-build:
     name: Release Build
     runs-on: macos-15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
 
