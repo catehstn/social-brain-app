@@ -185,16 +185,33 @@ merged branches stop accumulating.
 4. *Then* M2. The design pass is the interesting work, and it lands on a repo
    that can actually verify itself.
 
-## 6. Deliberately not done
+## 6. Repo settings and branches — done
 
-Two items from the original plan need a decision rather than an action:
+- 15 merged branches deleted; `delete_branch_on_merge` enabled so they stop
+  accumulating.
+- Repo description set.
 
-- **Pruning the 15 merged branches.** `delete_branch_on_merge` is now on, so
-  this stops getting worse, but deleting the existing ones is irreversible.
-  Worth keeping `platforms-inspector-run-labels` regardless — it holds the
-  inspector-drawer UI work from the closed PR #34, which is useful reference
-  during #40.
-- **Enabling GitHub Pages for `docs/`** (issue #28). This repo is private;
-  Pages would publish `docs/index.html` to the public web. That's the intent
-  of #28, but it's an exposure decision, not a settings tidy-up — so it should
-  be made explicitly rather than folded into a cleanup.
+Four remote branches remain, all deliberately:
+
+| Branch | Why it's still there |
+|---|---|
+| `main` | — |
+| `oreilly-eml-parser` | PR #45 |
+| `claude-md-conventions` | PR #52 |
+| `oauth-callback-isolation` | PR #54 |
+| `platforms-inspector-run-labels` | **Kept as reference.** Holds the inspector-drawer UI work from closed PR #34, useful during #40. Delete after the Platforms redesign lands. |
+| `linkedin-xlsx-oauth-fixes` | Squash-merged as #33, so git reports it unmerged; its content is in `main` and its diff against `main` is purely subtractive. Safe to delete — flagged rather than deleted because "merged" isn't provable from the graph alone. |
+| `bas-questions-and-issues` | Someone else's branch, from closed PR #53. Not ours to delete. |
+
+## 7. Still needing a decision
+
+- **Enabling GitHub Pages for `docs/`** (issue #28). This repo is private; Pages
+  would publish `docs/index.html` to the public web. That's the intent of #28,
+  but it's an exposure decision, not a settings tidy-up, so it should be made
+  explicitly rather than folded into a cleanup.
+- **The Xcode version gap** (issue #51) — CI floats on the runner default while
+  local is newer. That gap has already caught one real bug and cost two
+  round-trips.
+- **Whether `SetupURLTests` is worth keeping** (issue #60) — it has never passed.
+- **Mentions synthesis** (issue #61) — the design brief promises it; the code
+  doesn't have it. Settle before M2 starts.
