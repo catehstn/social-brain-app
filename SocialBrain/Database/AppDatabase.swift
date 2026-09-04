@@ -43,7 +43,11 @@ actor AppDatabase {
         return config
     }
 
-    private init(_ dbWriter: any DatabaseWriter) throws {
+    /// Internal rather than private so migration tests can wrap a database they
+    /// have migrated to a specific version and then read it back through the
+    /// app's own query layer. Production code should use `makeDefault()` or
+    /// `makeInMemory()`.
+    init(_ dbWriter: any DatabaseWriter) throws {
         self.dbWriter = dbWriter
         try Self.migrator.migrate(dbWriter)
     }
@@ -53,9 +57,20 @@ actor AppDatabase {
     static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
 
-        #if DEBUG
-        migrator.eraseDatabaseOnSchemaChange = true
-        #endif
+        // Deliberately NOT gated on DEBUG. This app is unsigned and self-built,
+        // so the DEBUG build is the only build there is — "#if DEBUG" meant
+        // "always on" for the one real user, and any edit to an existing
+        // migration silently deleted every snapshot and run ever collected.
+        // Most of that data cannot be re-fetched: platform APIs expose current
+        // values, not history.
+        //
+        // Opt in explicitly while doing schema work:
+        //   SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=1 xcodebuild ...
+        // Without it, an incompatible schema now fails loudly at launch instead
+        // of destroying the store.
+        if ProcessInfo.processInfo.environment["SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE"] != nil {
+            migrator.eraseDatabaseOnSchemaChange = true
+        }
 
         migrator.registerMigration("v1_initial") { db in
             try db.create(table: "collectionRun") { t in
