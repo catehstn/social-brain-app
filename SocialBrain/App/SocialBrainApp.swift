@@ -44,7 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
 
         // UI test support: reset all hidden-platform state when requested.
         if ProcessInfo.processInfo.arguments.contains("-resetHiddenPlatforms") {
-            PlatformVisibilityStore.resetAll()
+            PlatformVisibilityStore.shared.resetAll()
         }
 
         // Request notification permission (non-blocking; silently ignored if denied).
@@ -66,7 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
             }
             _ = try? await engine.run(
                 collectors: collectors,
-                credentials: { platform in try KeychainStore.load(for: platform) },
+                credentials: { platform in try KeychainStore.shared.load(for: platform) },
                 since: nil,
                 progress: { _ in }
             )

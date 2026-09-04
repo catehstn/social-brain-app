@@ -16,6 +16,7 @@
 		12F8C303A457D94149ABCAB9 /* SetupGuideSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C09881FED06F6E5629D17E0D /* SetupGuideSheet.swift */; };
 		14559F0CE878B76315A55696 /* HighReachDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7F1E234A0DE49718BDE9022 /* HighReachDetectorTests.swift */; };
 		1B6F660A8EF1D70970EF5077 /* MockURLSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FE9B2B544199166E6236C6E /* MockURLSession.swift */; };
+		6B78C5C8DDF74E208A922F55 /* ScratchKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55C2354E53514337839751F1 /* ScratchKeychain.swift */; };
 		1C6360F131B69EB484A0858D /* BlueskyCollectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6824A853F434CC1AE79933A8 /* BlueskyCollectorTests.swift */; };
 		1D390F32B0F40A94CDE57339 /* HistoryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB8CAC7CB7D19D22B1EFB223 /* HistoryViewModel.swift */; };
 		201DD632FD1D2D7811D799F0 /* SidebarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 623DE38C88FED64C2371FD12 /* SidebarTests.swift */; };
@@ -161,6 +162,7 @@
 		4D3D458C2796763AC8AFCC88 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		4F7810A270CE8C2B6617FE4E /* SetupURLTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupURLTests.swift; sourceTree = "<group>"; };
 		4FE9B2B544199166E6236C6E /* MockURLSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockURLSession.swift; sourceTree = "<group>"; };
+		55C2354E53514337839751F1 /* ScratchKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScratchKeychain.swift; sourceTree = "<group>"; };
 		513AE74E252C7EFD1834FFA3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		51E3F715FA10EB4303470093 /* FeedViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedViewModelTests.swift; sourceTree = "<group>"; };
 		5247D72A41BCA462D7B38811 /* SocialBrain.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SocialBrain.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -319,6 +321,7 @@
 			isa = PBXGroup;
 			children = (
 				4FE9B2B544199166E6236C6E /* MockURLSession.swift */,
+				55C2354E53514337839751F1 /* ScratchKeychain.swift */,
 			);
 			path = TestSupport;
 			sourceTree = "<group>";
@@ -689,6 +692,7 @@
 				41808A9E3EBDEB021C6F0356 /* LinkedInImporterTests.swift in Sources */,
 				223EF7B850879D74716F9B54 /* MastodonCollectorTests.swift in Sources */,
 				1B6F660A8EF1D70970EF5077 /* MockURLSession.swift in Sources */,
+				6B78C5C8DDF74E208A922F55 /* ScratchKeychain.swift in Sources */,
 				4191FC6B119FADC3239CC4BB /* MultiInstanceCollectorRegistryTests.swift in Sources */,
 				0434DB34C669B38CFF30CF6E /* MultiInstanceDatabaseTests.swift in Sources */,
 				95A8F87EADADA724096D4BB9 /* MultiInstanceKeychainTests.swift in Sources */,

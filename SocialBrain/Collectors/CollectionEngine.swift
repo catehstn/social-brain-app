@@ -145,8 +145,8 @@ actor CollectionEngine {
 enum CollectorRegistry {
     /// Returns all collectors for all instances with stored credentials.
     static func configured(
-        instances: (Platform) -> [String] = InstanceRegistry.instances,
-        hasCredentials: (PlatformInstance) -> Bool = KeychainStore.hasCredentials
+        instances: (Platform) -> [String] = InstanceRegistry.shared.instances,
+        hasCredentials: (PlatformInstance) -> Bool = KeychainStore.shared.hasCredentials
     ) -> [any Collector] {
         Platform.allCases.flatMap { platform in
             instances(platform).compactMap { instanceName in

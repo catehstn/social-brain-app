@@ -49,7 +49,7 @@ final class RunViewModel {
             let summary = try await engine.run(
                 collectors: collectors,
                 credentials: { instance in
-                    try KeychainStore.load(for: instance)
+                    try KeychainStore.shared.load(for: instance)
                 },
                 since: since,
                 progress: { [weak self] result in
@@ -90,7 +90,7 @@ final class RunViewModel {
         // platform (default instance only).  These aren't fetched live — the user
         // imports them manually — but they should still appear in the prompt.
         let fileExportPlatforms = Platform.allCases.filter {
-            $0.authType == .fileExport && KeychainStore.hasCredentials(for: $0)
+            $0.authType == .fileExport && KeychainStore.shared.hasCredentials(for: $0)
         }
         for platform in fileExportPlatforms {
             let inst = PlatformInstance(platform: platform)
