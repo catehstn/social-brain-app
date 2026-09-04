@@ -61,4 +61,23 @@ struct GoatCounterCollectorTests {
             try await collector.collect(since: nil, credentials: credentials)
         }
     }
+    @Test("since is sent as the start of the requested window")
+    func sinceIsSentAsStart() async throws {
+        let session = MockURLSession([
+            "/api/v0/stats/total": (GoatCounterCollectorTests.totalsJSON, 200),
+            "/api/v0/stats/hits":  (GoatCounterCollectorTests.hitsJSON,   200)
+        ])
+        let collector = GoatCounterCollector(session: session)
+        let since = Date(timeIntervalSince1970: 1_767_225_600)  // 2026-01-01
+
+        _ = try await collector.collect(
+            since: since,
+            credentials: Credentials(["api_key": "k", "site_code": "example"])
+        )
+
+        let start = session.queryValue("start", path: "/api/v0/stats/total")
+        #expect(start?.hasPrefix("2026-01-01") == true)
+        #expect(session.queryValue("end", path: "/api/v0/stats/total") != nil)
+    }
+
 }
