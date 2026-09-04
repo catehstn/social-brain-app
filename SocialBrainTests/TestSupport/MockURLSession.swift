@@ -89,17 +89,34 @@ struct MockURLSession: URLSessionProtocol, Sendable {
         }
     }
 
-    /// The value of a query item on the first request matching `path`.
+    /// The first **non-nil** value of a query item across every request matching
+    /// `path` — not "the value on the first request", because `queryValues`
+    /// skips requests that lack the item.
     ///
-    /// Returns `nil` both when the request was never made and when the item is
-    /// absent — assert on `requestedURLs` too if the distinction matters.
+    /// In practice that makes this safe when only one of several requests to a
+    /// path carries the item, which is Buttondown's shape. It is *not* safe when
+    /// two requests to the same path carry the same item with different values:
+    /// under `async let` the winner is nondeterministic. Use `queryValues` there.
+    ///
+    /// Returns `nil` both when the request was never made and when no request
+    /// carried the item — assert on `requestedURLs` too if that matters.
     func queryValue(_ name: String, path: String) -> String? {
         queryValues(name, path: path).first
     }
 
+    /// The values of a header across every request matching `path`.
+    ///
+    /// Prefer this over `headerValue` when a path is requested more than once:
+    /// "first" is nondeterministic under `async let`.
+    func headerValues(_ name: String, path: String) -> [String] {
+        requests(path: path).compactMap { $0.value(forHTTPHeaderField: name) }
+    }
+
     /// The value of a header on the first request matching `path`.
+    ///
+    /// Carries the same ordering caveat as `queryValue`.
     func headerValue(_ name: String, path: String) -> String? {
-        request(path: path)?.value(forHTTPHeaderField: name)
+        headerValues(name, path: path).first
     }
 
     /// Thread-safe because collectors may issue requests concurrently.

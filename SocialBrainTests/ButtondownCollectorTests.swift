@@ -127,9 +127,12 @@ struct ButtondownCollectorTests {
 
         // /v1/subscribers is requested twice — total count with no filter, and
         // new-subscriber count with one — so assert across all of them.
+        // Assert the value, not just the parameter's presence: sending the right
+        // parameter name with a wrong or misformatted date is the more likely bug,
+        // and a presence check passes straight through it.
         #expect(session.requests(path: "/v1/subscribers").count == 2)
-        #expect(!session.queryValues("creation_date__gte", path: "/v1/subscribers").isEmpty)
-        #expect(!session.queryValues("publish_date__gte", path: "/v1/emails").isEmpty)
+        #expect(session.queryValues("creation_date__gte", path: "/v1/subscribers") == ["2026-01-01"])
+        #expect(session.queryValues("publish_date__gte", path: "/v1/emails") == ["2026-01-01"])
     }
 
     @Test("No since means no date filter is sent")

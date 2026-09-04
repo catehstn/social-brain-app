@@ -75,9 +75,14 @@ struct GoatCounterCollectorTests {
             credentials: Credentials(["api_key": "k", "site_code": "example"])
         )
 
-        let start = session.queryValue("start", path: "/api/v0/stats/total")
-        #expect(start?.hasPrefix("2026-01-01") == true)
-        #expect(session.queryValue("end", path: "/api/v0/stats/total") != nil)
+        // Both endpoints take the window; asserting only one let a wrong
+        // parameter name on /stats/hits pass unnoticed.
+        for path in ["/api/v0/stats/total", "/api/v0/stats/hits"] {
+            #expect(session.queryValue("start", path: path)?.hasPrefix("2026-01-01") == true,
+                    "start missing or wrong on \(path)")
+            #expect(session.queryValue("end", path: path) != nil,
+                    "end missing on \(path)")
+        }
     }
 
 }

@@ -27,6 +27,9 @@ struct MockURLSessionTests {
         ])
     }
 
+    /// Documentation more than guard: a non-mutating `data(for:)` on a struct
+    /// could not append to value-typed storage, so the regression this describes
+    /// would not compile. Kept because the sharing is load-bearing and non-obvious.
     @Test("Recording survives being copied, since collectors hold their own copy")
     func recordingSurvivesCopy() async throws {
         let session = MockURLSession(fixtures)
@@ -65,17 +68,17 @@ struct MockURLSessionTests {
         let session = MockURLSession(fixtures)
         // The old behaviour threw URLError.unsupportedURL, which says nothing
         // about which path missed or what was available.
-        await #expect(throws: MockURLSessionError.self) {
+        let error = await #expect(throws: MockURLSessionError.self) {
             _ = try await session.data(for: URLRequest(url: URL(string: "https://example.com/api/other")!))
         }
 
-        do {
-            _ = try await session.data(for: URLRequest(url: URL(string: "https://example.com/api/other")!))
-        } catch let error as MockURLSessionError {
-            let message = error.localizedDescription
-            #expect(message.contains("/api/other"))
-            #expect(message.contains("/api/thing"))
-        }
+        let message = error?.localizedDescription ?? ""
+        // Match the phrase, not the bare path: the path also appears inside the
+        // full-URL line, so `contains("/api/other")` alone proves nothing about
+        // whether the path is called out on its own.
+        #expect(message.contains(#"No fixture for path "/api/other""#))
+        #expect(message.contains("https://example.com/api/other"))
+        #expect(message.contains("/api/thing"))
     }
 
     @Test("A request that throws is still recorded")
