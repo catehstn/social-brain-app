@@ -64,6 +64,7 @@
 		7A53CA94A18CD0DF713D9F5F /* MastodonCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B63D76C0BF2AC6095ABE3CD /* MastodonCollector.swift */; };
 		7F875E7D93FE02FD42E15C9C /* ButtondownCollectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA2BAEB2923B9E65E8E39568 /* ButtondownCollectorTests.swift */; };
 		838D6D171EF7E59B2806F289 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6FE51BE4FDDF2853CCDE343 /* ContentView.swift */; };
+		7D5E2248AB7A4C74814F5AEB /* DatabaseUnavailableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CE8AC862AA74655A24A0042 /* DatabaseUnavailableView.swift */; };
 		8507B778E4CC00E040EBB4A0 /* FeedCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2642A06D185075AAA0FB3642 /* FeedCardView.swift */; };
 		85D3921C27997386AF05423D /* VercelCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2128E07069D06A4F85D58B9B /* VercelCollector.swift */; };
 		89C769B555A5A38972AEC683 /* DatabaseMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D72B5277A4EB60AACEB252E /* DatabaseMigrationTests.swift */; };
@@ -215,6 +216,7 @@
 		C15440D67BA5E83700B165BF /* PlatformSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformSnapshot.swift; sourceTree = "<group>"; };
 		C3C41D3F3B0270D6350F2348 /* MultiInstanceDatabaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiInstanceDatabaseTests.swift; sourceTree = "<group>"; };
 		C6FE51BE4FDDF2853CCDE343 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		5CE8AC862AA74655A24A0042 /* DatabaseUnavailableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseUnavailableView.swift; sourceTree = "<group>"; };
 		CD8CE54D3FD8FD77FB796D95 /* DashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModel.swift; sourceTree = "<group>"; };
 		D0B539D92D98ECFBF5B56077 /* FeedCardType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedCardType.swift; sourceTree = "<group>"; };
 		D1692A0E6ABD9BB6C437B0BF /* FeedViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedViewModel.swift; sourceTree = "<group>"; };
@@ -401,6 +403,7 @@
 			children = (
 				1CA3670FAFF76AEA37623FCB /* BackgroundRefreshScheduler.swift */,
 				C6FE51BE4FDDF2853CCDE343 /* ContentView.swift */,
+				5CE8AC862AA74655A24A0042 /* DatabaseUnavailableView.swift */,
 				4D3D458C2796763AC8AFCC88 /* NotificationManager.swift */,
 				6CC44EC6EF398FFC22CB3058 /* SocialBrainApp.swift */,
 			);
@@ -732,6 +735,7 @@
 				FB2B0CB801E20E4DDD2F7A2A /* CollectionRun.swift in Sources */,
 				5081170C2BC0A9C21BE5F7AE /* Collector.swift in Sources */,
 				838D6D171EF7E59B2806F289 /* ContentView.swift in Sources */,
+				7D5E2248AB7A4C74814F5AEB /* DatabaseUnavailableView.swift in Sources */,
 				9A925D4D118519B04F074F8D /* Credentials.swift in Sources */,
 				EDD572851E77CF9321FEF9F9 /* DashboardView.swift in Sources */,
 				6025308D798885FB9D71C922 /* DashboardViewModel.swift in Sources */,

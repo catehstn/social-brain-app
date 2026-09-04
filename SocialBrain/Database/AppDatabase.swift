@@ -49,10 +49,47 @@ actor AppDatabase {
     /// `makeInMemory()`.
     init(_ dbWriter: any DatabaseWriter) throws {
         self.dbWriter = dbWriter
-        try Self.migrator.migrate(dbWriter)
+        let migrator = Self.migrator
+
+        // `eraseDatabaseOnSchemaChange` was doing two jobs: detecting that the
+        // stored schema no longer matches the migrations, and destroying the
+        // database in response. Only the second was unwanted — dropping the flag
+        // without replacing the detection would be worse, not better, because
+        // GRDB identifies migrations by name and silently skips any already
+        // applied. An edited migration would therefore not error at all: the app
+        // would open a stale schema and fail lazily at query time, and those
+        // failures are swallowed into empty states, so the user would see an
+        // empty dashboard with their data intact on disk and nothing saying so.
+        //
+        // Detect the drift up front and refuse to continue instead.
+        if !Self.erasesOnSchemaChange {
+            let drifted = try dbWriter.read { try migrator.hasSchemaChanges($0) }
+            if drifted {
+                throw AppDatabaseError.schemaChanged
+            }
+        }
+
+        try migrator.migrate(dbWriter)
     }
 
     // MARK: - Migrations
+
+    /// Whether the destructive erase-on-schema-change behaviour is opted in.
+    ///
+    /// Requires the exact value `"1"`. A presence check would mean
+    /// `SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=0` also erased the database, which is
+    /// the wrong default for a flag whose only effect is deleting unrecoverable
+    /// data.
+    ///
+    /// Note the `TEST_RUNNER_` prefix when setting it for a test run — xcodebuild
+    /// strips that prefix and forwards the rest to the test host; without it the
+    /// variable never arrives:
+    ///
+    ///     SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=1 open SocialBrain.app        # app
+    ///     TEST_RUNNER_SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=1 xcodebuild test # tests
+    static var erasesOnSchemaChange: Bool {
+        ProcessInfo.processInfo.environment["SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE"] == "1"
+    }
 
     static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
@@ -68,9 +105,7 @@ actor AppDatabase {
         //   SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=1 xcodebuild ...
         // Without it, an incompatible schema now fails loudly at launch instead
         // of destroying the store.
-        if ProcessInfo.processInfo.environment["SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE"] != nil {
-            migrator.eraseDatabaseOnSchemaChange = true
-        }
+        migrator.eraseDatabaseOnSchemaChange = Self.erasesOnSchemaChange
 
         migrator.registerMigration("v1_initial") { db in
             try db.create(table: "collectionRun") { t in
@@ -285,6 +320,34 @@ extension AppDatabase {
                 guard let inst = row.instanceEnum else { return nil }
                 return (inst, row)
             })
+        }
+    }
+}
+
+// MARK: - Errors
+
+enum AppDatabaseError: LocalizedError {
+    /// The stored schema no longer matches the migrations.
+    ///
+    /// Raised instead of migrating, because GRDB skips migrations it has already
+    /// applied by name — so an edited migration would otherwise leave the app
+    /// running against a stale schema with no error at all.
+    case schemaChanged
+
+    var errorDescription: String? {
+        switch self {
+        case .schemaChanged:
+            """
+            The analytics database was created by a different version of Social Brain \
+            and its structure no longer matches this build.
+
+            Your data has NOT been changed. The database is at \
+            ~/Library/Containers/com.catehuston.SocialBrain/Data/Library/Application Support/SocialBrain/analytics.sqlite
+
+            Move that file aside to start fresh, or run a build whose migrations match it. \
+            To let Social Brain erase and rebuild it — which permanently deletes all \
+            collected history — relaunch with SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=1.
+            """
         }
     }
 }

@@ -19,7 +19,16 @@ import GRDB
 ///
 /// The SQLite store is the only copy of this data, and most of it cannot be
 /// re-fetched: platform APIs return current values, not history.
-@Suite("Migration data preservation")
+@Suite(
+    "Migration data preservation",
+    // With the erase opt-in set, the migrator wipes the seeded v1 data before
+    // these can assert anything, so they would fail confusingly during exactly
+    // the schema work the flag exists for. Skip rather than mislead.
+    .enabled(
+        if: !AppDatabase.erasesOnSchemaChange,
+        "skipped while SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=1 — the migrator erases the seed"
+    )
+)
 struct MigrationDataPreservationTests {
 
     /// A database migrated only as far as v1, with no v2 columns.
@@ -130,9 +139,13 @@ struct MigrationDataPreservationTests {
 
     @Test("Migrating an already-current database is a no-op")
     func migratingTwiceIsSafe() throws {
-        let dbQueue = try DatabaseQueue()
-        try AppDatabase.migrator.migrate(dbQueue)
+        // Seed at v1 and migrate, so the data is present *before* any migration
+        // runs. The first version of this test seeded after migrating to head,
+        // which meant a destructive migration had already run against an empty
+        // table — it passed against a `DROP TABLE` and could never have failed.
+        let dbQueue = try makeV1Database()
         try seedV1Data(dbQueue)
+        try AppDatabase.migrator.migrate(dbQueue)
 
         try AppDatabase.migrator.migrate(dbQueue)
 
@@ -141,14 +154,136 @@ struct MigrationDataPreservationTests {
             #expect(remaining == 2)
         }
     }
-    @Test("The database is never erased on schema change unless opted in")
-    func eraseIsOptIn() {
-        // Guards the regression this suite exists alongside: the flag used to be
-        // set under `#if DEBUG`, and DEBUG is the only build this app has, so
-        // editing any migration silently destroyed every snapshot ever collected.
-        // It is now opt-in via SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE.
-        let optedIn = ProcessInfo.processInfo.environment["SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE"] != nil
-        #expect(AppDatabase.migrator.eraseDatabaseOnSchemaChange == optedIn)
+    @Test("Schema drift is detected and refused rather than silently migrated")
+    func driftIsRefused() throws {
+        // The real regression guard, replacing a version of this test that
+        // compared ProcessInfo against ProcessInfo and so could not fail.
+        //
+        // GRDB skips migrations it has already applied *by name*, so a database
+        // carrying an unknown migration is exactly the shape produced by editing
+        // or renaming one. Opening it must raise, not quietly run against a
+        // stale schema.
+        let dbQueue = try makeV1Database()
+        try seedV1Data(dbQueue)
+        try dbQueue.write { db in
+            try db.execute(sql: "INSERT INTO grdb_migrations (identifier) VALUES ('v99_from_a_future_build')")
+        }
+
+        #expect(throws: AppDatabaseError.self) {
+            _ = try AppDatabase(dbQueue)
+        }
+    }
+
+    @Test("The erase flag requires an exact opt-in value")
+    func eraseFlagRequiresExactValue() {
+        // A presence check would mean SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=0 also
+        // erased the database.
+        let raw = ProcessInfo.processInfo.environment["SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE"]
+        #expect(AppDatabase.erasesOnSchemaChange == (raw == "1"))
+        if raw != "1" {
+            #expect(AppDatabase.migrator.eraseDatabaseOnSchemaChange == false)
+        }
+    }
+
+    @Test("The migration list is exactly what is expected, in order")
+    func migrationListIsPinned() {
+        // GRDB keys migrations by identifier, so renaming or reordering one is a
+        // launch-time failure rather than a compile error. Pinning the list turns
+        // that into a test failure — and makes adding a v3 a deliberate act that
+        // forces this suite to be updated alongside it.
+        #expect(AppDatabase.migrator.migrations == ["v1_initial", "v2_instance_names"])
+    }
+
+    @Test("Foreign-key links from snapshots to their run survive")
+    func referentialIntegritySurvives() throws {
+        // A create-new / INSERT-SELECT / drop / rename rebuild is the most common
+        // real migration mistake in SQLite, and it can preserve every row and
+        // every column value while silently rewriting foreign keys. Checking row
+        // counts and column values does not catch it; this does.
+        let dbQueue = try makeV1Database()
+        try seedV1Data(dbQueue)
+        try AppDatabase.migrator.migrate(dbQueue)
+
+        try dbQueue.read { db in
+            let runIDs = try Int.fetchAll(db, sql: "SELECT runID FROM platformSnapshot ORDER BY id")
+            #expect(runIDs == [1, 1])
+
+            let orphans = try Int.fetchOne(db, sql: """
+                SELECT COUNT(*) FROM platformSnapshot s
+                LEFT JOIN collectionRun r ON s.runID = r.id
+                WHERE r.id IS NULL
+                """)
+            #expect(orphans == 0)
+        }
+    }
+
+    @Test("Cascade delete still removes snapshots with their run")
+    func cascadeSurvives() throws {
+        // deleteRun depends on ON DELETE CASCADE. A rebuild that drops the
+        // constraint leaves the data looking correct until something deletes.
+        let dbQueue = try makeV1Database()
+        try seedV1Data(dbQueue)
+        try AppDatabase.migrator.migrate(dbQueue)
+
+        try dbQueue.write { db in
+            try db.execute(sql: "PRAGMA foreign_keys = ON")
+            try db.execute(sql: "DELETE FROM collectionRun WHERE id = 1")
+        }
+
+        try dbQueue.read { db in
+            let remaining = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM platformSnapshot")
+            #expect(remaining == 0)
+        }
+    }
+
+    @Test("The snapshot lookup index exists after migrating")
+    func indexSurvives() throws {
+        // v2 itself drops and recreates an index, so this is a live risk rather
+        // than a hypothetical one.
+        let dbQueue = try makeV1Database()
+        try seedV1Data(dbQueue)
+        try AppDatabase.migrator.migrate(dbQueue)
+
+        try dbQueue.read { db in
+            let indexed = try db.indexes(on: "platformSnapshot")
+                .contains { Set($0.columns) == ["platform", "instanceName", "collectedAt"] }
+            #expect(indexed)
+        }
+    }
+
+    @Test("NULLs and awkward values round-trip through migration")
+    func nullsAndAwkwardValuesSurvive() throws {
+        // The main seed always populates completedAt and uses short ASCII, so a
+        // migration that coerced NULL to a default or truncated text would be
+        // invisible to it.
+        let dbQueue = try makeV1Database()
+        let unicode = #"{"note":"emoji 🧠 and quotes \" and a long tail: "# + String(repeating: "x", count: 4000) + #""}"#
+        try dbQueue.write { db in
+            try db.execute(
+                sql: """
+                    INSERT INTO collectionRun (id, startedAt, completedAt, platformCount, errorCount)
+                    VALUES (7, ?, NULL, 0, 0)
+                    """,
+                arguments: [started]
+            )
+            try db.execute(
+                sql: """
+                    INSERT INTO platformSnapshot (id, runID, platform, collectedAt, metricsJSON)
+                    VALUES (7, 7, 'mastodon', ?, ?)
+                    """,
+                arguments: [collected, Data(unicode.utf8)]
+            )
+        }
+
+        try AppDatabase.migrator.migrate(dbQueue)
+
+        try dbQueue.read { db in
+            let row = try Row.fetchOne(db, sql: "SELECT * FROM collectionRun WHERE id = 7")
+            #expect(row?["completedAt"] == nil)
+
+            let blob = try Data.fetchOne(db, sql: "SELECT metricsJSON FROM platformSnapshot WHERE id = 7")
+            #expect(blob.map { String(decoding: $0, as: UTF8.self) } == unicode)
+        }
     }
 
 }

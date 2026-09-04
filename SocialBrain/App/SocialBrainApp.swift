@@ -4,19 +4,25 @@ import SwiftUI
 struct SocialBrainApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
-    /// Shared database, created once at app launch.
-    private let database: AppDatabase = {
-        do {
-            return try AppDatabase.makeDefault()
-        } catch {
-            // Fatal: can't proceed without a database.
-            fatalError("Failed to open database: \(error)")
-        }
-    }()
+    /// Shared database, opened once at app launch.
+    ///
+    /// Held as a `Result` rather than force-unwrapped: this used to `fatalError`,
+    /// which meant a database that could not be opened produced "SocialBrain quit
+    /// unexpectedly" with the reason only in a crash report — on an unsigned app
+    /// with no crash reporting. Schema drift is now a real, reachable failure
+    /// (see `AppDatabaseError.schemaChanged`), so the reason has to be visible.
+    private let databaseResult: Result<AppDatabase, any Error> = Result {
+        try AppDatabase.makeDefault()
+    }
 
     var body: some Scene {
         WindowGroup {
-            ContentView(database: database)
+            switch databaseResult {
+            case .success(let database):
+                ContentView(database: database)
+            case .failure(let error):
+                DatabaseUnavailableView(error: error)
+            }
         }
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
