@@ -61,4 +61,33 @@ struct GoatCounterCollectorTests {
             try await collector.collect(since: nil, credentials: credentials)
         }
     }
+    @Test("since is sent as the start of the requested window")
+    func sinceIsSentAsStart() async throws {
+        let session = MockURLSession([
+            "/api/v0/stats/total": (GoatCounterCollectorTests.totalsJSON, 200),
+            "/api/v0/stats/hits":  (GoatCounterCollectorTests.hitsJSON,   200)
+        ])
+        let collector = GoatCounterCollector(session: session)
+        let since = Date(timeIntervalSince1970: 1_767_225_600)  // 2026-01-01
+
+        _ = try await collector.collect(
+            since: since,
+            credentials: Credentials(["api_key": "k", "site_code": "example"])
+        )
+
+        // Both endpoints take the window; asserting only one let a wrong
+        // parameter name on /stats/hits pass unnoticed.
+        for path in ["/api/v0/stats/total", "/api/v0/stats/hits"] {
+            // `.withFullDate` emits exactly YYYY-MM-DD, so equality is available
+            // and hasPrefix would be strictly weaker.
+            #expect(session.queryValue("start", path: path) == "2026-01-01",
+                    "start missing or wrong on \(path)")
+            // `end` is "now", so pin the shape rather than the value.
+            let end = session.queryValue("end", path: path)
+            #expect(end?.count == 10, "end missing or not a full date on \(path)")
+            #expect(end?.allSatisfy { $0.isNumber || $0 == "-" } == true,
+                    "end is not a YYYY-MM-DD date on \(path)")
+        }
+    }
+
 }

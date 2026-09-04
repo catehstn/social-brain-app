@@ -108,4 +108,48 @@ struct ButtondownCollectorTests {
             try await collector.collect(since: nil, credentials: credentials)
         }
     }
+    @Test("since is sent as a __gte filter on both endpoints")
+    func sinceIsSentInTheQuery() async throws {
+        // Path matching alone cannot see this: the collector could omit `since`
+        // entirely, or send it on the wrong parameter, and every existing
+        // assertion would still pass.
+        let session = MockURLSession([
+            "/v1/subscribers": (ButtondownCollectorTests.subscribersJSON, 200),
+            "/v1/emails":      (ButtondownCollectorTests.emailsJSON, 200)
+        ])
+        let collector = ButtondownCollector(
+            session: session,
+            baseURL: URL(string: "https://api.buttondown.email/v1")!
+        )
+        let since = Date(timeIntervalSince1970: 1_767_225_600)  // 2026-01-01
+
+        _ = try await collector.collect(since: since, credentials: Credentials(["api_key": "k"]))
+
+        // /v1/subscribers is requested twice — total count with no filter, and
+        // new-subscriber count with one — so assert across all of them.
+        // Assert the value, not just the parameter's presence: sending the right
+        // parameter name with a wrong or misformatted date is the more likely bug,
+        // and a presence check passes straight through it.
+        #expect(session.requests(path: "/v1/subscribers").count == 2)
+        #expect(session.queryValues("creation_date__gte", path: "/v1/subscribers") == ["2026-01-01"])
+        #expect(session.queryValues("publish_date__gte", path: "/v1/emails") == ["2026-01-01"])
+    }
+
+    @Test("No since means no date filter is sent")
+    func noSinceMeansNoFilter() async throws {
+        let session = MockURLSession([
+            "/v1/subscribers": (ButtondownCollectorTests.subscribersJSON, 200),
+            "/v1/emails":      (ButtondownCollectorTests.emailsJSON, 200)
+        ])
+        let collector = ButtondownCollector(
+            session: session,
+            baseURL: URL(string: "https://api.buttondown.email/v1")!
+        )
+
+        _ = try await collector.collect(since: nil, credentials: Credentials(["api_key": "k"]))
+
+        #expect(session.queryValues("creation_date__gte", path: "/v1/subscribers").isEmpty)
+        #expect(session.queryValues("publish_date__gte", path: "/v1/emails").isEmpty)
+    }
+
 }

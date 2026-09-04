@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		03E57B365A3F826FDCAB8124 /* SpikeDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC45E6B188F3C9F6832156DD /* SpikeDetectorTests.swift */; };
+		972A1EE96F744FFBA1A6C0C9 /* MockURLSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5A3C1CF7C7A45D09C4FD2C9 /* MockURLSessionTests.swift */; };
 		92F2BBD0283D4563B9E3F4FB /* ISO8601DecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D99545779F1740D98B000C30 /* ISO8601DecodingTests.swift */; };
 		0434DB34C669B38CFF30CF6E /* MultiInstanceDatabaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3C41D3F3B0270D6350F2348 /* MultiInstanceDatabaseTests.swift */; };
 		049BD8642DBF39AFE6BEA7C2 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 8FD1535BDA3E5C8AE0DD0037 /* GRDB */; };
@@ -233,6 +234,7 @@
 		FA2BAEB2923B9E65E8E39568 /* ButtondownCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButtondownCollectorTests.swift; sourceTree = "<group>"; };
 		FAAAC8C465952D5111BCE709 /* LinkedInImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedInImporterTests.swift; sourceTree = "<group>"; };
 		FC45E6B188F3C9F6832156DD /* SpikeDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeDetectorTests.swift; sourceTree = "<group>"; };
+		E5A3C1CF7C7A45D09C4FD2C9 /* MockURLSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockURLSessionTests.swift; sourceTree = "<group>"; };
 		D99545779F1740D98B000C30 /* ISO8601DecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ISO8601DecodingTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6A7B8C9D0E1F2 /* MastodonOAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonOAuth.swift; sourceTree = "<group>"; };
 		B2C3D4E5F6A7B8C9D0E1F2A3 /* WordPressOAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WordPressOAuth.swift; sourceTree = "<group>"; };
@@ -459,6 +461,7 @@
 				623DE38C88FED64C2371FD12 /* SidebarTests.swift */,
 				F38A28EA239666AB10ACAEA3 /* SocialBrainTests.swift */,
 				FC45E6B188F3C9F6832156DD /* SpikeDetectorTests.swift */,
+				E5A3C1CF7C7A45D09C4FD2C9 /* MockURLSessionTests.swift */,
 				D99545779F1740D98B000C30 /* ISO8601DecodingTests.swift */,
 				D2505C743A6696B343E4774E /* SubstackImporterTests.swift */,
 				887C88E6C71E01161679B3B2 /* VercelCollectorTests.swift */,
@@ -705,6 +708,7 @@
 				201DD632FD1D2D7811D799F0 /* SidebarTests.swift in Sources */,
 				A34D99688ABEC06792FD7CDD /* SocialBrainTests.swift in Sources */,
 				03E57B365A3F826FDCAB8124 /* SpikeDetectorTests.swift in Sources */,
+				972A1EE96F744FFBA1A6C0C9 /* MockURLSessionTests.swift in Sources */,
 				92F2BBD0283D4563B9E3F4FB /* ISO8601DecodingTests.swift in Sources */,
 				07EB2774970E7FDB3EAC6E83 /* SubstackImporterTests.swift in Sources */,
 				9354A382ADCA63501A491527 /* VercelCollectorTests.swift in Sources */,
