@@ -100,6 +100,8 @@ struct MigrationDataPreservationTests {
                 db, sql: "SELECT * FROM platformSnapshot WHERE id = 1"
             )
             #expect(snapshot?["platform"] as String? == "mastodon")
+            // A rebuild can preserve every other value while rewriting this one.
+            #expect(snapshot?["runID"] as Int? == 1)
             #expect(snapshot?["collectedAt"] as Date? == collected)
             // The metrics blob is the actual collected data — a migration that
             // preserved rows but corrupted this would lose everything that matters.
@@ -174,25 +176,36 @@ struct MigrationDataPreservationTests {
         }
     }
 
-    @Test("The erase flag requires an exact opt-in value")
-    func eraseFlagRequiresExactValue() {
-        // A presence check would mean SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=0 also
-        // erased the database.
-        let raw = ProcessInfo.processInfo.environment["SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE"]
-        #expect(AppDatabase.erasesOnSchemaChange == (raw == "1"))
-        if raw != "1" {
-            #expect(AppDatabase.migrator.eraseDatabaseOnSchemaChange == false)
+    @Test("An edited migration is detected, not silently skipped")
+    func editedMigrationIsRefused() throws {
+        // This is issue #66's real scenario, and it takes a different branch of
+        // hasSchemaChanges than driftIsRefused: the identifiers all match, so
+        // detection depends on the sqlite_master comparison rather than on an
+        // unknown-migration check. Build a database that claims both migrations
+        // are applied but whose tables were created with different DDL.
+        let dbQueue = try DatabaseQueue()
+        try dbQueue.write { db in
+            try db.execute(sql: "CREATE TABLE grdb_migrations (identifier TEXT NOT NULL PRIMARY KEY)")
+            try db.execute(sql: "INSERT INTO grdb_migrations (identifier) VALUES ('v1_initial'), ('v2_instance_names')")
+            try db.execute(sql: """
+                CREATE TABLE "collectionRun" (
+                    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+                    "startedAt" DATETIME NOT NULL
+                )
+                """)
+            try db.execute(sql: """
+                CREATE TABLE "platformSnapshot" (
+                    "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+                    "platform" TEXT NOT NULL
+                )
+                """)
+        }
+
+        #expect(throws: AppDatabaseError.self) {
+            _ = try AppDatabase(dbQueue)
         }
     }
 
-    @Test("The migration list is exactly what is expected, in order")
-    func migrationListIsPinned() {
-        // GRDB keys migrations by identifier, so renaming or reordering one is a
-        // launch-time failure rather than a compile error. Pinning the list turns
-        // that into a test failure — and makes adding a v3 a deliberate act that
-        // forces this suite to be updated alongside it.
-        #expect(AppDatabase.migrator.migrations == ["v1_initial", "v2_instance_names"])
-    }
 
     @Test("Foreign-key links from snapshots to their run survive")
     func referentialIntegritySurvives() throws {
@@ -225,8 +238,17 @@ struct MigrationDataPreservationTests {
         try seedV1Data(dbQueue)
         try AppDatabase.migrator.migrate(dbQueue)
 
+        // Precondition: without this the assertion below is also satisfied by a
+        // migration that already destroyed the table, which is how the first
+        // version of this test passed against a DROP TABLE probe.
+        try dbQueue.read { db in
+            let before = try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM platformSnapshot")
+            #expect(before == 2)
+        }
+
+        // Foreign keys are enabled by GRDB's default configuration. Setting the
+        // pragma inside a transaction would be a no-op, so don't imply otherwise.
         try dbQueue.write { db in
-            try db.execute(sql: "PRAGMA foreign_keys = ON")
             try db.execute(sql: "DELETE FROM collectionRun WHERE id = 1")
         }
 
@@ -286,4 +308,31 @@ struct MigrationDataPreservationTests {
         }
     }
 
+}
+
+/// Separate suite because these assert configuration, not data, and so must not
+/// inherit the erase-flag skip above — under that skip the opt-in case was never
+/// exercised at all, which is the tautology `eraseFlagRequiresExactValue` was
+/// written to replace.
+@Suite("Migration configuration")
+struct MigrationConfigurationTests {
+    @Test("The erase flag requires an exact opt-in value")
+    func eraseFlagRequiresExactValue() {
+        // A presence check would mean SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=0 also
+        // erased the database.
+        let raw = ProcessInfo.processInfo.environment["SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE"]
+        #expect(AppDatabase.erasesOnSchemaChange == (raw == "1"))
+        if raw != "1" {
+            #expect(AppDatabase.migrator.eraseDatabaseOnSchemaChange == false)
+        }
+    }
+
+    @Test("The migration list is exactly what is expected, in order")
+    func migrationListIsPinned() {
+        // GRDB keys migrations by identifier, so renaming or reordering one is a
+        // launch-time failure rather than a compile error. Pinning the list turns
+        // that into a test failure — and makes adding a v3 a deliberate act that
+        // forces this suite to be updated alongside it.
+        #expect(AppDatabase.migrator.migrations == ["v1_initial", "v2_instance_names"])
+    }
 }

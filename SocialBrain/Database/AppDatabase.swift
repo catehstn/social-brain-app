@@ -85,8 +85,12 @@ actor AppDatabase {
     /// strips that prefix and forwards the rest to the test host; without it the
     /// variable never arrives:
     ///
-    ///     SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=1 open SocialBrain.app        # app
-    ///     TEST_RUNNER_SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=1 xcodebuild test # tests
+    ///     open --env SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=1 SocialBrain.app  # app
+    ///     TEST_RUNNER_SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=1 xcodebuild test  # tests
+    ///
+    /// A bare `SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=1 open …` does not work:
+    /// `open` goes through LaunchServices and does not forward the shell
+    /// environment.
     static var erasesOnSchemaChange: Bool {
         ProcessInfo.processInfo.environment["SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE"] == "1"
     }
@@ -101,8 +105,9 @@ actor AppDatabase {
         // Most of that data cannot be re-fetched: platform APIs expose current
         // values, not history.
         //
-        // Opt in explicitly while doing schema work:
-        //   SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=1 xcodebuild ...
+        // Opt in explicitly while doing schema work — see `erasesOnSchemaChange`
+        // for the exact invocations; the bare `VAR=1 xcodebuild` form does not
+        // reach a test host.
         // Without it, an incompatible schema now fails loudly at launch instead
         // of destroying the store.
         migrator.eraseDatabaseOnSchemaChange = Self.erasesOnSchemaChange
@@ -341,12 +346,17 @@ enum AppDatabaseError: LocalizedError {
             The analytics database was created by a different version of Social Brain \
             and its structure no longer matches this build.
 
-            Your data has NOT been changed. The database is at \
-            ~/Library/Containers/com.catehuston.SocialBrain/Data/Library/Application Support/SocialBrain/analytics.sqlite
+            Your data has NOT been changed. The database lives in \
+            ~/Library/Containers/com.catehuston.SocialBrain/Data/Library/Application Support/SocialBrain/
 
-            Move that file aside to start fresh, or run a build whose migrations match it. \
-            To let Social Brain erase and rebuild it — which permanently deletes all \
-            collected history — relaunch with SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=1.
+            To start fresh, move the whole folder aside — analytics.sqlite has -wal and \
+            -shm companions, and moving only the .sqlite leaves a stale write-ahead log \
+            behind. Otherwise, run a build whose migrations match it.
+
+            To let Social Brain erase and rebuild the database instead — which permanently \
+            deletes all collected history — relaunch it from Terminal with:
+
+              open --env SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=1 /Applications/SocialBrain.app
             """
         }
     }

@@ -56,6 +56,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         // Request notification permission (non-blocking; silently ignored if denied).
         Task { await NotificationManager.shared.requestAuthorization() }
 
+        // Don't schedule a daily refresh against a database that can't be
+        // opened. The closure below would call makeDefault(), fail, and return
+        // into an empty catch once a day forever — a swallowed error of exactly
+        // the kind this app already has too many of. The window is showing
+        // DatabaseUnavailableView in this case; the user needs to act, not have
+        // the app quietly retry.
+        do {
+            _ = try AppDatabase.makeDefault()
+        } catch {
+            NSLog("Skipping background refresh: %@", error.localizedDescription)
+            return
+        }
+
         // Start the daily background refresh for API-based platforms.
         BackgroundRefreshScheduler.shared.start {
             // Run without a date filter so the background task always fetches
