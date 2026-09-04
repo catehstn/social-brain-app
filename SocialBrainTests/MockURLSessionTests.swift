@@ -89,4 +89,35 @@ struct MockURLSessionTests {
         // Otherwise a collector that requested the wrong URL would leave no trace.
         #expect(session.requestedURLs.map(\.path) == ["/api/other"])
     }
+    @Test("queryValue skips requests that lack the item, rather than taking the first request's")
+    func queryValueSkipsRequestsWithoutTheItem() async throws {
+        // Pins the contract this suite previously mis-stated. The first request
+        // carries no `start`, so a genuinely first-request-based implementation
+        // would return nil here.
+        let session = MockURLSession(fixtures)
+        _ = try await session.data(for: URLRequest(url: URL(string: "https://example.com/api/thing")!))
+        _ = try await session.data(for: URLRequest(url: URL(string: "https://example.com/api/thing?start=2026-01-01")!))
+
+        #expect(session.queryValue("start", path: "/api/thing") == "2026-01-01")
+        #expect(session.queryValues("start", path: "/api/thing") == ["2026-01-01"])
+    }
+
+    @Test("headerValues collects across requests and skips those without the header")
+    func headerValuesAcrossRequests() async throws {
+        let session = MockURLSession(fixtures)
+        let url = URL(string: "https://example.com/api/thing")!
+
+        _ = try await session.data(for: URLRequest(url: url))          // no header
+        var authorised = URLRequest(url: url)
+        authorised.setValue("Bearer one", forHTTPHeaderField: "Authorization")
+        _ = try await session.data(for: authorised)
+        var second = URLRequest(url: url)
+        second.setValue("Bearer two", forHTTPHeaderField: "Authorization")
+        _ = try await session.data(for: second)
+
+        #expect(session.headerValues("Authorization", path: "/api/thing") == ["Bearer one", "Bearer two"])
+        #expect(session.headerValue("Authorization", path: "/api/thing") == "Bearer one")
+        #expect(session.headerValues("X-Absent", path: "/api/thing").isEmpty)
+    }
+
 }

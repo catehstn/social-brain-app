@@ -63,23 +63,16 @@ struct MockURLSession: URLSessionProtocol, Sendable {
 
     /// Every request whose path matches, in order.
     ///
-    /// Collectors hit the same endpoint more than once with different queries —
+    /// Collectors hit the same endpoint more than once with different queries:
     /// Buttondown requests `/v1/subscribers` twice concurrently, once with a
-    /// date filter and once without — so "the first request to this path" is
-    /// both ambiguous and order-dependent.
+    /// date filter and once without. Assert across all of them rather than
+    /// picking one.
     func requests(path: String) -> [URLRequest] {
         requests.filter { $0.url?.path == path }
     }
 
-    /// The first request whose path matches, or `nil`.
-    func request(path: String) -> URLRequest? {
-        requests(path: path).first
-    }
-
-    /// The values of a query item across every request matching `path`.
-    ///
-    /// Use this rather than `queryValue` when an endpoint is requested more than
-    /// once; with concurrent requests the ordering is not deterministic.
+    /// The values of a query item across every request matching `path`, in
+    /// request order, skipping requests that don't carry it.
     func queryValues(_ name: String, path: String) -> [String] {
         requests(path: path).compactMap { request -> String? in
             guard let url = request.url,
@@ -112,9 +105,13 @@ struct MockURLSession: URLSessionProtocol, Sendable {
         requests(path: path).compactMap { $0.value(forHTTPHeaderField: name) }
     }
 
-    /// The value of a header on the first request matching `path`.
+    /// The first **non-nil** value of a header across every request matching
+    /// `path` — not "the header on the first request": like `queryValue`, this
+    /// skips requests that don't carry it.
     ///
-    /// Carries the same ordering caveat as `queryValue`.
+    /// Same hazard as `queryValue`: when two requests to a path both carry the
+    /// header with different values, `async let` makes the winner
+    /// nondeterministic. Use `headerValues` there.
     func headerValue(_ name: String, path: String) -> String? {
         headerValues(name, path: path).first
     }

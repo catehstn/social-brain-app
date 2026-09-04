@@ -78,10 +78,15 @@ struct GoatCounterCollectorTests {
         // Both endpoints take the window; asserting only one let a wrong
         // parameter name on /stats/hits pass unnoticed.
         for path in ["/api/v0/stats/total", "/api/v0/stats/hits"] {
-            #expect(session.queryValue("start", path: path)?.hasPrefix("2026-01-01") == true,
+            // `.withFullDate` emits exactly YYYY-MM-DD, so equality is available
+            // and hasPrefix would be strictly weaker.
+            #expect(session.queryValue("start", path: path) == "2026-01-01",
                     "start missing or wrong on \(path)")
-            #expect(session.queryValue("end", path: path) != nil,
-                    "end missing on \(path)")
+            // `end` is "now", so pin the shape rather than the value.
+            let end = session.queryValue("end", path: path)
+            #expect(end?.count == 10, "end missing or not a full date on \(path)")
+            #expect(end?.allSatisfy { $0.isNumber || $0 == "-" } == true,
+                    "end is not a YYYY-MM-DD date on \(path)")
         }
     }
 
