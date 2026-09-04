@@ -4,19 +4,30 @@ import SwiftUI
 struct SocialBrainApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
-    /// Shared database, created once at app launch.
-    private let database: AppDatabase = {
-        do {
-            return try AppDatabase.makeDefault()
-        } catch {
-            // Fatal: can't proceed without a database.
-            fatalError("Failed to open database: \(error)")
-        }
-    }()
+    /// Shared database, opened once at app launch.
+    ///
+    /// Held as a `Result` rather than force-unwrapped: this used to `fatalError`,
+    /// which meant a database that could not be opened produced "SocialBrain quit
+    /// unexpectedly" with the reason only in a crash report — on an unsigned app
+    /// with no crash reporting. Schema drift is now a real, reachable failure
+    /// (see `AppDatabaseError.schemaChanged`), so the reason has to be visible.
+    /// Static so the delegate and the background-refresh closure read the same
+    /// value rather than opening the file again. `AppDatabase.init` is not a
+    /// cheap liveness check — `hasSchemaChanges` builds a temporary database,
+    /// re-runs every migration into it and diffs both schemas — and two
+    /// `DatabasePool` instances on one file is something GRDB warns against.
+    static let databaseResult: Result<AppDatabase, any Error> = Result {
+        try AppDatabase.makeDefault()
+    }
 
     var body: some Scene {
         WindowGroup {
-            ContentView(database: database)
+            switch Self.databaseResult {
+            case .success(let database):
+                ContentView(database: database)
+            case .failure(let error):
+                DatabaseUnavailableView(error: error)
+            }
         }
         .windowStyle(.titleBar)
         .windowToolbarStyle(.unified)
@@ -50,6 +61,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         // Request notification permission (non-blocking; silently ignored if denied).
         Task { await NotificationManager.shared.requestAuthorization() }
 
+        // Don't schedule a daily refresh against a database that can't be
+        // opened. The closure below would fail and return into an empty catch
+        // once a day forever — a swallowed error of exactly the kind this app
+        // already has too many of. Reading the same Result the window switches
+        // on makes "the user is looking at DatabaseUnavailableView" a guarantee
+        // rather than an inference from two independent opens agreeing.
+        let database: AppDatabase
+        switch SocialBrainApp.databaseResult {
+        case .success(let db):
+            database = db
+        case .failure(let error):
+            NSLog("Skipping background refresh: %@", error.localizedDescription)
+            return
+        }
+
         // Start the daily background refresh for API-based platforms.
         BackgroundRefreshScheduler.shared.start {
             // Run without a date filter so the background task always fetches
@@ -57,13 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
             let collectors = CollectorRegistry.configured()
                 .filter { $0.platform.authType == .apiKey || $0.platform.authType == .oauthToken }
             guard !collectors.isEmpty else { return }
-            let engine: CollectionEngine
-            do {
-                let db = try AppDatabase.makeDefault()
-                engine = CollectionEngine(database: db)
-            } catch {
-                return
-            }
+            let engine = CollectionEngine(database: database)
             _ = try? await engine.run(
                 collectors: collectors,
                 credentials: { platform in try KeychainStore.shared.load(for: platform) },

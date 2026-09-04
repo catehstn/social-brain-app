@@ -65,9 +65,11 @@
 		7A53CA94A18CD0DF713D9F5F /* MastodonCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B63D76C0BF2AC6095ABE3CD /* MastodonCollector.swift */; };
 		7F875E7D93FE02FD42E15C9C /* ButtondownCollectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA2BAEB2923B9E65E8E39568 /* ButtondownCollectorTests.swift */; };
 		838D6D171EF7E59B2806F289 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6FE51BE4FDDF2853CCDE343 /* ContentView.swift */; };
+		7D5E2248AB7A4C74814F5AEB /* DatabaseUnavailableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CE8AC862AA74655A24A0042 /* DatabaseUnavailableView.swift */; };
 		8507B778E4CC00E040EBB4A0 /* FeedCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2642A06D185075AAA0FB3642 /* FeedCardView.swift */; };
 		85D3921C27997386AF05423D /* VercelCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2128E07069D06A4F85D58B9B /* VercelCollector.swift */; };
 		89C769B555A5A38972AEC683 /* DatabaseMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D72B5277A4EB60AACEB252E /* DatabaseMigrationTests.swift */; };
+		75FDD3A67B124A9EAE53BB51 /* MigrationDataPreservationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0C094142A6F4BE685EE02DC /* MigrationDataPreservationTests.swift */; };
 		8BA84A18D549C699BF91CF05 /* LinkedInImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EF7CDD83F7795AF4221844C /* LinkedInImporter.swift */; };
 		A5B6C7D8E9F0A1B2C3D4E5F6 /* LinkedInXLSXParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5D6E7F8A9B0C1D2E3F4A5B6 /* LinkedInXLSXParser.swift */; };
 		F6A7B8C9D0E1F2A3B4C5D6E7 /* MiniZIPReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6E7F8A9B0C1D2E3F4A5B6C7 /* MiniZIPReader.swift */; };
@@ -197,6 +199,7 @@
 		9586342EA6BD306DA372AC3A /* PlatformsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformsViewModel.swift; sourceTree = "<group>"; };
 		97A6D1A6BFE04BF00C055965 /* PlatformVisibilityStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformVisibilityStoreTests.swift; sourceTree = "<group>"; };
 		9D72B5277A4EB60AACEB252E /* DatabaseMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseMigrationTests.swift; sourceTree = "<group>"; };
+		F0C094142A6F4BE685EE02DC /* MigrationDataPreservationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationDataPreservationTests.swift; sourceTree = "<group>"; };
 		A0578C20F0D69DC239D837C5 /* MastodonCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonCollectorTests.swift; sourceTree = "<group>"; };
 		A138063E53201FBC6A3C363C /* SocialBrainTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SocialBrainTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1EB793400C8F96F1F83CBCF /* FeedCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedCard.swift; sourceTree = "<group>"; };
@@ -214,6 +217,7 @@
 		C15440D67BA5E83700B165BF /* PlatformSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformSnapshot.swift; sourceTree = "<group>"; };
 		C3C41D3F3B0270D6350F2348 /* MultiInstanceDatabaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MultiInstanceDatabaseTests.swift; sourceTree = "<group>"; };
 		C6FE51BE4FDDF2853CCDE343 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		5CE8AC862AA74655A24A0042 /* DatabaseUnavailableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseUnavailableView.swift; sourceTree = "<group>"; };
 		CD8CE54D3FD8FD77FB796D95 /* DashboardViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardViewModel.swift; sourceTree = "<group>"; };
 		D0B539D92D98ECFBF5B56077 /* FeedCardType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedCardType.swift; sourceTree = "<group>"; };
 		D1692A0E6ABD9BB6C437B0BF /* FeedViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedViewModel.swift; sourceTree = "<group>"; };
@@ -401,6 +405,7 @@
 			children = (
 				1CA3670FAFF76AEA37623FCB /* BackgroundRefreshScheduler.swift */,
 				C6FE51BE4FDDF2853CCDE343 /* ContentView.swift */,
+				5CE8AC862AA74655A24A0042 /* DatabaseUnavailableView.swift */,
 				4D3D458C2796763AC8AFCC88 /* NotificationManager.swift */,
 				6CC44EC6EF398FFC22CB3058 /* SocialBrainApp.swift */,
 			);
@@ -439,6 +444,7 @@
 				DF6E210799137F03E23C4EC6 /* CalendlyCollectorTests.swift */,
 				DBC7AA60FA245D9489A99649 /* CollectionEngineTests.swift */,
 				9D72B5277A4EB60AACEB252E /* DatabaseMigrationTests.swift */,
+				F0C094142A6F4BE685EE02DC /* MigrationDataPreservationTests.swift */,
 				18110278BC5F67DA7BFA424F /* FeedCardBuilderTests.swift */,
 				B015A26946841A23B6953364 /* FeedCardViewModelTests.swift */,
 				E83BC22CE0C5C53010A28382 /* FeedDatabaseTests.swift */,
@@ -684,6 +690,7 @@
 				5C7C564E792CA1DD24E881AC /* CalendlyCollectorTests.swift in Sources */,
 				9FF5871185F5BF4EE4FCF486 /* CollectionEngineTests.swift in Sources */,
 				89C769B555A5A38972AEC683 /* DatabaseMigrationTests.swift in Sources */,
+				75FDD3A67B124A9EAE53BB51 /* MigrationDataPreservationTests.swift in Sources */,
 				EE4B5037B4534CA56F73D291 /* FeedCardBuilderTests.swift in Sources */,
 				D6B785811F506594D8C129D6 /* FeedCardViewModelTests.swift in Sources */,
 				C740E7026EB2B18252077290 /* FeedDatabaseTests.swift in Sources */,
@@ -732,6 +739,7 @@
 				FB2B0CB801E20E4DDD2F7A2A /* CollectionRun.swift in Sources */,
 				5081170C2BC0A9C21BE5F7AE /* Collector.swift in Sources */,
 				838D6D171EF7E59B2806F289 /* ContentView.swift in Sources */,
+				7D5E2248AB7A4C74814F5AEB /* DatabaseUnavailableView.swift in Sources */,
 				9A925D4D118519B04F074F8D /* Credentials.swift in Sources */,
 				EDD572851E77CF9321FEF9F9 /* DashboardView.swift in Sources */,
 				6025308D798885FB9D71C922 /* DashboardViewModel.swift in Sources */,

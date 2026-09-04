@@ -43,19 +43,81 @@ actor AppDatabase {
         return config
     }
 
-    private init(_ dbWriter: any DatabaseWriter) throws {
+    /// Internal rather than private so migration tests can wrap a database they
+    /// have migrated to a specific version and then read it back through the
+    /// app's own query layer. Production code should use `makeDefault()` or
+    /// `makeInMemory()`.
+    init(_ dbWriter: any DatabaseWriter) throws {
         self.dbWriter = dbWriter
-        try Self.migrator.migrate(dbWriter)
+        let migrator = Self.migrator
+
+        // `eraseDatabaseOnSchemaChange` was doing two jobs: detecting that the
+        // stored schema no longer matches the migrations, and destroying the
+        // database in response. Only the second was unwanted — dropping the flag
+        // without replacing the detection would be worse, not better, because
+        // GRDB identifies migrations by name and silently skips any already
+        // applied. An edited migration would therefore not error at all: the app
+        // would open a stale schema and fail lazily at query time, and those
+        // failures are swallowed into empty states, so the user would see an
+        // empty dashboard with their data intact on disk and nothing saying so.
+        //
+        // Detect the drift up front and refuse to continue instead.
+        if !Self.erasesOnSchemaChange {
+            let drifted = try dbWriter.read { try migrator.hasSchemaChanges($0) }
+            if drifted {
+                throw AppDatabaseError.schemaChanged
+            }
+        }
+
+        try migrator.migrate(dbWriter)
     }
 
     // MARK: - Migrations
 
+    /// Whether the destructive erase-on-schema-change behaviour is opted in.
+    ///
+    /// Requires the exact value `"1"`. A presence check would mean
+    /// `SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=0` also erased the database, which is
+    /// the wrong default for a flag whose only effect is deleting unrecoverable
+    /// data.
+    ///
+    /// Note the `TEST_RUNNER_` prefix when setting it for a test run — xcodebuild
+    /// strips that prefix and forwards the rest to the test host; without it the
+    /// variable never arrives:
+    ///
+    ///     open --env SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=1 SocialBrain.app  # app
+    ///     TEST_RUNNER_SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=1 xcodebuild test  # tests
+    ///
+    /// A bare `SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=1 open …` does not work:
+    /// `open` goes through LaunchServices and does not forward the shell
+    /// environment.
+    static var erasesOnSchemaChange: Bool {
+        erases(from: ProcessInfo.processInfo.environment["SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE"])
+    }
+
+    /// Split out so the contract can be table-tested. Reading the environment
+    /// inside the assertion made the test compare `ProcessInfo` against
+    /// `ProcessInfo`, which no configuration CI runs could falsify.
+    static func erases(from raw: String?) -> Bool {
+        raw == "1"
+    }
+
     static var migrator: DatabaseMigrator {
         var migrator = DatabaseMigrator()
 
-        #if DEBUG
-        migrator.eraseDatabaseOnSchemaChange = true
-        #endif
+        // Deliberately NOT gated on DEBUG. This app is unsigned and self-built,
+        // so the DEBUG build is the only build there is — "#if DEBUG" meant
+        // "always on" for the one real user, and any edit to an existing
+        // migration silently deleted every snapshot and run ever collected.
+        // Most of that data cannot be re-fetched: platform APIs expose current
+        // values, not history.
+        //
+        // Opt in explicitly while doing schema work — see `erasesOnSchemaChange`
+        // for the exact invocations; the bare `VAR=1 xcodebuild` form does not
+        // reach a test host.
+        // Without it, an incompatible schema now fails loudly at launch instead
+        // of destroying the store.
+        migrator.eraseDatabaseOnSchemaChange = Self.erasesOnSchemaChange
 
         migrator.registerMigration("v1_initial") { db in
             try db.create(table: "collectionRun") { t in
@@ -270,6 +332,42 @@ extension AppDatabase {
                 guard let inst = row.instanceEnum else { return nil }
                 return (inst, row)
             })
+        }
+    }
+}
+
+// MARK: - Errors
+
+enum AppDatabaseError: LocalizedError {
+    /// The stored schema no longer matches the migrations.
+    ///
+    /// Raised instead of migrating, because GRDB skips migrations it has already
+    /// applied by name — so an edited migration would otherwise leave the app
+    /// running against a stale schema with no error at all.
+    case schemaChanged
+
+    var errorDescription: String? {
+        switch self {
+        case .schemaChanged:
+            """
+            The analytics database was created by a different version of Social Brain \
+            and its structure no longer matches this build.
+
+            Your data has NOT been changed. The database lives in \
+            ~/Library/Containers/com.catehuston.SocialBrain/Data/Library/Application Support/SocialBrain/
+
+            To start fresh, move the whole folder aside — analytics.sqlite has -wal and \
+            -shm companions, and moving only the .sqlite leaves a stale write-ahead log \
+            behind. Otherwise, run a build whose migrations match it.
+
+            To let Social Brain erase and rebuild the database instead — which permanently \
+            deletes all collected history — quit using the button below, then run:
+
+              open -n --env SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=1 -b com.catehuston.SocialBrain
+
+            (-b finds the app wherever it is installed; -n forces a new instance, since \
+            `open` on an already-running app just activates it and drops the variable.)
+            """
         }
     }
 }
