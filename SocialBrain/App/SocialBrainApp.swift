@@ -44,7 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
 
         // UI test support: reset all hidden-platform state when requested.
         if ProcessInfo.processInfo.arguments.contains("-resetHiddenPlatforms") {
-            PlatformVisibilityStore.resetAll()
+            PlatformVisibilityStore.shared.resetAll()
         }
 
         // Request notification permission (non-blocking; silently ignored if denied).

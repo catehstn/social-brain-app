@@ -137,6 +137,26 @@ struct KeychainStore: Sendable {
     func hasCredentials(for platform: Platform) -> Bool {
         hasCredentials(for: PlatformInstance(platform: platform))
     }
+
+    // MARK: - Bulk delete
+
+    /// Removes every item under this store's service.
+    ///
+    /// Exists so tests can sweep their own service in teardown. Deleting
+    /// per-account can't recover from a crash between save and cleanup, and an
+    /// orphaned item is unfindable without knowing its exact service name.
+    /// Safe on the production store only in the sense that it is never called
+    /// there — it would delete all of the user's credentials.
+    func deleteAll() throws {
+        let query: [CFString: Any] = [
+            kSecClass:       kSecClassGenericPassword,
+            kSecAttrService: service
+        ]
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw KeychainError.unexpectedStatus(status)
+        }
+    }
 }
 
 // MARK: - Errors

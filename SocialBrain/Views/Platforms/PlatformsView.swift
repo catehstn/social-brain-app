@@ -10,7 +10,11 @@ struct PlatformsView: View {
 
     init(database: AppDatabase) {
         self.database = database
-        _viewModel = State(wrappedValue: PlatformsViewModel(database: database))
+        _viewModel = State(wrappedValue: PlatformsViewModel(database: database,
+                                                              keychain: .shared,
+                                                              registry: .shared,
+                                                              visibility: .shared,
+                                                              labelFetcher: PlatformsViewModel.liveLabelFetcher))
     }
 
     var body: some View {

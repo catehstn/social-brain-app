@@ -26,17 +26,24 @@ final class PlatformsViewModel {
 
     private let database: AppDatabase
     private let keychain: KeychainStore
+    private let registry: InstanceRegistry
+    private let visibility: PlatformVisibilityStore
     private let labelFetcher: LabelFetcher
 
-    /// - Parameters:
-    ///   - keychain: defaults to the production store. Tests must pass one
-    ///     scoped to a throwaway service.
-    ///   - labelFetcher: defaults to a live API call. Tests must override it.
+    /// No parameter defaults to production on purpose. A default would let a new
+    /// test write `PlatformsViewModel(database: db)` and silently reach the real
+    /// Keychain, the real preferences and the live network — which is exactly
+    /// how the suite came to be destroying credentials. Production passes
+    /// `.shared` explicitly at the one call site; tests must choose.
     init(database: AppDatabase,
-         keychain: KeychainStore = .shared,
-         labelFetcher: @escaping LabelFetcher = PlatformsViewModel.liveLabelFetcher) {
+         keychain: KeychainStore,
+         registry: InstanceRegistry,
+         visibility: PlatformVisibilityStore,
+         labelFetcher: @escaping LabelFetcher) {
         self.database = database
         self.keychain = keychain
+        self.registry = registry
+        self.visibility = visibility
         self.labelFetcher = labelFetcher
     }
 
@@ -46,7 +53,7 @@ final class PlatformsViewModel {
     func reload() {
         configuredInstances = [:]
         for platform in Platform.allCases {
-            let names = InstanceRegistry.instances(for: platform)
+            let names = registry.instances(for: platform)
             let configured = names.filter { name in
                 keychain.hasCredentials(for: PlatformInstance(platform: platform, instanceName: name))
             }
@@ -54,20 +61,20 @@ final class PlatformsViewModel {
                 configuredInstances[platform] = configured
             }
         }
-        hiddenPlatforms = Set(Platform.allCases.filter { PlatformVisibilityStore.isHidden($0) })
+        hiddenPlatforms = Set(Platform.allCases.filter { visibility.isHidden($0) })
     }
 
     // MARK: - Visibility
 
     /// Hides a platform from the main grid and persists the state.
     func hidePlatform(_ platform: Platform) {
-        PlatformVisibilityStore.hide(platform)
+        visibility.hide(platform)
         hiddenPlatforms.insert(platform)
     }
 
     /// Shows a previously hidden platform and persists the state.
     func showPlatform(_ platform: Platform) {
-        PlatformVisibilityStore.show(platform)
+        visibility.show(platform)
         hiddenPlatforms.remove(platform)
     }
 
@@ -86,10 +93,10 @@ final class PlatformsViewModel {
     func save(_ values: [String: String], for instance: PlatformInstance) throws {
         let credentials = Credentials(values)
         try keychain.save(credentials, for: instance)
-        InstanceRegistry.add(instanceName: instance.instanceName, to: instance.platform)
+        registry.add(instanceName: instance.instanceName, to: instance.platform)
         reload()
         // Auto-show the platform if it was previously hidden.
-        PlatformVisibilityStore.show(instance.platform)
+        visibility.show(instance.platform)
         hiddenPlatforms.remove(instance.platform)
         let fetch = labelFetcher
         Task {
@@ -103,14 +110,14 @@ final class PlatformsViewModel {
     func delete(for instance: PlatformInstance) async throws {
         try keychain.delete(for: instance)
         try await database.deleteSnapshots(for: instance)
-        InstanceRegistry.remove(instanceName: instance.instanceName, from: instance.platform)
+        registry.remove(instanceName: instance.instanceName, from: instance.platform)
         InstanceLabels.removeLabel(for: instance)
         reload()
     }
 
     /// Adds a new named instance for a platform (without credentials).
     func addInstance(label: String, to platform: Platform) {
-        InstanceRegistry.add(instanceName: label, to: platform)
+        registry.add(instanceName: label, to: platform)
     }
 
     // MARK: - File import
@@ -200,10 +207,10 @@ final class PlatformsViewModel {
 
         // Mark the instance as configured so the list row shows a green badge.
         try keychain.save(Credentials(["imported": "true"]), for: instance)
-        InstanceRegistry.add(instanceName: instance.instanceName, to: instance.platform)
+        registry.add(instanceName: instance.instanceName, to: instance.platform)
         reload()
         // Auto-show the platform if it was previously hidden.
-        PlatformVisibilityStore.show(instance.platform)
+        visibility.show(instance.platform)
         hiddenPlatforms.remove(instance.platform)
 
         // Reset the stale-export reminder clock.

@@ -4,28 +4,39 @@ import Foundation
 ///
 /// Platforms are visible by default. A platform is hidden when its key is
 /// set to `true`. Removing the key (via `show`) restores the default visible state.
-enum PlatformVisibilityStore {
-    // swiftlint:disable:next nonisolated_unsafe
-    nonisolated(unsafe) static var defaults: UserDefaults = .standard
+/// `defaults` is a stored property rather than a mutable global. The previous
+/// `nonisolated(unsafe) static var` was repointed by whichever test suite ran
+/// first and stayed repointed for the process, and backing tests with
+/// `UserDefaults(suiteName:)` stranded a plist per run in the app container.
+struct PlatformVisibilityStore: @unchecked Sendable {
 
-    static func isHidden(_ platform: Platform) -> Bool {
+    /// The production store. The only place `UserDefaults.standard` is used.
+    static let shared = PlatformVisibilityStore(defaults: UserDefaults.standard)
+
+    let defaults: any KeyValueStore
+
+    init(defaults: any KeyValueStore) {
+        self.defaults = defaults
+    }
+
+    func isHidden(_ platform: Platform) -> Bool {
         defaults.bool(forKey: key(for: platform))
     }
 
-    static func hide(_ platform: Platform) {
+    func hide(_ platform: Platform) {
         defaults.set(true, forKey: key(for: platform))
     }
 
-    static func show(_ platform: Platform) {
+    func show(_ platform: Platform) {
         defaults.removeObject(forKey: key(for: platform))
     }
 
     /// Removes all hidden-platform keys. Used in tests and for a "reset" action.
-    static func resetAll() {
+    func resetAll() {
         Platform.allCases.forEach { defaults.removeObject(forKey: key(for: $0)) }
     }
 
-    private static func key(for platform: Platform) -> String {
+    private func key(for platform: Platform) -> String {
         "hiddenPlatform_\(platform.rawValue)"
     }
 }
