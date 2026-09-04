@@ -92,7 +92,14 @@ actor AppDatabase {
     /// `open` goes through LaunchServices and does not forward the shell
     /// environment.
     static var erasesOnSchemaChange: Bool {
-        ProcessInfo.processInfo.environment["SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE"] == "1"
+        erases(from: ProcessInfo.processInfo.environment["SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE"])
+    }
+
+    /// Split out so the contract can be table-tested. Reading the environment
+    /// inside the assertion made the test compare `ProcessInfo` against
+    /// `ProcessInfo`, which no configuration CI runs could falsify.
+    static func erases(from raw: String?) -> Bool {
+        raw == "1"
     }
 
     static var migrator: DatabaseMigrator {
@@ -354,9 +361,12 @@ enum AppDatabaseError: LocalizedError {
             behind. Otherwise, run a build whose migrations match it.
 
             To let Social Brain erase and rebuild the database instead — which permanently \
-            deletes all collected history — relaunch it from Terminal with:
+            deletes all collected history — quit using the button below, then run:
 
-              open --env SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=1 /Applications/SocialBrain.app
+              open -n --env SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=1 -b com.catehuston.SocialBrain
+
+            (-b finds the app wherever it is installed; -n forces a new instance, since \
+            `open` on an already-running app just activates it and drops the variable.)
             """
         }
     }

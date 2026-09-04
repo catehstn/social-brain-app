@@ -21,9 +21,10 @@ import GRDB
 /// re-fetched: platform APIs return current values, not history.
 @Suite(
     "Migration data preservation",
-    // With the erase opt-in set, the migrator wipes the seeded v1 data before
-    // these can assert anything, so they would fail confusingly during exactly
-    // the schema work the flag exists for. Skip rather than mislead.
+    // Skipped under the erase opt-in for two reasons: the migrator wipes the
+    // seeded v1 data before the preservation tests can assert anything, and
+    // AppDatabase.init bypasses drift detection entirely when the flag is set,
+    // so the two drift tests cannot hold either.
     .enabled(
         if: !AppDatabase.erasesOnSchemaChange,
         "skipped while SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=1 — the migrator erases the seed"
@@ -206,7 +207,6 @@ struct MigrationDataPreservationTests {
         }
     }
 
-
     @Test("Foreign-key links from snapshots to their run survive")
     func referentialIntegritySurvives() throws {
         // A create-new / INSERT-SELECT / drop / rename rebuild is the most common
@@ -221,6 +221,9 @@ struct MigrationDataPreservationTests {
             let runIDs = try Int.fetchAll(db, sql: "SELECT runID FROM platformSnapshot ORDER BY id")
             #expect(runIDs == [1, 1])
 
+            // Without the count, "no orphans" is also true of an empty table —
+            // the join half passed against a probe that deleted every row.
+            #expect(runIDs.count == 2)
             let orphans = try Int.fetchOne(db, sql: """
                 SELECT COUNT(*) FROM platformSnapshot s
                 LEFT JOIN collectionRun r ON s.runID = r.id
@@ -316,15 +319,21 @@ struct MigrationDataPreservationTests {
 /// written to replace.
 @Suite("Migration configuration")
 struct MigrationConfigurationTests {
-    @Test("The erase flag requires an exact opt-in value")
-    func eraseFlagRequiresExactValue() {
-        // A presence check would mean SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE=0 also
-        // erased the database.
-        let raw = ProcessInfo.processInfo.environment["SOCIALBRAIN_ERASE_ON_SCHEMA_CHANGE"]
-        #expect(AppDatabase.erasesOnSchemaChange == (raw == "1"))
-        if raw != "1" {
-            #expect(AppDatabase.migrator.eraseDatabaseOnSchemaChange == false)
-        }
+    @Test("Only an exact \"1\" opts in to erasing",
+          arguments: [(nil as String?, false), ("", false), ("0", false), ("false", false),
+                      ("true", false), ("YES", false), ("1", true), (" 1", false)])
+    func eraseFlagRequiresExactValue(raw: String?, expected: Bool) {
+        // Table-driven against the parsing function rather than the live
+        // environment: comparing ProcessInfo to ProcessInfo could not fail under
+        // either configuration CI runs, so a presence check would have survived.
+        // "0" and "false" are the cases that matter — under a presence check
+        // they would erase the database.
+        #expect(AppDatabase.erases(from: raw) == expected)
+    }
+
+    @Test("The migrator's erase setting follows the parsed flag")
+    func migratorFollowsTheFlag() {
+        #expect(AppDatabase.migrator.eraseDatabaseOnSchemaChange == AppDatabase.erasesOnSchemaChange)
     }
 
     @Test("The migration list is exactly what is expected, in order")
