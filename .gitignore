@@ -11,6 +11,12 @@ DerivedData/
 .build/
 .swiftpm/
 
+# Test result bundles (CI and the README command write these into the checkout)
+*.xcresult
+
+# Scratch space
+.claude/scratch/
+
 # Agent worktrees (git repos in their own right — never commit these)
 .claude/worktrees/
 
