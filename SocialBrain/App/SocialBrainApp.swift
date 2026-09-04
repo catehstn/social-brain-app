@@ -66,7 +66,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
             }
             _ = try? await engine.run(
                 collectors: collectors,
-                credentials: { platform in try KeychainStore.load(for: platform) },
+                credentials: { platform in try KeychainStore.shared.load(for: platform) },
                 since: nil,
                 progress: { _ in }
             )

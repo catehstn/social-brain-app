@@ -14,10 +14,30 @@ final class PlatformsViewModel {
     /// Platforms currently hidden from the main grid.
     private(set) var hiddenPlatforms: Set<Platform> = []
 
-    private let database: AppDatabase
+    /// Fetches a display label from the platform's API after credentials are
+    /// saved. Injectable so tests don't make live network calls — the default
+    /// implementation really does hit the platform.
+    typealias LabelFetcher = @Sendable (PlatformInstance, Credentials) async -> String?
 
-    init(database: AppDatabase) {
+    static let liveLabelFetcher: LabelFetcher = { instance, credentials in
+        guard let collector = CollectorRegistry.collector(for: instance) else { return nil }
+        return await collector.fetchLabel(credentials: credentials)
+    }
+
+    private let database: AppDatabase
+    private let keychain: KeychainStore
+    private let labelFetcher: LabelFetcher
+
+    /// - Parameters:
+    ///   - keychain: defaults to the production store. Tests must pass one
+    ///     scoped to a throwaway service.
+    ///   - labelFetcher: defaults to a live API call. Tests must override it.
+    init(database: AppDatabase,
+         keychain: KeychainStore = .shared,
+         labelFetcher: @escaping LabelFetcher = PlatformsViewModel.liveLabelFetcher) {
         self.database = database
+        self.keychain = keychain
+        self.labelFetcher = labelFetcher
     }
 
     // MARK: - API credential actions
@@ -28,7 +48,7 @@ final class PlatformsViewModel {
         for platform in Platform.allCases {
             let names = InstanceRegistry.instances(for: platform)
             let configured = names.filter { name in
-                KeychainStore.hasCredentials(for: PlatformInstance(platform: platform, instanceName: name))
+                keychain.hasCredentials(for: PlatformInstance(platform: platform, instanceName: name))
             }
             if !configured.isEmpty {
                 configuredInstances[platform] = configured
@@ -58,22 +78,22 @@ final class PlatformsViewModel {
 
     /// Returns the currently stored credential values for an instance (empty dict if none).
     func loadValues(for instance: PlatformInstance) -> [String: String] {
-        (try? KeychainStore.load(for: instance))?.values ?? [:]
+        (try? keychain.load(for: instance))?.values ?? [:]
     }
 
     /// Saves the given values to the Keychain for the specified instance,
     /// then asynchronously fetches a display label from the platform API.
     func save(_ values: [String: String], for instance: PlatformInstance) throws {
         let credentials = Credentials(values)
-        try KeychainStore.save(credentials, for: instance)
+        try keychain.save(credentials, for: instance)
         InstanceRegistry.add(instanceName: instance.instanceName, to: instance.platform)
         reload()
         // Auto-show the platform if it was previously hidden.
         PlatformVisibilityStore.show(instance.platform)
         hiddenPlatforms.remove(instance.platform)
+        let fetch = labelFetcher
         Task {
-            guard let collector = CollectorRegistry.collector(for: instance) else { return }
-            if let label = await collector.fetchLabel(credentials: credentials) {
+            if let label = await fetch(instance, credentials) {
                 InstanceLabels.setLabel(label, for: instance)
             }
         }
@@ -81,7 +101,7 @@ final class PlatformsViewModel {
 
     /// Removes credentials for an instance from the Keychain and its snapshot data.
     func delete(for instance: PlatformInstance) async throws {
-        try KeychainStore.delete(for: instance)
+        try keychain.delete(for: instance)
         try await database.deleteSnapshots(for: instance)
         InstanceRegistry.remove(instanceName: instance.instanceName, from: instance.platform)
         InstanceLabels.removeLabel(for: instance)
@@ -179,7 +199,7 @@ final class PlatformsViewModel {
         try await database.completeRun(id: runID, errorCount: 0)
 
         // Mark the instance as configured so the list row shows a green badge.
-        try KeychainStore.save(Credentials(["imported": "true"]), for: instance)
+        try keychain.save(Credentials(["imported": "true"]), for: instance)
         InstanceRegistry.add(instanceName: instance.instanceName, to: instance.platform)
         reload()
         // Auto-show the platform if it was previously hidden.

@@ -91,7 +91,7 @@ struct SettingsView: View {
     }
 
     private func reload() {
-        configured = Platform.allCases.filter { KeychainStore.hasCredentials(for: $0) }
+        configured = Platform.allCases.filter { KeychainStore.shared.hasCredentials(for: $0) }
     }
 }
 

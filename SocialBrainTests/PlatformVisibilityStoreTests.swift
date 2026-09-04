@@ -73,7 +73,11 @@ struct PlatformVisibilitySuite {
         @Test("hidePlatform updates isHidden and hiddenPlatforms")
         func testHidePlatformReactive() throws {
             let db = try AppDatabase.makeInMemory()
-            let viewModel = PlatformsViewModel(database: db)
+            // Scratch store: reload() reads the Keychain, so with the production
+            // default this would see whatever the developer has configured.
+            let viewModel = PlatformsViewModel(database: db,
+                                               keychain: ScratchKeychain.make(),
+                                               labelFetcher: { _, _ in nil })
             viewModel.hidePlatform(.calendly)
             #expect(viewModel.isHidden(.calendly) == true)
             #expect(viewModel.hiddenPlatforms.contains(.calendly) == true)
@@ -84,7 +88,11 @@ struct PlatformVisibilitySuite {
         @Test("showPlatform updates isHidden and hiddenPlatforms")
         func testShowPlatformReactive() throws {
             let db = try AppDatabase.makeInMemory()
-            let viewModel = PlatformsViewModel(database: db)
+            // Scratch store: reload() reads the Keychain, so with the production
+            // default this would see whatever the developer has configured.
+            let viewModel = PlatformsViewModel(database: db,
+                                               keychain: ScratchKeychain.make(),
+                                               labelFetcher: { _, _ in nil })
             viewModel.hidePlatform(.calendly)
             viewModel.showPlatform(.calendly)
             #expect(viewModel.isHidden(.calendly) == false)
@@ -102,7 +110,11 @@ struct PlatformVisibilitySuite {
             PlatformVisibilityStore.resetAll()
 
             let db = try AppDatabase.makeInMemory()
-            let viewModel = PlatformsViewModel(database: db)
+            // Scratch store: reload() reads the Keychain, so with the production
+            // default this would see whatever the developer has configured.
+            let viewModel = PlatformsViewModel(database: db,
+                                               keychain: ScratchKeychain.make(),
+                                               labelFetcher: { _, _ in nil })
             // Write directly to store (simulating prior app session)
             PlatformVisibilityStore.hide(.mastodon)
             viewModel.reload()
@@ -114,11 +126,20 @@ struct PlatformVisibilitySuite {
         @Test("save() auto-shows a previously hidden platform")
         func testAutoShowOnSave() throws {
             let db = try AppDatabase.makeInMemory()
-            let viewModel = PlatformsViewModel(database: db)
+            let instance = PlatformInstance(platform: .buttondown)
+            let store = ScratchKeychain.make()
+            defer { try? store.delete(for: instance) }
+
+            // A scratch Keychain and a stubbed label fetcher. With the real
+            // defaults this test wrote buttondown:default into the developer's
+            // login Keychain and fired a live HTTPS request to buttondown.com
+            // with the string "test-key", on every test run.
+            let viewModel = PlatformsViewModel(database: db,
+                                               keychain: store,
+                                               labelFetcher: { _, _ in nil })
             viewModel.hidePlatform(.buttondown)
             #expect(viewModel.isHidden(.buttondown) == true)
 
-            let instance = PlatformInstance(platform: .buttondown)
             try viewModel.save(["apiKey": "test-key"], for: instance)
 
             #expect(viewModel.isHidden(.buttondown) == false)

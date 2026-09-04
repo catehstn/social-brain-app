@@ -5,14 +5,29 @@ import Security
 ///
 /// Credentials are serialised as a JSON object and stored as a generic
 /// password item keyed by the platform's raw string value.
-enum KeychainStore: Sendable {
-    private static let service = "com.catehuston.SocialBrain"
+///
+/// The Keychain service name is a stored property rather than a constant, so a
+/// test can construct a store scoped to its own throwaway service. Use
+/// `KeychainStore.shared` in production; **never** construct a store with the
+/// production service name in a test. Before this was injectable the suite wrote
+/// to the developer's real login Keychain on every run, overwriting live
+/// credentials.
+struct KeychainStore: Sendable {
+
+    /// The production store. The only place the real service name appears.
+    static let shared = KeychainStore(service: "com.catehuston.SocialBrain")
+
+    let service: String
+
+    init(service: String) {
+        self.service = service
+    }
 
     // MARK: - Save (instance-keyed)
 
     /// Encodes `credentials` and stores them under the given `PlatformInstance` key.
     /// Overwrites any existing entry for that instance.
-    static func save(_ credentials: Credentials, for instance: PlatformInstance) throws {
+    func save(_ credentials: Credentials, for instance: PlatformInstance) throws {
         let data = try JSONSerialization.data(withJSONObject: credentials.values)
         let account = instance.id
 
@@ -44,14 +59,14 @@ enum KeychainStore: Sendable {
 
     /// Encodes `credentials` and stores them under the platform's default instance key.
     /// Delegates to the instance-keyed overload.
-    static func save(_ credentials: Credentials, for platform: Platform) throws {
+    func save(_ credentials: Credentials, for platform: Platform) throws {
         try save(credentials, for: PlatformInstance(platform: platform))
     }
 
     // MARK: - Load (instance-keyed)
 
     /// Returns the stored `Credentials` for the given `PlatformInstance`, or `nil` if none.
-    static func load(for instance: PlatformInstance) throws -> Credentials? {
+    func load(for instance: PlatformInstance) throws -> Credentials? {
         let query: [CFString: Any] = [
             kSecClass:       kSecClassGenericPassword,
             kSecAttrService: service,
@@ -76,14 +91,14 @@ enum KeychainStore: Sendable {
     }
 
     /// Returns the stored `Credentials` for the platform's default instance, or `nil` if none.
-    static func load(for platform: Platform) throws -> Credentials? {
+    func load(for platform: Platform) throws -> Credentials? {
         try load(for: PlatformInstance(platform: platform))
     }
 
     // MARK: - Delete (instance-keyed)
 
     /// Removes any stored credentials for the given `PlatformInstance`.
-    static func delete(for instance: PlatformInstance) throws {
+    func delete(for instance: PlatformInstance) throws {
         let query: [CFString: Any] = [
             kSecClass:       kSecClassGenericPassword,
             kSecAttrService: service,
@@ -96,7 +111,7 @@ enum KeychainStore: Sendable {
     }
 
     /// Removes any stored credentials for the platform's default instance.
-    static func delete(for platform: Platform) throws {
+    func delete(for platform: Platform) throws {
         try delete(for: PlatformInstance(platform: platform))
     }
 
@@ -106,7 +121,7 @@ enum KeychainStore: Sendable {
     ///
     /// Does NOT request the secret data — avoids triggering Keychain ACL prompts
     /// when used purely for existence checks (e.g. in `reload()`).
-    static func hasCredentials(for instance: PlatformInstance) -> Bool {
+    func hasCredentials(for instance: PlatformInstance) -> Bool {
         let query: [CFString: Any] = [
             kSecClass:       kSecClassGenericPassword,
             kSecAttrService: service,
@@ -119,7 +134,7 @@ enum KeychainStore: Sendable {
     }
 
     /// Returns true if credentials exist for the platform's default instance.
-    static func hasCredentials(for platform: Platform) -> Bool {
+    func hasCredentials(for platform: Platform) -> Bool {
         hasCredentials(for: PlatformInstance(platform: platform))
     }
 }
