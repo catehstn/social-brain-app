@@ -106,9 +106,6 @@ struct SpikeDetector: Sendable {
         case .goatCounter:
             return [("total_pageviews", "Pageviews"),
                     ("unique_visitors", "Visitors")]
-        case .vercel:
-            return [("deployments", "Deployments"),
-                    ("error_deployments", "Errors")]
         case .calendly:
             return [("events_count", "Events"),
                     ("unique_invitees", "Invitees")]

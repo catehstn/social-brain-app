@@ -49,8 +49,8 @@ struct PlatformVisibilitySuite {
         // Test 10: Isolation between suites — does not bleed into UserDefaults.standard
         @Test("Injected suite does not write to UserDefaults.standard")
         func testIsolationFromStandard() {
-            store.hide(.vercel)
-            #expect(UserDefaults.standard.bool(forKey: "hiddenPlatform_vercel") == false)
+            store.hide(.buffer)
+            #expect(UserDefaults.standard.bool(forKey: "hiddenPlatform_buffer") == false)
         }
     }
 

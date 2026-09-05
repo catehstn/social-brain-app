@@ -178,22 +178,6 @@ struct PromptAssemblerTests {
         #expect(prompt.contains("47.0%"))
     }
 
-    @Test("Vercel section formats deployment counts")
-    func vercelSection() throws {
-        let data = PlatformData(
-            platform: .vercel,
-            metrics: [
-                "deployments":            .int(12),
-                "production_deployments": .int(4),
-                "error_deployments":      .int(1)
-            ]
-        )
-        let prompt = assembler.assemble(makeInput(snapshots: try snaps(data)))
-        #expect(prompt.contains("## Vercel"))
-        #expect(prompt.contains("Deployments: 12 (4 production)"))
-        #expect(prompt.contains("Failed deployments: 1"))
-    }
-
     @Test("Calendly section formats events and invitees")
     func calendlySection() throws {
         let data = PlatformData(

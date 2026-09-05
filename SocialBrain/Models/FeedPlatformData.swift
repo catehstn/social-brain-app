@@ -32,11 +32,6 @@ struct GoatCounterData: Codable, Sendable {
     var totalVisits: Int
 }
 
-struct VercelData: Codable, Sendable {
-    var latestDeploymentSummary: String?
-    var errorRate: Double
-}
-
 struct CalendlyData: Codable, Sendable {
     var upcomingEventTitles: [String]   // next 5 events
     var upcomingEventDates: [Date]

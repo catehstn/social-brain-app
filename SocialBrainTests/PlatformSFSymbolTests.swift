@@ -10,8 +10,9 @@ struct PlatformSFSymbolTests {
         for platform in Platform.allCases {
             #expect(!platform.sfSymbol.isEmpty, "Platform \(platform.rawValue) has empty sfSymbol")
         }
-        // Verify the count to catch additions that are missing from sfSymbol switch
-        #expect(Platform.allCases.count == 14)
+        // Pinned to catch an addition that misses the sfSymbol switch. 13 since
+        // Vercel was retired in #43.
+        #expect(Platform.allCases.count == 13)
     }
 
     // Test 16: Specific symbol assignments match spec

@@ -33,7 +33,6 @@ struct SetupURLTests {
     static let setupURLs: [(label: String, url: String)] = [
         // API Key platforms
         ("Buttondown keys",            "https://buttondown.com/keys"),
-        ("Vercel tokens",              "https://vercel.com/account/tokens"),
         ("Calendly API webhooks",      "https://calendly.com/integrations/api_webhooks"),
         // Token / OAuth platforms
         ("WordPress.com apps",         "https://developer.wordpress.com/apps/"),

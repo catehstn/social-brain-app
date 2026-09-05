@@ -83,16 +83,6 @@ struct PlatformCredentialSheet: View {
             field("Site Code", key: "site_code",
                   help: "The subdomain of your GoatCounter URL — e.g. \"mysite\" from mysite.goatcounter.com")
 
-        case .vercel:
-            permissionsNote("Permissions needed: full account access (tokens have no scope restrictions)")
-            field("Personal Access Token", key: "api_key", secure: true,
-                  help: "Create one at vercel.com/account/tokens",
-                  helpURL: URL(string: "https://vercel.com/account/tokens"))
-            field("Project ID or Name", key: "site_code",
-                  help: "The Vercel project to track deployments for")
-            field("Team ID (optional)", key: "team_id",
-                  help: "Required only if the project belongs to a team")
-
         case .calendly:
             permissionsNote("Permissions needed: check the \"default\" scope (read user info and scheduled events)")
             field("Personal Access Token", key: "api_key", secure: true,
@@ -352,7 +342,6 @@ struct PlatformCredentialSheet: View {
         switch platform {
         case .buttondown:          ["api_key"]
         case .goatCounter:         ["api_key", "site_code"]
-        case .vercel:              ["api_key", "site_code"]
         case .calendly:            ["api_key"]
         case .mastodon:            ["access_token", "instance_url"]
         case .bluesky:             ["username", "password"]

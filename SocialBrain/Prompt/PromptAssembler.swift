@@ -87,7 +87,6 @@ struct PromptAssembler {
         case .bluesky:     return blueskyLines(data)
         case .buttondown:  return buttondownLines(data)
         case .goatCounter: return goatCounterLines(data)
-        case .vercel:      return vercelLines(data)
         case .calendly:    return calendlyLines(data)
         case .amazon:      return amazonLines(data)
         case .jetpack:     return jetpackLines(data)
@@ -173,19 +172,6 @@ struct PromptAssembler {
         }
         if !topPages.isEmpty {
             lines.append("Top pages: \(topPages.joined(separator: ", "))")
-        }
-        return lines
-    }
-
-    private func vercelLines(_ data: PlatformData) -> [String] {
-        var lines: [String] = []
-        if let total = data.intMetric("deployments") {
-            var dep = "Deployments: \(total)"
-            if let prod = data.intMetric("production_deployments") { dep += " (\(prod) production)" }
-            lines.append(dep)
-        }
-        if let v = data.intMetric("error_deployments"), v > 0 {
-            lines.append("Failed deployments: \(v)")
         }
         return lines
     }
