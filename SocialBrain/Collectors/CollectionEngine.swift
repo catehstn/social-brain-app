@@ -115,12 +115,32 @@ actor CollectionEngine {
         }
 
         // Persist successful snapshots.
+        //
+        // A failure here used to propagate straight out of `run`, so one
+        // platform whose metrics could not be encoded took the whole collection
+        // with it: every snapshot after it went unsaved and `completeRun` never
+        // ran, leaving a dangling open run in the database. One bad collector
+        // must not cost the other thirteen — demote it to a failure for that
+        // platform and carry on.
+        var persisted: [CollectionResult] = []
         for result in results {
-            if let data = result.platformData {
+            guard let data = result.platformData else {
+                persisted.append(result)
+                continue
+            }
+            do {
                 var snapshot = try PlatformSnapshot(runID: runID, data: data)
                 try await database.saveSnapshot(&snapshot)
+                persisted.append(result)
+            } catch {
+                persisted.append(.failure(
+                    platform: data.platform,
+                    instanceName: data.instanceName,
+                    error: error
+                ))
             }
         }
+        results = persisted
 
         // Mark the run as completed.
         let errorCount = results.filter { !$0.isSuccess }.count
