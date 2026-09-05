@@ -134,6 +134,48 @@ struct GoogleSearchConsoleCollector: Collector {
 
     // MARK: - Search Analytics
 
+    /// Builds the `searchAnalytics/query` URL for a site.
+    ///
+    /// The site URL is one path *segment*, so every reserved character in it has
+    /// to be percent-encoded — including `:` and `/`. Two things made this go
+    /// wrong before:
+    ///
+    /// - `.urlPathAllowed` permits `:` and `/`, so it does not encode a URL at
+    ///   all. It left `https://example.com/` almost untouched.
+    /// - `appendingPathComponent` then encoded what little it had produced a
+    ///   second time, turning `%3A` into `%253A`, while leaving the slashes to
+    ///   split into extra path segments.
+    ///
+    /// The result was `sites/https%253A//example.com//searchAnalytics/query` —
+    /// a property that cannot exist, so every request 404'd and Google Search
+    /// Console has never returned real data.
+    ///
+    /// Build the string directly instead: `appendingPathComponent` cannot be
+    /// used here, because re-encoding an already-encoded segment is the bug.
+    static func searchAnalyticsURL(siteURL: String) throws -> URL {
+        let encoded = percentEncodedSiteSegment(siteURL)
+        let string = "\(apiBase.absoluteString)/webmasters/v3/sites/\(encoded)/searchAnalytics/query"
+        guard let url = URL(string: string) else {
+            throw CollectorError.invalidCredential(
+                key: "site_url",
+                reason: "could not be turned into a Search Console request URL"
+            )
+        }
+        return url
+    }
+
+    /// Percent-encodes a site identifier for use as a single path segment.
+    ///
+    /// Deliberately strict — only the RFC 3986 unreserved set survives — so that
+    /// both property forms Search Console accepts round-trip correctly:
+    /// `https://example.com/` and `sc-domain:example.com`.
+    static func percentEncodedSiteSegment(_ siteURL: String) -> String {
+        var unreserved = CharacterSet.alphanumerics
+        unreserved.insert(charactersIn: "-._~")
+        return siteURL.addingPercentEncoding(withAllowedCharacters: unreserved) ?? siteURL
+    }
+
+
     private func fetchSearchAnalytics(
         siteURL: String,
         token: String,
@@ -142,9 +184,7 @@ struct GoogleSearchConsoleCollector: Collector {
         dimensions: [String],
         rowLimit: Int
     ) async throws -> SearchAnalyticsResponse {
-        let encodedSite = siteURL.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? siteURL
-        let url = Self.apiBase
-            .appendingPathComponent("webmasters/v3/sites/\(encodedSite)/searchAnalytics/query")
+        let url = try Self.searchAnalyticsURL(siteURL: siteURL)
 
         var req = URLRequest(url: url)
         req.httpMethod = "POST"

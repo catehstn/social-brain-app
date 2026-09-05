@@ -120,4 +120,22 @@ struct MockURLSessionTests {
         #expect(session.headerValues("X-Absent", path: "/api/thing").isEmpty)
     }
 
+    @Test("Matching uses the encoded path, so encoding bugs are visible")
+    func matchingUsesEncodedPath() async throws {
+        // url.path would decode this to /sites/https://example.com/ and match a
+        // fixture keyed on the decoded form — which is exactly how an
+        // encoding bug hides from a path-matching mock (#68).
+        let session = MockURLSession(["/sites/https%3A%2F%2Fexample.com%2F": ("{}", 200)])
+        let url = URL(string: "https://api.example.com/sites/https%3A%2F%2Fexample.com%2F")!
+
+        let (_, response) = try await session.data(for: URLRequest(url: url))
+        #expect((response as? HTTPURLResponse)?.statusCode == 200)
+
+        // The decoded spelling must NOT match.
+        let decoded = MockURLSession(["/sites/https://example.com/": ("{}", 200)])
+        await #expect(throws: MockURLSessionError.self) {
+            _ = try await decoded.data(for: URLRequest(url: url))
+        }
+    }
+
 }
