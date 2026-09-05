@@ -84,12 +84,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
                 .filter { $0.platform.authType == .apiKey || $0.platform.authType == .oauthToken }
             guard !collectors.isEmpty else { return }
             let engine = CollectionEngine(database: database)
-            _ = try? await engine.run(
+            guard let summary = try? await engine.run(
                 collectors: collectors,
                 credentials: { platform in try KeychainStore.shared.load(for: platform) },
                 since: nil,
                 progress: { _ in }
-            )
+            ) else { return }
+
+            // The whole point of a background run: this is the path that can
+            // actually surprise the user, and it was the one path that never
+            // detected a spike or sent a notification.
+            await SpikeNotifier(database: database).notifySpikes(for: summary)
         }
     }
 }
