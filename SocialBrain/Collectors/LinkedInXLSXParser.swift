@@ -49,14 +49,14 @@ struct LinkedInXLSXParser {
 
         // -- DISCOVERY (sheet1) --
         if let xml = try? zip.extractEntry(named: "xl/worksheets/sheet1.xml"),
-           let doc = try? XMLDocument(data: xml) {
+           let doc = try? Self.parseXML(xml) {
             if let v = numericCell(doc, ref: "B2") { metrics["total_impressions"] = .int(v) }
             if let v = numericCell(doc, ref: "B3") { metrics["members_reached"]   = .int(v) }
         }
 
         // -- ENGAGEMENT (sheet2): sum Engagements column from row 2 onward --
         if let xml = try? zip.extractEntry(named: "xl/worksheets/sheet2.xml"),
-           let doc = try? XMLDocument(data: xml) {
+           let doc = try? Self.parseXML(xml) {
             // Detect which column holds Engagements (typically "C") from the header row.
             let engCol = engagementsColumn(in: doc, sharedStrings: sharedStrings) ?? "C"
             let total  = sumColumn(in: doc, col: engCol, startRow: 2)
@@ -65,7 +65,7 @@ struct LinkedInXLSXParser {
 
         // -- FOLLOWERS (sheet4) --
         if let xml = try? zip.extractEntry(named: "xl/worksheets/sheet4.xml"),
-           let doc = try? XMLDocument(data: xml) {
+           let doc = try? Self.parseXML(xml) {
             if let v = numericCell(doc, ref: "B1") { metrics["total_followers"] = .int(v) }
             let newF = sumColumn(in: doc, col: "B", startRow: 4)
             if newF > 0 { metrics["new_followers"] = .int(newF) }
@@ -92,11 +92,25 @@ struct LinkedInXLSXParser {
     /// keeps the indices aligned; runs are concatenated in document order.
     /// Phonetic hints (`<rPh>`, used in Japanese workbooks) carry their own `<t>`
     /// and are excluded — they are pronunciation guides, not content.
+    /// Parses a document part with external entity resolution disabled.
+    ///
+    /// `XMLDocument(data:)` defaults to resolving external entities, so a
+    /// crafted `.xlsx` — a file the user drags in from outside the app — can
+    /// name a local path or a URL in its DTD and have the parser fetch it. That
+    /// is the XXE class: it can read files the sandbox permits and make network
+    /// requests the user did not ask for.
+    ///
+    /// Nothing in a spreadsheet part needs an external entity, so they are
+    /// refused outright rather than resolved.
+    static func parseXML(_ data: Data) throws -> XMLDocument {
+        try XMLDocument(data: data, options: [.nodeLoadExternalEntitiesNever])
+    }
+
     /// Internal rather than private so the index-alignment behaviour can be
     /// tested directly; a shift here corrupts every later lookup silently.
     func extractSharedStrings(from zip: MiniZIPReader) -> [String] {
         guard let xml = try? zip.extractEntry(named: "xl/sharedStrings.xml"),
-              let doc = try? XMLDocument(data: xml),
+              let doc = try? Self.parseXML(xml),
               let items = try? doc.nodes(forXPath: "//*[local-name()='si']")
         else { return [] }
 

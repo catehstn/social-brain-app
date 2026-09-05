@@ -27,10 +27,11 @@ struct BufferCollector: Collector {
 
     func fetchLabel(credentials: Credentials) async -> String? {
         guard let token = credentials.apiKey else { return nil }
-        var comps = URLComponents(url: Self.apiBase.appendingPathComponent("user.json"), resolvingAgainstBaseURL: false)!
-        comps.queryItems = [URLQueryItem(name: "access_token", value: token)]
-        guard let url = comps.url else { return nil }
-        guard let (data, response) = try? await session.data(for: URLRequest(url: url)),
+        // Header, not query string — same reason as authorizedRequest.
+        let request = authorizedRequest(
+            url: Self.apiBase.appendingPathComponent("user.json"), token: token
+        )
+        guard let (data, response) = try? await session.data(for: request),
               let http = response as? HTTPURLResponse, http.statusCode == 200 else { return nil }
         struct User: Decodable { let name: String? }
         return try? JSONDecoder().decode(User.self, from: data).name
@@ -145,12 +146,18 @@ struct BufferCollector: Collector {
         return total
     }
 
+    /// Builds a request carrying the token in the Authorization header.
+    ///
+    /// It used to go in the query string. Buffer accepts either — its auth
+    /// documentation lists "the HTTP Authorization header, request body or
+    /// query string" — so this was a choice, not a constraint, and it was the
+    /// wrong one: a query string is recorded verbatim in server access logs,
+    /// proxy logs and browser history, so every request wrote a live credential
+    /// somewhere it did not need to be.
     private func authorizedRequest(url: URL, token: String) -> URLRequest {
-        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
-        var items = components.queryItems ?? []
-        items.append(URLQueryItem(name: "access_token", value: token))
-        components.queryItems = items
-        return URLRequest(url: components.url!)
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        return request
     }
 }
 

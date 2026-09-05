@@ -197,4 +197,46 @@ struct LinkedInXLSXParserTests {
         _ = try? parser.parse(data: data)
     }
 
+    // MARK: - Untrusted XML
+
+    @Test("An external entity is not resolved")
+    func externalEntitiesAreRefused() throws {
+        // XXE: XMLDocument resolves external entities by default, so a crafted
+        // .xlsx can name a local path in its DTD and have the parser read it.
+        // Point one at a file that definitely exists and assert its contents do
+        // not come back in the parsed value.
+        let xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE sst [<!ENTITY xxe SYSTEM "file:///etc/hosts">]>
+            <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+              <si><t>&xxe;</t></si>
+            </sst>
+            """
+        let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
+
+        // Either the parse refuses the document or the entity stays unexpanded.
+        // What must not happen is the file's contents appearing here.
+        let strings = parser.extractSharedStrings(from: zip)
+        #expect(!strings.joined().contains("localhost"))
+        #expect(!strings.joined().contains("127.0.0.1"))
+    }
+
+    @Test("A remote entity is not fetched")
+    func remoteEntitiesAreRefused() throws {
+        // The same class, but reaching outward. This must not produce a network
+        // request; the assertion is that parsing completes and returns nothing
+        // resembling fetched content.
+        let xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE sst [<!ENTITY ext SYSTEM "http://example.invalid/probe">]>
+            <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+              <si><t>before&ext;after</t></si>
+            </sst>
+            """
+        let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
+
+        let strings = parser.extractSharedStrings(from: zip)
+        #expect(strings.allSatisfy { !$0.contains("<html") })
+    }
+
 }
