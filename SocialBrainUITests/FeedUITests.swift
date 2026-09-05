@@ -7,6 +7,18 @@ final class FeedUITests: XCTestCase {
     override func setUp() async throws {
         continueAfterFailure = false
         app = XCUIApplication()
+        // UI tests launch the app as a separate process, which does NOT inherit
+        // XCTestConfigurationFilePath — so without this the app under test opens
+        // and migrates the developer's real database (#100).
+        //
+        // An environment variable, not a launch argument: NSUserDefaults reads
+        // the argument domain as -key value pairs, so a bare flag swallows the
+        // next one as its value — which silently broke -hasCompletedOnboarding.
+        //
+        // Spelled out rather than referencing the constant, because importing
+        // the app module into a UI test target drags GRDB in with it and this
+        // target does not link it. DatabaseLocationTests pins the two spellings.
+        app.launchEnvironment["SOCIALBRAIN_USE_THROWAWAY_DATABASE"] = "1"
         app.launch()
     }
 

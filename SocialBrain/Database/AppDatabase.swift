@@ -9,21 +9,121 @@ actor AppDatabase {
 
     // MARK: - Lifecycle
 
-    /// Creates or opens the database at the given path and runs all migrations.
+    /// Creates or opens the database at the default location and runs all
+    /// migrations.
+    ///
+    /// Under a test host this opens a **throwaway** database instead. Unit tests
+    /// are injected into the app, so launching them runs `SocialBrainApp`, which
+    /// opens this — meaning every `xcodebuild test` run previously opened and
+    /// migrated the user's real store. That is not theoretical: an experimental
+    /// migration run in an isolated git worktree was applied to the real
+    /// database, twice, because the file is shared by every checkout. Had it
+    /// held data rather than being empty, the history would have been destroyed
+    /// and could not have been re-fetched.
     static func makeDefault() throws -> AppDatabase {
-        let fm = FileManager.default
-        let appSupport = try fm.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
-        let dir = appSupport.appendingPathComponent("SocialBrain", isDirectory: true)
-        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
-        let dbURL = dir.appendingPathComponent("analytics.sqlite")
         let config = AppDatabase.makeConfiguration()
-        let dbPool = try DatabasePool(path: dbURL.path, configuration: config)
+        let dbPool = try DatabasePool(path: try defaultDatabaseURL().path, configuration: config)
         return try AppDatabase(dbPool)
+    }
+
+    /// `true` when this process must not touch the user's real data.
+    ///
+    /// Two signals, because there are two ways the app runs under test:
+    ///
+    /// - **Unit tests** are injected into the app host, which therefore has
+    ///   `XCTestConfigurationFilePath` set. `AppDelegate` already keys off this
+    ///   to close windows at launch.
+    /// - **UI tests** launch the app as a *separate process*, which does **not**
+    ///   inherit that variable — that is precisely why the windows stay open for
+    ///   them. So the UI test targets set their own environment variable.
+    ///   Without this second signal a UI-test run still opened and migrated the
+    ///   real store, which the first version of this change missed.
+    ///
+    /// Deliberately an environment variable rather than a launch argument:
+    /// `NSUserDefaults` parses the argument domain as `-key value` pairs, so a
+    /// bare `-useThrowawayDatabase` swallows whichever flag follows it as its
+    /// value. That silently broke `-hasCompletedOnboarding 0` and with it every
+    /// onboarding UI test.
+    static var isRunningUnderTest: Bool {
+        let info = ProcessInfo.processInfo
+        return info.environment["XCTestConfigurationFilePath"] != nil
+            || info.environment[throwawayDatabaseEnvironmentKey] == "1"
+    }
+
+    /// Set by `SocialBrainUITests` so the launched app keeps off the real data.
+    static let throwawayDatabaseEnvironmentKey = "SOCIALBRAIN_USE_THROWAWAY_DATABASE"
+
+    /// Where the database lives — the real Application Support location
+    /// normally, a per-process temporary directory under a test host.
+    static func defaultDatabaseURL() throws -> URL {
+        let fm = FileManager.default
+        let container: URL
+        if isRunningUnderTest {
+            // Per-process, so concurrent test runs cannot collide. A directory
+            // is also removed on first use in this process: pids are recycled,
+            // so without that a run assigned a leftover pid would inherit the
+            // previous run's database rather than starting clean.
+            prepareTestContainerOnce()
+            container = fm.temporaryDirectory
+                .appendingPathComponent(testContainerPrefix + "\(ProcessInfo.processInfo.processIdentifier)",
+                                        isDirectory: true)
+        } else {
+            container = try fm.url(
+                for: .applicationSupportDirectory,
+                in: .userDomainMask,
+                appropriateFor: nil,
+                create: true
+            )
+        }
+        let dir = container.appendingPathComponent("SocialBrain", isDirectory: true)
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("analytics.sqlite")
+    }
+
+    private static let testContainerPrefix = "SocialBrainTests-"
+
+    /// Deletes throwaway databases left by earlier test processes.
+    ///
+    /// A per-process directory with no cleanup is how 266 orphaned plists
+    /// accumulated elsewhere in this app; one file per test run adds up the same
+    /// way. Only directories belonging to processes that are no longer running
+    /// are removed, so concurrent runs are safe.
+    /// Runs the cleanup exactly once per process, however often the path is
+    /// resolved. `Bool` rather than a closure so the value is `Sendable`; the
+    /// work happens in the initialiser, which Swift runs lazily and exactly once.
+    private static let didPrepareTestContainer: Bool = {
+        removeStaleTestDatabases()
+        return true
+    }()
+
+    private static func prepareTestContainerOnce() {
+        _ = didPrepareTestContainer
+    }
+
+    private static func removeStaleTestDatabases() {
+        let fm = FileManager.default
+        let current = ProcessInfo.processInfo.processIdentifier
+        guard let entries = try? fm.contentsOfDirectory(
+            at: fm.temporaryDirectory, includingPropertiesForKeys: nil
+        ) else { return }
+
+        for entry in entries where entry.lastPathComponent.hasPrefix(testContainerPrefix) {
+            let suffix = entry.lastPathComponent.dropFirst(testContainerPrefix.count)
+            // pid > 0: kill(0, …) and kill(-1, …) address a process group and
+            // every process respectively, which is not what is meant here.
+            guard let pid = Int32(suffix), pid > 0 else { continue }
+
+            if pid == current {
+                // Ours, inherited from a dead process that had this pid. Start clean.
+                try? fm.removeItem(at: entry)
+                continue
+            }
+            // kill(pid, 0) succeeds only if the process exists and is signalable.
+            // ESRCH means it is gone; EPERM means it exists, so leave it alone.
+            if kill(pid, 0) != 0 && errno == ESRCH {
+                try? fm.removeItem(at: entry)
+            }
+        }
     }
 
     /// Creates an in-memory database; used in tests.
