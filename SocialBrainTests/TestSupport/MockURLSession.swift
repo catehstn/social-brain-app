@@ -4,7 +4,8 @@ import Foundation
 /// A `URLSessionProtocol` implementation that returns pre-loaded fixture
 /// responses and **records every request it was given**.
 ///
-/// Matching is by URL path, ignoring query parameters, so fixtures stay simple.
+/// Matching is by **percent-encoded** URL path, ignoring query parameters, so
+/// fixtures stay simple while still expressing what goes on the wire.
 /// Recording is what makes the query string testable: without it a collector
 /// could build a completely wrong URL and still pass, because the path matched.
 /// That is not hypothetical — `GoogleSearchConsoleCollector` double-encodes its
@@ -34,7 +35,12 @@ struct MockURLSession: URLSessionProtocol, Sendable {
 
         guard let url = request.url else { throw URLError(.badURL) }
 
-        let path = url.path
+        // percentEncodedPath, not path: `url.path` decodes escapes, so an
+        // encoding bug is invisible to matching. Google Search Console's correct
+        // URL contains `sites/https%3A%2F%2Fexample.com%2F`, which `path` reports
+        // as `sites/https://example.com/` — indistinguishable from the broken
+        // form this suite exists to catch (#68).
+        let path = Self.encodedPath(of: url)
         guard let (data, status) = fixtures[path] else {
             // Naming the path and the known fixtures turns "unsupportedURL" —
             // which tells you nothing — into an actionable failure.
@@ -68,7 +74,7 @@ struct MockURLSession: URLSessionProtocol, Sendable {
     /// date filter and once without. Assert across all of them rather than
     /// picking one.
     func requests(path: String) -> [URLRequest] {
-        requests.filter { $0.url?.path == path }
+        requests.filter { $0.url.map(Self.encodedPath) == path }
     }
 
     /// The values of a query item across every request matching `path`, in
@@ -114,6 +120,22 @@ struct MockURLSession: URLSessionProtocol, Sendable {
     /// nondeterministic. Use `headerValues` there.
     func headerValue(_ name: String, path: String) -> String? {
         headerValues(name, path: path).first
+    }
+
+    /// The path as it goes on the wire.
+    ///
+    /// `URL.path` differs in two ways, both of which hide real bugs: it decodes
+    /// percent-escapes, and it strips a trailing slash (`/emails/` becomes
+    /// `/emails`). No collector builds a path with a trailing slash today, but
+    /// the first one that does would otherwise fail to match for a reason the
+    /// fixture key gives no hint of.
+    private static func encodedPath(of url: URL) -> String {
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            // Falling back to `url.path` would silently restore the decoded
+            // matching this exists to avoid. Fail visibly instead.
+            return url.absoluteString
+        }
+        return components.percentEncodedPath
     }
 
     /// Thread-safe because collectors may issue requests concurrently.

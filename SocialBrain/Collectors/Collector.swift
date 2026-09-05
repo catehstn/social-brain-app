@@ -32,6 +32,11 @@ extension Collector {
 
 enum CollectorError: LocalizedError, Sendable {
     case missingCredential(String)
+    /// A credential is present but cannot be used — e.g. a site URL that no
+    /// amount of encoding turns into a valid request URL. Distinct from
+    /// `missingCredential`, because "you didn't enter it" and "what you entered
+    /// won't work" need different things from the user.
+    case invalidCredential(key: String, reason: String)
     case httpError(statusCode: Int, body: String)
     case decodingError(String)
     case networkError(underlying: Error)
@@ -40,6 +45,8 @@ enum CollectorError: LocalizedError, Sendable {
         switch self {
         case .missingCredential(let key):
             "Missing credential '\(key)'"
+        case .invalidCredential(let key, let reason):
+            "Credential '\(key)' is not usable: \(reason)"
         case .httpError(let code, let body):
             "HTTP \(code): \(body.prefix(200))"
         case .decodingError(let msg):
