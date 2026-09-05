@@ -42,50 +42,39 @@ struct SpikeDetector: Sendable {
     /// The minimum absolute percentage change required to surface a spike (default 20%).
     let threshold: Double
 
-    /// How large a count or average has to get before a percentage change in it
-    /// is worth reporting.
-    ///
-    /// A percentage gate alone is meaningless on small numbers: an average
-    /// favourites count moving 0.5 → 0.7 is a "40% spike". That was tolerable
-    /// while spikes only appeared seconds after the user pressed Run and was
-    /// looking at the screen; since #109 the background refresh fires them too,
-    /// with sound, at a moment the system picks. The cost is not the noise but
-    /// what it teaches — someone who learns to dismiss these stops reading the
-    /// real ones, which is the whole value of the feature.
-    ///
-    /// Deliberately a floor on the *values* rather than on the change. A floor
-    /// on the change would suppress an average moving 4 → 5, which is a real
-    /// shift in engagement; what needs suppressing is 0.5 → 0.7, where the
-    /// numbers are too small for any movement to mean much.
-    let minimumCountMagnitude: Double
-
-    /// The same, for rates.
-    ///
-    /// Rates are stored as 0–1 fractions, so the count floor would suppress all
-    /// of them. Five percentage points is the equivalent scale: a click rate
-    /// wobbling between 0.5% and 0.7% is noise, one moving 40% → 50% is not.
-    let minimumRateMagnitude: Double
-
-    init(threshold: Double = 20.0,
-         minimumCountMagnitude: Double = 5.0,
-         minimumRateMagnitude: Double = 0.05) {
+    init(threshold: Double = 20.0) {
         self.threshold = threshold
-        self.minimumCountMagnitude = minimumCountMagnitude
-        self.minimumRateMagnitude = minimumRateMagnitude
     }
 
-    /// Whether a metric holds a 0–1 rate rather than a count.
-    ///
-    /// Keyed off the name because the metric vocabulary is stringly-typed
-    /// (#63). A shared vocabulary carrying the unit would make this unnecessary.
-    static func isRate(_ key: String) -> Bool {
-        let lowered = key.lowercased()
-        return lowered.contains("rate") || lowered.contains("ctr")
-    }
-
-    /// The magnitude this metric has to reach before a change in it counts.
-    func minimumMagnitude(forKey key: String) -> Double {
-        Self.isRate(key) ? minimumRateMagnitude : minimumCountMagnitude
+    /// One metric worth watching, and how large it has to be before a
+    /// percentage change in it means anything.
+    private struct Monitored {
+        let key: String
+        let label: String
+        /// The floor, in the metric's own units. Zero means no floor.
+        ///
+        /// A percentage gate alone is meaningless on small numbers: an average
+        /// favourites count moving 0.5 → 0.7 is a "40% spike". That was
+        /// tolerable while spikes only appeared seconds after the user pressed
+        /// Run and was looking at the screen; since #109 the background refresh
+        /// fires them too, with sound, at a moment the system picks. The cost
+        /// is not the noise but what it teaches — someone who learns to dismiss
+        /// these stops reading the real ones, which is the whole value of the
+        /// feature.
+        ///
+        /// The floor is per metric because the metrics are not on one scale,
+        /// and a single global floor gets most of them wrong. Three families:
+        ///
+        /// - **Averages** (`avg_favourites` and friends) carry the floor. They
+        ///   are derived from a handful of posts, so movement below a few
+        ///   favourites per post is arithmetic, not audience.
+        /// - **Rates** are 0–1 fractions, so any count-sized floor would mute
+        ///   every one of them. One percentage point is the equivalent scale.
+        /// - **Raw counts of discrete events** get no floor. Each unit is a
+        ///   real thing that happened: selling 1 book then 4 is news, and so is
+        ///   three Hacker News mentions dropping to none. This is the case an
+        ///   earlier version of this change got wrong, muting both.
+        var floor: Double = 0
     }
 
     /// Returns spike alerts for all numeric metrics that changed significantly
@@ -101,20 +90,19 @@ struct SpikeDetector: Sendable {
         let currentMetrics = (try? current.decodedMetrics()) ?? [:]
         let previousMetrics = (try? previous.decodedMetrics()) ?? [:]
 
-        let labels = metricLabels(for: platformEnum)
         var alerts: [SpikeAlert] = []
 
-        for (key, label) in labels {
-            guard let currentVal = currentMetrics[key]?.numberValue,
-                  let previousVal = previousMetrics[key]?.numberValue,
+        for metric in Self.monitored(for: platformEnum) {
+            guard let currentVal = currentMetrics[metric.key]?.numberValue,
+                  let previousVal = previousMetrics[metric.key]?.numberValue,
                   previousVal != 0
             else { continue }
 
             // Both gates, not either: a large relative change between tiny
             // numbers is not news, and a small relative change between large
-            // ones is not either.
-            guard max(abs(currentVal), abs(previousVal)) >= minimumMagnitude(forKey: key)
-            else { continue }
+            // ones is not either. Whichever side is bigger decides, so a
+            // collapse to zero still reports.
+            guard max(abs(currentVal), abs(previousVal)) >= metric.floor else { continue }
 
             let pctChange = abs(((currentVal - previousVal) / abs(previousVal)) * 100)
             guard pctChange >= threshold else { continue }
@@ -122,8 +110,8 @@ struct SpikeDetector: Sendable {
             alerts.append(SpikeAlert(
                 platform: platformEnum,
                 instanceName: current.instanceName,
-                metricLabel: label,
-                metricKey: key,
+                metricLabel: metric.label,
+                metricKey: metric.key,
                 previousValue: previousVal,
                 currentValue: currentVal
             ))
@@ -135,58 +123,76 @@ struct SpikeDetector: Sendable {
 
     // MARK: - Private
 
-    /// Returns the (key, display label) pairs to monitor for spikes per platform.
-    /// Intentionally tracks only the primary "health" metrics to avoid noise.
-    private func metricLabels(for platform: Platform) -> [(key: String, label: String)] {
+    /// How small an average engagement number can get before a percentage
+    /// change in it stops meaning anything. A judgement call, not a measurement
+    /// — but below three favourites per post, one extra favourite is a 30%
+    /// "spike", and that is the noise this exists to stop.
+    ///
+    /// Deliberately not shared with `HighReachDetector`'s 5.0, which answers a
+    /// different question: that is the bar for engagement being *good*, this is
+    /// the bar for it being *readable*.
+    private static let averageFloor = 3.0
+
+    /// Rates are stored as 0–1 fractions. One percentage point: a click rate
+    /// wobbling between 0.5% and 0.7% is noise, a search CTR moving 2% → 3.5%
+    /// is not. The two bracket this value, which is the only reason it is 0.01
+    /// and not something rounder.
+    private static let rateFloor = 0.01
+
+    /// The metrics to watch per platform. Intentionally only the primary
+    /// "health" metrics, to avoid noise.
+    private static func monitored(for platform: Platform) -> [Monitored] {
         switch platform {
         case .mastodon:
-            return [("followers_count", "Followers"),
-                    ("avg_favourites", "Avg Favourites"),
-                    ("avg_reblogs", "Avg Reblogs")]
+            return [Monitored(key: "followers_count", label: "Followers"),
+                    Monitored(key: "avg_favourites", label: "Avg Favourites", floor: averageFloor),
+                    Monitored(key: "avg_reblogs", label: "Avg Reblogs", floor: averageFloor)]
         case .bluesky:
-            return [("followers_count", "Followers"),
-                    ("avg_likes", "Avg Likes"),
-                    ("avg_reposts", "Avg Reposts")]
+            return [Monitored(key: "followers_count", label: "Followers"),
+                    Monitored(key: "avg_likes", label: "Avg Likes", floor: averageFloor),
+                    Monitored(key: "avg_reposts", label: "Avg Reposts", floor: averageFloor)]
         case .buttondown:
-            return [("subscriber_count", "Subscribers"),
-                    ("avg_open_rate", "Open Rate"),
-                    ("avg_click_rate", "Click Rate")]
+            return [Monitored(key: "subscriber_count", label: "Subscribers"),
+                    Monitored(key: "avg_open_rate", label: "Open Rate", floor: rateFloor),
+                    Monitored(key: "avg_click_rate", label: "Click Rate", floor: rateFloor)]
         case .goatCounter:
-            return [("total_pageviews", "Pageviews"),
-                    ("unique_visitors", "Visitors")]
+            return [Monitored(key: "total_pageviews", label: "Pageviews"),
+                    Monitored(key: "unique_visitors", label: "Visitors")]
         case .calendly:
-            return [("events_count", "Events"),
-                    ("unique_invitees", "Invitees")]
+            return [Monitored(key: "events_count", label: "Events"),
+                    Monitored(key: "unique_invitees", label: "Invitees")]
         case .jetpack:
-            return [("followers_blog", "Followers"),
-                    ("total_views", "Views"),
-                    ("total_visitors", "Visitors")]
+            return [Monitored(key: "followers_blog", label: "Followers"),
+                    Monitored(key: "total_views", label: "Views"),
+                    Monitored(key: "total_visitors", label: "Visitors")]
         case .amazon:
-            return [("units_sold", "Units Sold"),
-                    ("royalties_usd", "Royalties"),
-                    ("kenp_pages_read", "KENP Pages Read")]
+            return [Monitored(key: "units_sold", label: "Units Sold"),
+                    Monitored(key: "royalties_usd", label: "Royalties"),
+                    Monitored(key: "kenp_pages_read", label: "KENP Pages Read")]
         case .linkedin:
-            return [("total_impressions", "Impressions"),
-                    ("total_likes", "Likes")]
+            return [Monitored(key: "total_impressions", label: "Impressions"),
+                    Monitored(key: "total_likes", label: "Likes")]
         case .oreilly:
-            return [("total_page_views", "Page Views"),
-                    ("total_unique_users", "Unique Users")]
+            return [Monitored(key: "total_page_views", label: "Page Views"),
+                    Monitored(key: "total_unique_users", label: "Unique Users")]
         case .substack:
-            return [("posts_published", "Posts Published"),
-                    ("avg_open_rate", "Avg Open Rate")]
+            return [Monitored(key: "posts_published", label: "Posts Published"),
+                    Monitored(key: "avg_open_rate", label: "Avg Open Rate", floor: rateFloor)]
         case .googleSearchConsole:
-            return [("clicks", "Clicks"),
-                    ("impressions", "Impressions"),
-                    ("ctr", "CTR"),
-                    ("avg_position", "Avg Position")]
+            // avg_position is a rank, so it gets no floor: small is the *best*
+            // state, and a floor would mute exactly the good news (4 → 3) while
+            // letting 60 → 45 through.
+            return [Monitored(key: "clicks", label: "Clicks"),
+                    Monitored(key: "impressions", label: "Impressions"),
+                    Monitored(key: "ctr", label: "CTR", floor: rateFloor),
+                    Monitored(key: "avg_position", label: "Avg Position")]
         case .buffer:
-            return [("sent_updates", "Sent Updates"),
-                    ("total_clicks", "Clicks"),
-                    ("total_reach", "Reach")]
+            return [Monitored(key: "sent_updates", label: "Sent Updates"),
+                    Monitored(key: "total_clicks", label: "Clicks"),
+                    Monitored(key: "total_reach", label: "Reach")]
         case .hackerNews:
-            return [("mention_count", "Mentions"),
-                    ("total_points", "Points")]
+            return [Monitored(key: "mention_count", label: "Mentions"),
+                    Monitored(key: "total_points", label: "Points")]
         }
     }
 }
-
