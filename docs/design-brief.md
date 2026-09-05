@@ -107,7 +107,7 @@ This is the chart-heavy screen. Not the home briefing.
 
 ### Settings *(macOS Prefs window)*
 - Data location (default `~/Library/Application Support/SocialBrain/`).
-- Auto-refresh: on/off + time-of-day picker (uses `BGTaskScheduler`).
+- Auto-refresh: on/off + time-of-day picker (uses `NSBackgroundActivityScheduler`).
 - Notifications: stale-export reminders (uses `UserNotifications`).
 - Analytics goal (also editable here).
 - Theme (System / Light / Dark).
@@ -152,4 +152,4 @@ Please produce artboards at **1440×900** (standard MBP screen) with `Navigation
 - SQLite/GRDB for the analytics store.
 - Swift Charts for all charting.
 - `ASWebAuthenticationSession` for OAuth.
-- `BGTaskScheduler` for auto-refresh, `UserNotifications` for reminders.
+- `NSBackgroundActivityScheduler` for auto-refresh (`BGTaskScheduler` is iOS-only), `UserNotifications` for reminders.
