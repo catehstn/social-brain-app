@@ -65,6 +65,9 @@ struct DatabaseLocationTests {
     func uiTestArgumentIsRecognised() {
         // UI tests launch the app as a separate process with no
         // XCTestConfigurationFilePath, so the argument is the only signal.
+        // The UI test targets hard-code this string, because importing the app
+        // module into a UI test target pulls in GRDB, which they do not link.
+        // This assertion is what keeps the two spellings in step.
         #expect(AppDatabase.uiTestLaunchArgument == "-useThrowawayDatabase")
         #expect(ProcessInfo.processInfo.arguments.contains(AppDatabase.uiTestLaunchArgument)
                 || AppDatabase.isRunningUnderTest)

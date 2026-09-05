@@ -1,5 +1,4 @@
 import XCTest
-@testable import SocialBrain
 
 @MainActor
 final class SocialBrainUITests: XCTestCase {
@@ -10,7 +9,12 @@ final class SocialBrainUITests: XCTestCase {
         // UI tests launch the app as a separate process, which does NOT inherit
         // XCTestConfigurationFilePath — so without this the app under test opens
         // and migrates the developer's real database (#100).
-        app.launchArguments += [AppDatabase.uiTestLaunchArgument]
+        //
+        // Spelled out rather than referencing AppDatabase.uiTestLaunchArgument:
+        // importing the app module into a UI test target drags GRDB in with it,
+        // which this target does not link. DatabaseLocationTests pins the two
+        // spellings together.
+        app.launchArguments += ["-useThrowawayDatabase"]
         // Reset onboarding state so the wizard always appears on launch.
         app.launchArguments += ["-hasCompletedOnboarding", "0"]
         // Reset hidden-platform state so grid tests always start with all platforms visible.
