@@ -21,15 +21,37 @@ struct SpikeNotifierTests {
         previous: Int,
         current: Int
     ) async throws {
-        for value in [previous, current] {
-            var run = CollectionRun(startedAt: Date(), platformCount: 1, errorCount: 0)
+        let base = Date(timeIntervalSince1970: 1_767_225_600)
+        for (offset, value) in [previous, current].enumerated() {
+            // Explicit, an hour apart. Two writes in a tight loop can land in the
+            // same millisecond, and ORDER BY collectedAt DESC is unspecified on a
+            // tie — which would silently swap current and previous.
+            let collectedAt = base.addingTimeInterval(Double(offset) * 3600)
+            var run = CollectionRun(startedAt: collectedAt, platformCount: 1, errorCount: 0)
             try await db.saveRun(&run)
             var snapshot = try PlatformSnapshot(
                 runID: run.id!,
-                data: PlatformData(platform: platform, metrics: ["followers_count": .int(value)])
+                data: PlatformData(platform: platform,
+                                   collectedAt: collectedAt,
+                                   metrics: ["followers_count": .int(value)])
             )
             try await db.saveSnapshot(&snapshot)
         }
+    }
+
+    /// Saves a single snapshot, for cases where the run under test writes the
+    /// second one itself.
+    private func seedOne(_ db: AppDatabase, platform: Platform = .mastodon, value: Int) async throws {
+        let collectedAt = Date(timeIntervalSince1970: 1_767_225_600)
+        var run = CollectionRun(startedAt: collectedAt, platformCount: 1, errorCount: 0)
+        try await db.saveRun(&run)
+        var snapshot = try PlatformSnapshot(
+            runID: run.id!,
+            data: PlatformData(platform: platform,
+                               collectedAt: collectedAt,
+                               metrics: ["followers_count": .int(value)])
+        )
+        try await db.saveSnapshot(&snapshot)
     }
 
     private func summary(for platform: Platform = .mastodon) -> CollectionSummary {
@@ -109,6 +131,80 @@ struct SpikeNotifierTests {
         #expect(await sent.callCount == 0)
     }
 
+    @Test("Alerts from a named instance say which one")
+    func namedInstanceIsAttributed() async throws {
+        // Two Mastodon accounts both spiking otherwise produce two
+        // identical-looking lines in one notification.
+        let db = try makeDB()
+        let base = Date(timeIntervalSince1970: 1_767_225_600)
+        for (offset, value) in [1000, 1500].enumerated() {
+            let at = base.addingTimeInterval(Double(offset) * 3600)
+            var run = CollectionRun(startedAt: at, platformCount: 1, errorCount: 0)
+            try await db.saveRun(&run)
+            var snapshot = try PlatformSnapshot(
+                runID: run.id!,
+                data: PlatformData(platform: .mastodon,
+                                   instanceName: "work",
+                                   collectedAt: at,
+                                   metrics: ["followers_count": .int(value)])
+            )
+            try await db.saveSnapshot(&snapshot)
+        }
+
+        let summary = CollectionSummary(
+            runID: 1, startedAt: base, completedAt: base,
+            results: [.success(PlatformData(platform: .mastodon,
+                                            instanceName: "work",
+                                            metrics: [:]))]
+        )
+
+        let alerts = await SpikeNotifier(database: db, send: { _ in }).notifySpikes(for: summary)
+        #expect(alerts.count == 1)
+        #expect(alerts.first?.instanceName == "work")
+        #expect(alerts.first?.summary.contains("(work)") == true)
+    }
+
+    // MARK: - The background path
+
+    @Test("The background refresh notifies spikes")
+    func backgroundRefreshNotifies() async throws {
+        // Deleting the notifySpikes call in runBackgroundRefresh left all the
+        // tests above passing: they exercise SpikeNotifier in isolation and say
+        // nothing about whether the scheduled run calls it. This one does.
+        let db = try makeDB()
+        // Only the earlier snapshot is seeded: the run itself writes the second
+        // one. Seeding both made the comparison flat, because the collector's
+        // value then matched the newest seeded value.
+        try await seedOne(db, value: 1000)
+
+        let sent = Sent()
+        await AppDelegate.runBackgroundRefresh(
+            database: db,
+            collectors: [StubSpikeCollector(platform: .mastodon)],
+            credentials: { _ in Credentials(["api_key": "k"]) },
+            notifier: SpikeNotifier(database: db, send: { await sent.record($0) })
+        )
+
+        #expect(await sent.callCount == 1)
+        #expect(await sent.alerts.isEmpty == false)
+    }
+
+    @Test("The background refresh does nothing when no platforms are configured")
+    func backgroundRefreshWithNoCollectors() async throws {
+        let db = try makeDB()
+        let sent = Sent()
+
+        await AppDelegate.runBackgroundRefresh(
+            database: db,
+            collectors: [],
+            credentials: { _ in nil },
+            notifier: SpikeNotifier(database: db, send: { await sent.record($0) })
+        )
+
+        #expect(await sent.callCount == 0)
+    }
+
+
     /// Records what would have been notified.
     private actor Sent {
         private(set) var alerts: [SpikeAlert] = []
@@ -119,4 +215,18 @@ struct SpikeNotifierTests {
             callCount += 1
         }
     }
+}
+
+/// Returns a fixed snapshot so the background run has something to compare.
+private struct StubSpikeCollector: Collector {
+    let platform: Platform
+    var instanceName: String = "default"
+
+    func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
+        PlatformData(platform: platform,
+                     instanceName: instanceName,
+                     metrics: ["followers_count": .int(1500)])
+    }
+
+    func fetchLabel(credentials: Credentials) async -> String? { nil }
 }

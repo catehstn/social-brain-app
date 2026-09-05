@@ -112,7 +112,6 @@ final class RunViewModel {
         generatedPrompt = assembler.assemble(input)
     }
 
-
     private func periodLabel(since: Date?) -> String {
         guard let since else { return "All time" }
         let days = Int(Date().timeIntervalSince(since) / 86400)

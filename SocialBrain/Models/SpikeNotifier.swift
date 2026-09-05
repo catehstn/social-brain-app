@@ -1,5 +1,3 @@
-import Foundation
-
 /// Detects metric spikes from a finished collection run and notifies the user.
 ///
 /// Extracted from `RunViewModel` because the background refresh never ran it.
