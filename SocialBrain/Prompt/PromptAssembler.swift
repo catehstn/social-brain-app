@@ -54,7 +54,7 @@ struct PromptAssembler {
                 if let metrics = try? snap.decodedMetrics() {
                     let data = PlatformData(platform: platform,
                                             instanceName: instance.instanceName,
-                                            collectedAt: snap.collectedAt,
+                                            collectedAt: snap.periodEnd ?? snap.collectedAt,
                                             metrics: metrics)
                     if let section = platformSection(data, header: headerLabel) {
                         lines.append(section)

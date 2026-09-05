@@ -255,6 +255,15 @@ actor AppDatabase {
             )
         }
 
+        migrator.registerMigration("v3_period_end") { db in
+            // The period an imported export describes, distinct from when it was
+            // collected. Overloading collectedAt with both roles broke
+            // uniqueness, the staleness clock and the spike comparison at once.
+            try db.alter(table: "platformSnapshot") { t in
+                t.add(column: "periodEnd", .datetime)
+            }
+        }
+
         return migrator
     }
 }
@@ -340,9 +349,14 @@ extension AppDatabase {
             try PlatformSnapshot
                 .filter(Column("platform") == platform.rawValue)
                 .filter(Column("instanceName") == instanceName)
-                .filter(Column("collectedAt") >= from)
-                .filter(Column("collectedAt") <= to)
-                .order(Column("collectedAt").asc)
+                // COALESCE, not collectedAt: the chart plots periodEnd where it
+                // exists, so filtering on the import clock made the range
+                // selector lie in both directions — a backfill imported today
+                // was drawn a year to the left inside a "7 days" window, and a
+                // recent period imported two months ago was excluded from it.
+                .filter(sql: "COALESCE(periodEnd, collectedAt) >= ?", arguments: [from])
+                .filter(sql: "COALESCE(periodEnd, collectedAt) <= ?", arguments: [to])
+                .order(sql: "COALESCE(periodEnd, collectedAt) ASC")
                 .fetchAll(db)
         }
     }
@@ -428,9 +442,14 @@ extension AppDatabase {
                     )
                     """)
                 .fetchAll(db)
-            return Dictionary(uniqueKeysWithValues: rows.compactMap { row in
+            // `uniqueKeysWithValues` is a precondition, not an error — two rows
+            // sharing a MAX(collectedAt) for one instance would trap, and no
+            // caller's do/catch can absorb that. Keep the higher rowid instead.
+            return Dictionary(rows.compactMap { row -> (PlatformInstance, PlatformSnapshot)? in
                 guard let inst = row.instanceEnum else { return nil }
                 return (inst, row)
+            }, uniquingKeysWith: { first, second in
+                (second.id ?? 0) > (first.id ?? 0) ? second : first
             })
         }
     }

@@ -118,4 +118,42 @@ struct SubstackImporterTests {
         let result = try importer.parse(data: data)
         #expect(result.doubleMetric("avg_open_rate") == nil)
     }
+    @Test("The export's own period is recorded, without moving the import clock")
+    func exportPeriodIsRecorded() throws {
+        // Importing an old export used to file it as today's snapshot, so a
+        // backfill landed on top of current data.
+        let csv = """
+        post_id,post_date,title,open_rate,click_rate
+        1,2026-01-05,First,0.45,0.05
+        2,2026-03-20,Second,0.50,0.06
+        3,2026-02-10,Third,0.40,0.04
+        """
+        let data = try #require(csv.data(using: .utf8))
+        let result = try SubstackImporter().parse(data: data)
+
+        // periodEnd is the newest post in the file — not the first row.
+        #expect(result.periodEnd == ExportDates.date(from: "2026-03-20"))
+
+        // collectedAt stays the import clock. Moving it broke three things at
+        // once: two imports of one file produced identical timestamps and
+        // crashed latestSnapshots(), any export older than the staleness
+        // threshold was born stale, and SpikeDetector compared a snapshot with
+        // its own duplicate.
+        #expect(abs(result.collectedAt.timeIntervalSinceNow) < 60)
+    }
+
+    @Test("An export with no usable dates records no period rather than the epoch")
+    func noPeriodWhenNoDates() throws {
+        let csv = """
+        post_id,post_date,title,open_rate
+        1,,First,0.45
+        """
+        let data = try #require(csv.data(using: .utf8))
+        let result = try SubstackImporter().parse(data: data)
+
+        #expect(result.periodEnd == nil)
+
+        #expect(abs(result.collectedAt.timeIntervalSinceNow) < 60)
+    }
+
 }

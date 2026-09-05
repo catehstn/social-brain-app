@@ -14,6 +14,7 @@
 		0434DB34C669B38CFF30CF6E /* MultiInstanceDatabaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3C41D3F3B0270D6350F2348 /* MultiInstanceDatabaseTests.swift */; };
 		049BD8642DBF39AFE6BEA7C2 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = 8FD1535BDA3E5C8AE0DD0037 /* GRDB */; };
 		07EB2774970E7FDB3EAC6E83 /* SubstackImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2505C743A6696B343E4774E /* SubstackImporterTests.swift */; };
+		1D86C01E16BF444AA0E9BF2E /* ExportDatesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CBAECD0EA794231A38F73DC /* ExportDatesTests.swift */; };
 		0A7B04861D3AE5517A3BE706 /* RunViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84DDBF32B4FAE2B22DCB45DE /* RunViewModel.swift */; };
 		12F8C303A457D94149ABCAB9 /* SetupGuideSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C09881FED06F6E5629D17E0D /* SetupGuideSheet.swift */; };
 		14559F0CE878B76315A55696 /* HighReachDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7F1E234A0DE49718BDE9022 /* HighReachDetectorTests.swift */; };
@@ -50,6 +51,7 @@
 		5A3BC438A6E27326D77E94DA /* FeedViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E3F715FA10EB4303470093 /* FeedViewModelTests.swift */; };
 		5A99A8B940BC0017AAEE4C64 /* PromptAssembler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03FE43F9DB323E4D268EBE00 /* PromptAssembler.swift */; };
 		5C18DFF0CD1A386ACA251EFF /* SubstackImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D2C781BEE3E368AAD52A071 /* SubstackImporter.swift */; };
+		5BE28607F3564D44AC1DCBF7 /* ExportDates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 809C4F0642284D71A581C2A1 /* ExportDates.swift */; };
 		5C7C564E792CA1DD24E881AC /* CalendlyCollectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF6E210799137F03E23C4EC6 /* CalendlyCollectorTests.swift */; };
 		5F2BCDB24B8B05E351F06785 /* AmazonKDPImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54CF9E65755F901741FE20F9 /* AmazonKDPImporter.swift */; };
 		6025308D798885FB9D71C922 /* DashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD8CE54D3FD8FD77FB796D95 /* DashboardViewModel.swift */; };
@@ -199,6 +201,7 @@
 		859D5802079DEAF815EA07E2 /* CollectionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionEngine.swift; sourceTree = "<group>"; };
 		887C88E6C71E01161679B3B2 /* VercelCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VercelCollectorTests.swift; sourceTree = "<group>"; };
 		8D2C781BEE3E368AAD52A071 /* SubstackImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubstackImporter.swift; sourceTree = "<group>"; };
+		809C4F0642284D71A581C2A1 /* ExportDates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportDates.swift; sourceTree = "<group>"; };
 		8EF7CDD83F7795AF4221844C /* LinkedInImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedInImporter.swift; sourceTree = "<group>"; };
 		C5D6E7F8A9B0C1D2E3F4A5B6 /* LinkedInXLSXParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedInXLSXParser.swift; sourceTree = "<group>"; };
 		D6E7F8A9B0C1D2E3F4A5B6C7 /* MiniZIPReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniZIPReader.swift; sourceTree = "<group>"; };
@@ -231,6 +234,7 @@
 		D0B539D92D98ECFBF5B56077 /* FeedCardType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedCardType.swift; sourceTree = "<group>"; };
 		D1692A0E6ABD9BB6C437B0BF /* FeedViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedViewModel.swift; sourceTree = "<group>"; };
 		D2505C743A6696B343E4774E /* SubstackImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubstackImporterTests.swift; sourceTree = "<group>"; };
+		4CBAECD0EA794231A38F73DC /* ExportDatesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportDatesTests.swift; sourceTree = "<group>"; };
 		D2B324A06DBC07D1138FA417 /* PlatformSFSymbolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformSFSymbolTests.swift; sourceTree = "<group>"; };
 		D7F1E234A0DE49718BDE9022 /* HighReachDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighReachDetectorTests.swift; sourceTree = "<group>"; };
 		DBC7AA60FA245D9489A99649 /* CollectionEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionEngineTests.swift; sourceTree = "<group>"; };
@@ -383,6 +387,7 @@
 				1B63D76C0BF2AC6095ABE3CD /* MastodonCollector.swift */,
 				90650275C1573C7BE32CD277 /* OReillyImporter.swift */,
 				8D2C781BEE3E368AAD52A071 /* SubstackImporter.swift */,
+				809C4F0642284D71A581C2A1 /* ExportDates.swift */,
 				2128E07069D06A4F85D58B9B /* VercelCollector.swift */,
 			);
 			path = Collectors;
@@ -491,6 +496,7 @@
 				E5A3C1CF7C7A45D09C4FD2C9 /* MockURLSessionTests.swift */,
 				D99545779F1740D98B000C30 /* ISO8601DecodingTests.swift */,
 				D2505C743A6696B343E4774E /* SubstackImporterTests.swift */,
+				4CBAECD0EA794231A38F73DC /* ExportDatesTests.swift */,
 				887C88E6C71E01161679B3B2 /* VercelCollectorTests.swift */,
 			);
 			path = SocialBrainTests;
@@ -745,6 +751,7 @@
 				972A1EE96F744FFBA1A6C0C9 /* MockURLSessionTests.swift in Sources */,
 				92F2BBD0283D4563B9E3F4FB /* ISO8601DecodingTests.swift in Sources */,
 				07EB2774970E7FDB3EAC6E83 /* SubstackImporterTests.swift in Sources */,
+				1D86C01E16BF444AA0E9BF2E /* ExportDatesTests.swift in Sources */,
 				9354A382ADCA63501A491527 /* VercelCollectorTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -817,6 +824,7 @@
 				AAB8502F1F7DC7636BBA245E /* SpikeDetector.swift in Sources */,
 				B2EEAA1C9548441C9540082C /* SpikeNotifier.swift in Sources */,
 				5C18DFF0CD1A386ACA251EFF /* SubstackImporter.swift in Sources */,
+				5BE28607F3564D44AC1DCBF7 /* ExportDates.swift in Sources */,
 				85D3921C27997386AF05423D /* VercelCollector.swift in Sources */,
 				D4E5F6A7B8C9D0E1F2A3B4C5 /* WordPressOAuth.swift in Sources */,
 			);

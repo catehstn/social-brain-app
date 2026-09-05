@@ -52,6 +52,15 @@ struct SubstackImporter {
         let dataRows = rows.filter { !$0.allSatisfy(\.isEmpty) }
         guard !dataRows.isEmpty else { throw ImportError.emptyFile }
 
+        // `is_published` is absent from some exports, and columnIndex signals
+        // that with -1 rather than nil — so absence is checked explicitly here.
+        // Getting this wrong would silently empty the set rather than fail.
+        let publishedColumn = col("is_published")
+        let publishedRows = publishedColumn < 0 ? dataRows : dataRows.filter {
+            let raw = ($0[safe: publishedColumn] ?? "").lowercased()
+            return raw.isEmpty || raw == "true" || raw == "1" || raw == "yes"
+        }
+
         let openRates  = dataRows.compactMap { openRate(from: $0[safe: col("open_rate")]) }
         let clickRates = dataRows.compactMap { openRate(from: $0[safe: col("click_rate")]) }
 
@@ -64,7 +73,17 @@ struct SubstackImporter {
         if !clickRates.isEmpty {
             metrics["avg_click_rate"] = .double(clickRates.reduce(0, +) / Double(clickRates.count))
         }
-        return PlatformData(platform: .substack, metrics: metrics)
+        // periodEnd, not collectedAt. The import happened now — that is what
+        // orders snapshots and drives the staleness reminder — but the data
+        // describes the period ending at the newest post, which is what the
+        // chart axis and the prompt should say.
+        return PlatformData(
+            platform: .substack,
+            // Published rows only. The export includes scheduled drafts, whose
+            // dates are in the future and describe nothing that has happened.
+            periodEnd: ExportDates.latest(in: publishedRows, column: col("post_date")),
+            metrics: metrics
+        )
     }
 
     /// Legacy Substack export: Subject, Date, Recipients, Opens, Open rate, …
@@ -72,6 +91,15 @@ struct SubstackImporter {
         let col = columnIndex(header)
         let dataRows = rows.filter { !$0.allSatisfy(\.isEmpty) }
         guard !dataRows.isEmpty else { throw ImportError.emptyFile }
+
+        // `is_published` is absent from some exports, and columnIndex signals
+        // that with -1 rather than nil — so absence is checked explicitly here.
+        // Getting this wrong would silently empty the set rather than fail.
+        let publishedColumn = col("is_published")
+        let publishedRows = publishedColumn < 0 ? dataRows : dataRows.filter {
+            let raw = ($0[safe: publishedColumn] ?? "").lowercased()
+            return raw.isEmpty || raw == "true" || raw == "1" || raw == "yes"
+        }
 
         let openRates  = dataRows.compactMap { openRate(from: $0[safe: col("open rate")]) }
         let clickRates = dataRows.compactMap { openRate(from: $0[safe: col("click rate")]) }
