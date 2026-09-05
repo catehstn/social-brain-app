@@ -45,9 +45,10 @@ struct GoogleSearchConsoleCollector: Collector {
         guard let clientSecret = credentials["client_secret"] else {
             throw CollectorError.missingCredential("client_secret")
         }
-        guard let siteURL = credentials["site_url"] else {
+        guard let rawSiteURL = credentials["site_url"] else {
             throw CollectorError.missingCredential("site_url")
         }
+        let siteURL = try Self.validatedSiteURL(rawSiteURL)
 
         // Always refresh the token before collecting; GSC access tokens expire
         // after ~1 hour and we can't persist updated tokens back to Keychain here.
@@ -61,6 +62,10 @@ struct GoogleSearchConsoleCollector: Collector {
         let start = since ?? Calendar.current.date(byAdding: .day, value: -28, to: end)!
 
         let dateFormatter = DateFormatter()
+        // en_US_POSIX or the user's calendar leaks in: th_TH renders 2026 as the
+        // Buddhist year 2569, ar_SA uses Arabic-Indic digits. Search Console
+        // rejects both, so the collector was broken outright for those users.
+        dateFormatter.locale = Locale(identifier: "en_US_POSIX")
         dateFormatter.dateFormat = "yyyy-MM-dd"
         let startStr = dateFormatter.string(from: start)
         let endStr   = dateFormatter.string(from: end)
@@ -140,11 +145,14 @@ struct GoogleSearchConsoleCollector: Collector {
     /// to be percent-encoded — including `:` and `/`. Two things made this go
     /// wrong before:
     ///
-    /// - `.urlPathAllowed` permits `:` and `/`, so it does not encode a URL at
-    ///   all. It left `https://example.com/` almost untouched.
-    /// - `appendingPathComponent` then encoded what little it had produced a
-    ///   second time, turning `%3A` into `%253A`, while leaving the slashes to
-    ///   split into extra path segments.
+    /// - `.urlPathAllowed` encodes `:` (to `%3A`) but leaves `/` alone, because
+    ///   both are legal *within* a path. So `https://example.com/` came out as
+    ///   `https%3A//example.com/` — colon escaped once, slashes still live.
+    ///   (`CharacterSet.urlPathAllowed.contains(":")` returns `true`, which is
+    ///   misleading: it is not what the encoder honours.)
+    /// - `appendingPathComponent` then escaped that result's `%`, turning `%3A`
+    ///   into `%253A`, while the surviving slashes split the site URL across
+    ///   several path segments.
     ///
     /// The result was `sites/https%253A//example.com//searchAnalytics/query` —
     /// a property that cannot exist, so every request 404'd and Google Search
@@ -152,16 +160,41 @@ struct GoogleSearchConsoleCollector: Collector {
     ///
     /// Build the string directly instead: `appendingPathComponent` cannot be
     /// used here, because re-encoding an already-encoded segment is the bug.
-    static func searchAnalyticsURL(siteURL: String) throws -> URL {
+    static func searchAnalyticsURL(siteURL: String) -> URL {
         let encoded = percentEncodedSiteSegment(siteURL)
         let string = "\(apiBase.absoluteString)/webmasters/v3/sites/\(encoded)/searchAnalytics/query"
-        guard let url = URL(string: string) else {
+        // Not optional-handled: after the strict encoding above the string is
+        // pure ASCII from the unreserved set plus `%`, so this cannot fail. A
+        // `guard ... else { throw }` here would read as a reachable case and
+        // send the next reader looking for it.
+        return URL(string: string)!
+    }
+
+    /// Checks a site URL is one of the two forms Search Console accepts, and
+    /// returns it trimmed.
+    ///
+    /// Encoding cannot fail — after the strict pass the segment is pure ASCII,
+    /// so `URL(string:)` always succeeds. The failure users actually hit is
+    /// entering the property in a form Search Console does not recognise, so
+    /// that is what is checked.
+    static func validatedSiteURL(_ raw: String) throws -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw CollectorError.invalidCredential(key: "site_url", reason: "it is empty")
+        }
+        // A URL-prefix property, or a domain property.
+        guard trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://")
+                || trimmed.hasPrefix("sc-domain:") else {
             throw CollectorError.invalidCredential(
                 key: "site_url",
-                reason: "could not be turned into a Search Console request URL"
+                reason: """
+                    "\(trimmed)" is neither a URL-prefix property (starting https://) \
+                    nor a domain property (starting sc-domain:). Copy it exactly as \
+                    Search Console shows it.
+                    """
             )
         }
-        return url
+        return trimmed
     }
 
     /// Percent-encodes a site identifier for use as a single path segment.
@@ -175,7 +208,6 @@ struct GoogleSearchConsoleCollector: Collector {
         return siteURL.addingPercentEncoding(withAllowedCharacters: unreserved) ?? siteURL
     }
 
-
     private func fetchSearchAnalytics(
         siteURL: String,
         token: String,
@@ -184,7 +216,7 @@ struct GoogleSearchConsoleCollector: Collector {
         dimensions: [String],
         rowLimit: Int
     ) async throws -> SearchAnalyticsResponse {
-        let url = try Self.searchAnalyticsURL(siteURL: siteURL)
+        let url = Self.searchAnalyticsURL(siteURL: siteURL)
 
         var req = URLRequest(url: url)
         req.httpMethod = "POST"

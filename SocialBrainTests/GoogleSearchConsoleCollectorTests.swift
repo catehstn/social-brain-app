@@ -19,13 +19,6 @@ struct GoogleSearchConsoleCollectorTests {
         {"rows":[{"keys":[],"clicks":420,"impressions":9001,"ctr":0.0466,"position":12.5}]}
         """
 
-    private static let queriesJSON = """
-        {"rows":[
-          {"keys":["swift concurrency"],"clicks":100,"impressions":2000,"ctr":0.05,"position":8.1},
-          {"keys":["grdb migrations"],"clicks":50,"impressions":900,"ctr":0.055,"position":11.2}
-        ]}
-        """
-
     /// All three analytics calls share one path, so one fixture serves them.
     private func makeSession() -> MockURLSession {
         MockURLSession([
@@ -118,6 +111,8 @@ struct GoogleSearchConsoleCollectorTests {
         _ = try await collector.collect(since: nil, credentials: credentials)
 
         let path = "/webmasters/v3/sites/https%3A%2F%2Fexample.com%2F/searchAnalytics/query"
+        // allSatisfy is true of an empty array, so pin the count as well.
+        #expect(session.headerValues("Authorization", path: path).count == 3)
         #expect(session.headerValues("Authorization", path: path).allSatisfy { $0 == "Bearer ya29.test" })
         #expect(!session.requestedURLs.map(\.absoluteString).contains { $0.contains("access_token=") })
     }
@@ -139,9 +134,53 @@ struct GoogleSearchConsoleCollectorTests {
     func missingCredentialsAreNamed() async throws {
         let collector = GoogleSearchConsoleCollector(session: makeSession())
 
-        await #expect(throws: CollectorError.self) {
+        let error = await #expect(throws: CollectorError.self) {
             _ = try await collector.collect(since: nil, credentials: Credentials(["client_id": "cid"]))
         }
+        // Asserting only the error type would pass for any case and would not
+        // test what the test's name claims.
+        #expect(error?.localizedDescription.contains("refresh_token") == true)
+    }
+
+    @Test("A site URL in neither accepted form is rejected with an explanation",
+          arguments: ["", "   ", "example.com", "www.example.com", "ftp://example.com"])
+    func rejectsUnusableSiteURL(raw: String) {
+        #expect(throws: CollectorError.self) {
+            _ = try GoogleSearchConsoleCollector.validatedSiteURL(raw)
+        }
+    }
+
+    @Test("Both accepted property forms pass validation",
+          arguments: ["https://example.com/", "http://example.com/", "sc-domain:example.com",
+                      "  https://example.com/  "])
+    func acceptsValidSiteURL(raw: String) throws {
+        let validated = try GoogleSearchConsoleCollector.validatedSiteURL(raw)
+        #expect(validated == raw.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    @Test("The three analytics calls request different dimensions and the same window")
+    func requestBodiesDifferByDimension() async throws {
+        // Every call goes to one URL, so asserting only the URL cannot tell them
+        // apart: a collector sending dimensions: ["query"] three times would pass.
+        let session = makeSession()
+        let collector = GoogleSearchConsoleCollector(session: session)
+        let since = Date(timeIntervalSince1970: 1_767_225_600)  // 2026-01-01 UTC
+
+        _ = try await collector.collect(since: since, credentials: credentials)
+
+        let path = "/webmasters/v3/sites/https%3A%2F%2Fexample.com%2F/searchAnalytics/query"
+        let bodies = session.requests(path: path)
+            .compactMap(\.httpBody)
+            .compactMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+        #expect(bodies.count == 3)
+
+        let dimensionSets = Set(bodies.map { ($0["dimensions"] as? [String] ?? []).joined(separator: ",") })
+        #expect(dimensionSets == ["", "query", "page"])
+
+        // The window is the same for all three, and formatted the way the API
+        // wants regardless of the machine's locale.
+        #expect(Set(bodies.compactMap { $0["startDate"] as? String }) == ["2026-01-01"])
+        #expect(bodies.allSatisfy { ($0["endDate"] as? String)?.count == 10 })
     }
 
     @Test("Propagates an HTTP error from the token endpoint")

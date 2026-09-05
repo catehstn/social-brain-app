@@ -122,10 +122,20 @@ struct MockURLSession: URLSessionProtocol, Sendable {
         headerValues(name, path: path).first
     }
 
-    /// The path as it goes on the wire. `URL.path` decodes percent-escapes;
-    /// `URLComponents.percentEncodedPath` does not.
+    /// The path as it goes on the wire.
+    ///
+    /// `URL.path` differs in two ways, both of which hide real bugs: it decodes
+    /// percent-escapes, and it strips a trailing slash (`/emails/` becomes
+    /// `/emails`). No collector builds a path with a trailing slash today, but
+    /// the first one that does would otherwise fail to match for a reason the
+    /// fixture key gives no hint of.
     private static func encodedPath(of url: URL) -> String {
-        URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedPath ?? url.path
+        guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            // Falling back to `url.path` would silently restore the decoded
+            // matching this exists to avoid. Fail visibly instead.
+            return url.absoluteString
+        }
+        return components.percentEncodedPath
     }
 
     /// Thread-safe because collectors may issue requests concurrently.
