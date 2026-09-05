@@ -6,15 +6,21 @@ import Foundation
 /// skipped while reading it shifts every subsequent lookup and silently returns
 /// the wrong text (#72).
 ///
-/// Fixtures are real ZIP archives built with `/usr/bin/zip` from real OOXML,
-/// not bytes shaped to match this implementation. #70 is what happens when a
-/// parser is tested against its own assumptions.
+/// Fixtures are real ZIP archives built with `/usr/bin/zip`, containing
+/// hand-written but spec-conformant OOXML — not bytes shaped to match this
+/// implementation. (Real *archives*; the XML inside is written for the test
+/// rather than extracted from an Excel workbook.) #107 is what happens when a
+/// parser is tested only against its own assumptions.
 @Suite("LinkedIn XLSX parser")
 struct LinkedInXLSXParserTests {
 
     private let parser = LinkedInXLSXParser()
 
-    /// Packages the given part paths into a real `.xlsx`-shaped archive.
+    /// Packages the given paths into a ZIP.
+    ///
+    /// Not a valid `.xlsx` — there is no `[Content_Types].xml` or `_rels`, so
+    /// Excel would reject it. That does not matter here, because `MiniZIPReader`
+    /// only looks entries up by name.
     private func makeXLSX(_ parts: [String: String]) throws -> Data {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("xlsx-\(UUID().uuidString)", isDirectory: true)
@@ -38,6 +44,11 @@ struct LinkedInXLSXParserTests {
         process.standardError = FileHandle.nullDevice
         try process.run()
         process.waitUntilExit()
+        // Otherwise a zip failure surfaces as a confusing file-not-found below.
+        guard process.terminationStatus == 0 else {
+            Issue.record("zip exited \(process.terminationStatus)")
+            throw CocoaError(.fileNoSuchFile)
+        }
         return try Data(contentsOf: archive)
     }
 
@@ -78,11 +89,10 @@ struct LinkedInXLSXParserTests {
             """)
         let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
 
-        let strings = parser.extractSharedStrings(from: zip)
-        #expect(strings == ["Impressions", "Engagements", "Followers"])
-        // Index 2 is the assertion that matters: under the old code it was
-        // "Followers" at index 1 and index 2 did not exist.
-        #expect(strings[safe: 2] == "Followers")
+        // Equality covers the alignment: under the old code this was
+        // ["Impressions", "Followers"], so index 2 did not exist at all.
+        #expect(parser.extractSharedStrings(from: zip)
+                == ["Impressions", "Engagements", "Followers"])
     }
 
     @Test("Phonetic hints are excluded rather than concatenated into the value")
@@ -95,14 +105,40 @@ struct LinkedInXLSXParserTests {
         #expect(parser.extractSharedStrings(from: zip) == ["東京"])
     }
 
-    @Test("An empty string entry still occupies its index")
+    @Test("An empty <t> entry still occupies its index")
     func emptyEntryKeepsItsSlot() throws {
         let xml = sharedStrings("<si><t></t></si><si><t>After</t></si>")
         let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
 
-        let strings = parser.extractSharedStrings(from: zip)
-        #expect(strings.count == 2)
-        #expect(strings[1] == "After")
+        #expect(parser.extractSharedStrings(from: zip) == ["", "After"])
+    }
+
+    @Test("A wholly empty <si/> also keeps its slot")
+    func emptySelfClosingEntryKeepsItsSlot() throws {
+        // A second index shift the old XPath had: <si/> matched nothing, so it
+        // vanished and everything after it moved up. The <t></t> case above
+        // passes under both implementations, so this is the one that guards it.
+        let xml = sharedStrings("<si/><si><t>After</t></si>")
+        let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
+
+        #expect(parser.extractSharedStrings(from: zip) == ["", "After"])
+    }
+
+    @Test("An entry with both a direct <t> and runs concatenates in document order")
+    func directTextAndRunsCombine() throws {
+        // CT_Rst is a sequence (t?, r*, …), so document order is schema order.
+        let xml = sharedStrings("<si><t>Head</t><r><t>Tail</t></r></si>")
+        let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
+
+        #expect(parser.extractSharedStrings(from: zip) == ["HeadTail"])
+    }
+
+    @Test("Significant whitespace around real content survives")
+    func preservesSignificantWhitespace() throws {
+        let xml = sharedStrings("<si><t xml:space=\"preserve\"> lead</t></si>")
+        let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
+
+        #expect(parser.extractSharedStrings(from: zip) == [" lead"])
     }
 
     @Test("A workbook with no shared strings yields an empty table, not a crash")
@@ -110,10 +146,55 @@ struct LinkedInXLSXParserTests {
         let zip = try MiniZIPReader(data: try makeXLSX(["xl/worksheets/sheet1.xml": "<x/>"]))
         #expect(parser.extractSharedStrings(from: zip).isEmpty)
     }
-}
+    // MARK: - End to end
 
-private extension Array {
-    subscript(safe index: Int) -> Element? {
-        indices.contains(index) ? self[index] : nil
+    /// A sheet whose row 1 holds shared-string headers and whose later rows hold
+    /// numbers, so the whole path is exercised: shared strings → column
+    /// detection → summing.
+    private func engagementSheet() -> String {
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+        <sheetData>
+          <row r="1">
+            <c r="A1" t="s"><v>0</v></c>
+            <c r="B1" t="s"><v>1</v></c>
+            <c r="C1" t="s"><v>2</v></c>
+          </row>
+          <row r="2"><c r="C2"><v>10</v></c></row>
+          <row r="3"><c r="C3"><v>32</v></c></row>
+        </sheetData>
+        </worksheet>
+        """
     }
+
+    @Test("A rich-text header is still found, so the right column is summed")
+    func richTextHeaderIsMatchedEndToEnd() throws {
+        // The damage path the shared-string bug actually took: extractSharedStrings
+        // → engagementsColumn → sumColumn. With the entry dropped, index 2 was
+        // out of range, no column matched, and detection fell back to a
+        // hard-coded "C" — right by luck here, which is why the unit test above
+        // is what proves the fix and this proves the path is wired.
+        let strings = sharedStrings("""
+            <si><t>Date</t></si>\
+            <si><t>Impressions</t></si>\
+            <si><r><t>Enga</t></r><r><t>gements</t></r></si>
+            """)
+        let data = try makeXLSX([
+            "xl/sharedStrings.xml": strings,
+            "xl/worksheets/sheet2.xml": engagementSheet()
+        ])
+
+        let result = try parser.parse(data: data)
+        #expect(result.intMetric("total_engagements") == 42)
+    }
+
+    @Test("A workbook with no recognisable sheets does not crash")
+    func unrecognisedWorkbookIsHandled() throws {
+        let data = try makeXLSX(["xl/sharedStrings.xml": sharedStrings("<si><t>x</t></si>")])
+        // Whether it throws or returns empty metrics is the parser's business;
+        // trapping is not.
+        _ = try? parser.parse(data: data)
+    }
+
 }
