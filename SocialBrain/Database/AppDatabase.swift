@@ -9,21 +9,81 @@ actor AppDatabase {
 
     // MARK: - Lifecycle
 
-    /// Creates or opens the database at the given path and runs all migrations.
+    /// Creates or opens the database at the default location and runs all
+    /// migrations.
+    ///
+    /// Under a test host this opens a **throwaway** database instead. Unit tests
+    /// are injected into the app, so launching them runs `SocialBrainApp`, which
+    /// opens this — meaning every `xcodebuild test` run previously opened and
+    /// migrated the user's real store. That is not theoretical: an experimental
+    /// migration run in an isolated git worktree was applied to the real
+    /// database, twice, because the file is shared by every checkout. Had it
+    /// held data rather than being empty, the history would have been destroyed
+    /// and could not have been re-fetched.
     static func makeDefault() throws -> AppDatabase {
-        let fm = FileManager.default
-        let appSupport = try fm.url(
-            for: .applicationSupportDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
-        let dir = appSupport.appendingPathComponent("SocialBrain", isDirectory: true)
-        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
-        let dbURL = dir.appendingPathComponent("analytics.sqlite")
         let config = AppDatabase.makeConfiguration()
-        let dbPool = try DatabasePool(path: dbURL.path, configuration: config)
+        let dbPool = try DatabasePool(path: try defaultDatabaseURL().path, configuration: config)
         return try AppDatabase(dbPool)
+    }
+
+    /// `true` when running inside an XCTest host.
+    ///
+    /// `AppDelegate` already uses this variable to close windows at launch, so
+    /// the app is aware it is under test; it just wasn't using that to keep away
+    /// from the real data.
+    static var isRunningUnderTest: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
+    /// Where the database lives — the real Application Support location
+    /// normally, a per-process temporary directory under a test host.
+    static func defaultDatabaseURL() throws -> URL {
+        let fm = FileManager.default
+        let container: URL
+        if isRunningUnderTest {
+            // Per-process, so concurrent test runs cannot collide, and nothing
+            // survives to be inherited by the next run.
+            removeStaleTestDatabases()
+            container = fm.temporaryDirectory
+                .appendingPathComponent(testContainerPrefix + "\(ProcessInfo.processInfo.processIdentifier)",
+                                        isDirectory: true)
+        } else {
+            container = try fm.url(
+                for: .applicationSupportDirectory,
+                in: .userDomainMask,
+                appropriateFor: nil,
+                create: true
+            )
+        }
+        let dir = container.appendingPathComponent("SocialBrain", isDirectory: true)
+        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("analytics.sqlite")
+    }
+
+    private static let testContainerPrefix = "SocialBrainTests-"
+
+    /// Deletes throwaway databases left by earlier test processes.
+    ///
+    /// A per-process directory with no cleanup is how 266 orphaned plists
+    /// accumulated elsewhere in this app; one file per test run adds up the same
+    /// way. Only directories belonging to processes that are no longer running
+    /// are removed, so concurrent runs are safe.
+    private static func removeStaleTestDatabases() {
+        let fm = FileManager.default
+        let current = ProcessInfo.processInfo.processIdentifier
+        guard let entries = try? fm.contentsOfDirectory(
+            at: fm.temporaryDirectory, includingPropertiesForKeys: nil
+        ) else { return }
+
+        for entry in entries where entry.lastPathComponent.hasPrefix(testContainerPrefix) {
+            let suffix = entry.lastPathComponent.dropFirst(testContainerPrefix.count)
+            guard let pid = Int32(suffix), pid != current else { continue }
+            // kill(pid, 0) succeeds only if the process exists and is signalable;
+            // ESRCH means it is gone and the directory is safe to remove.
+            if kill(pid, 0) != 0 && errno == ESRCH {
+                try? fm.removeItem(at: entry)
+            }
+        }
     }
 
     /// Creates an in-memory database; used in tests.
