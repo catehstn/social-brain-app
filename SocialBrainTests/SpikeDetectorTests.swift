@@ -206,4 +206,66 @@ struct SpikeDetectorTests {
         let spikes = cards.filter { $0.cardType == .spikeAlert }
         #expect(spikes.isEmpty)
     }
+    // MARK: - The magnitude floor
+
+    @Test("A big percentage swing between tiny numbers is not a spike")
+    func tinyNumbersAreNotSpikes() throws {
+        // The case that made this necessary: 0.5 → 0.7 average favourites is a
+        // 40% change and means nothing. Since #109 the background refresh fires
+        // these with sound at a system-chosen moment, so the cost is teaching
+        // the user to dismiss notifications.
+        let previous = try makeSnapshot(platform: .mastodon, metrics: ["avg_favourites": .double(0.5)])
+        let current  = try makeSnapshot(platform: .mastodon, metrics: ["avg_favourites": .double(0.7)])
+
+        #expect(SpikeDetector().detect(current: current, previous: previous).isEmpty)
+    }
+
+    @Test("A real shift in a small-but-meaningful average still surfaces")
+    func meaningfulAveragesStillSurface() throws {
+        // The floor is on the values, not the change, precisely so this survives:
+        // 4 → 5 average favourites is a genuine 25% engagement shift.
+        let previous = try makeSnapshot(platform: .mastodon, metrics: ["avg_favourites": .double(4.0)])
+        let current  = try makeSnapshot(platform: .mastodon, metrics: ["avg_favourites": .double(5.0)])
+
+        #expect(SpikeDetector().detect(current: current, previous: previous).count == 1)
+    }
+
+    @Test("Rates are judged on a rate-sized scale, not the count floor")
+    func ratesUseTheirOwnFloor() throws {
+        // Rates are 0–1 fractions, so the count floor of 5 would suppress every
+        // one of them.
+        let previous = try makeSnapshot(platform: .buttondown, metrics: ["avg_open_rate": .double(0.40)])
+        let current  = try makeSnapshot(platform: .buttondown, metrics: ["avg_open_rate": .double(0.55)])
+
+        #expect(SpikeDetector().detect(current: current, previous: previous).count == 1)
+    }
+
+    @Test("A tiny rate wobbling is still suppressed")
+    func tinyRatesAreSuppressed() throws {
+        // 0.5% → 0.7% click rate is +40% and is noise.
+        let previous = try makeSnapshot(platform: .buttondown, metrics: ["avg_click_rate": .double(0.005)])
+        let current  = try makeSnapshot(platform: .buttondown, metrics: ["avg_click_rate": .double(0.007)])
+
+        #expect(SpikeDetector().detect(current: current, previous: previous).isEmpty)
+    }
+
+    @Test("Metric kind is recognised from the key",
+          arguments: [("avg_open_rate", true), ("avg_click_rate", true), ("avg_ctr", true),
+                      ("followers_count", false), ("total_impressions", false),
+                      ("avg_favourites", false)])
+    func recognisesRates(key: String, isRate: Bool) {
+        // Keyed off the name because the metric vocabulary is stringly-typed
+        // (#63) — a shared vocabulary carrying units would remove the guesswork.
+        #expect(SpikeDetector.isRate(key) == isRate)
+    }
+
+    @Test("The floors are injectable, so a caller can tune them")
+    func floorsAreInjectable() throws {
+        let previous = try makeSnapshot(platform: .mastodon, metrics: ["avg_favourites": .double(0.5)])
+        let current  = try makeSnapshot(platform: .mastodon, metrics: ["avg_favourites": .double(0.7)])
+
+        let permissive = SpikeDetector(minimumCountMagnitude: 0)
+        #expect(permissive.detect(current: current, previous: previous).count == 1)
+    }
+
 }

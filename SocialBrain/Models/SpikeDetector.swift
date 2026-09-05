@@ -42,8 +42,50 @@ struct SpikeDetector: Sendable {
     /// The minimum absolute percentage change required to surface a spike (default 20%).
     let threshold: Double
 
-    init(threshold: Double = 20.0) {
+    /// How large a count or average has to get before a percentage change in it
+    /// is worth reporting.
+    ///
+    /// A percentage gate alone is meaningless on small numbers: an average
+    /// favourites count moving 0.5 → 0.7 is a "40% spike". That was tolerable
+    /// while spikes only appeared seconds after the user pressed Run and was
+    /// looking at the screen; since #109 the background refresh fires them too,
+    /// with sound, at a moment the system picks. The cost is not the noise but
+    /// what it teaches — someone who learns to dismiss these stops reading the
+    /// real ones, which is the whole value of the feature.
+    ///
+    /// Deliberately a floor on the *values* rather than on the change. A floor
+    /// on the change would suppress an average moving 4 → 5, which is a real
+    /// shift in engagement; what needs suppressing is 0.5 → 0.7, where the
+    /// numbers are too small for any movement to mean much.
+    let minimumCountMagnitude: Double
+
+    /// The same, for rates.
+    ///
+    /// Rates are stored as 0–1 fractions, so the count floor would suppress all
+    /// of them. Five percentage points is the equivalent scale: a click rate
+    /// wobbling between 0.5% and 0.7% is noise, one moving 40% → 50% is not.
+    let minimumRateMagnitude: Double
+
+    init(threshold: Double = 20.0,
+         minimumCountMagnitude: Double = 5.0,
+         minimumRateMagnitude: Double = 0.05) {
         self.threshold = threshold
+        self.minimumCountMagnitude = minimumCountMagnitude
+        self.minimumRateMagnitude = minimumRateMagnitude
+    }
+
+    /// Whether a metric holds a 0–1 rate rather than a count.
+    ///
+    /// Keyed off the name because the metric vocabulary is stringly-typed
+    /// (#63). A shared vocabulary carrying the unit would make this unnecessary.
+    static func isRate(_ key: String) -> Bool {
+        let lowered = key.lowercased()
+        return lowered.contains("rate") || lowered.contains("ctr")
+    }
+
+    /// The magnitude this metric has to reach before a change in it counts.
+    func minimumMagnitude(forKey key: String) -> Double {
+        Self.isRate(key) ? minimumRateMagnitude : minimumCountMagnitude
     }
 
     /// Returns spike alerts for all numeric metrics that changed significantly
@@ -66,6 +108,12 @@ struct SpikeDetector: Sendable {
             guard let currentVal = currentMetrics[key]?.numberValue,
                   let previousVal = previousMetrics[key]?.numberValue,
                   previousVal != 0
+            else { continue }
+
+            // Both gates, not either: a large relative change between tiny
+            // numbers is not news, and a small relative change between large
+            // ones is not either.
+            guard max(abs(currentVal), abs(previousVal)) >= minimumMagnitude(forKey: key)
             else { continue }
 
             let pctChange = abs(((currentVal - previousVal) / abs(previousVal)) * 100)
