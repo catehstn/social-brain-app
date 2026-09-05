@@ -93,7 +93,11 @@ final class DashboardViewModel {
         }
 
         return keys.compactMap { (key, label) -> MetricSeries? in
-            guard let points = pointsPerKey[key], !points.isEmpty else { return nil }
+            guard var points = pointsPerKey[key], !points.isEmpty else { return nil }
+            // Sort by the plotted date. LineMark connects points in data order,
+            // and rows arrive ordered by the query, so a periodEnd that differs
+            // from collectedAt drew the line backwards.
+            points.sort { $0.date < $1.date }
             return MetricSeries(label: label, key: key, points: points)
         }
     }

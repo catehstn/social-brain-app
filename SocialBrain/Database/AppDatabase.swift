@@ -349,9 +349,14 @@ extension AppDatabase {
             try PlatformSnapshot
                 .filter(Column("platform") == platform.rawValue)
                 .filter(Column("instanceName") == instanceName)
-                .filter(Column("collectedAt") >= from)
-                .filter(Column("collectedAt") <= to)
-                .order(Column("collectedAt").asc)
+                // COALESCE, not collectedAt: the chart plots periodEnd where it
+                // exists, so filtering on the import clock made the range
+                // selector lie in both directions — a backfill imported today
+                // was drawn a year to the left inside a "7 days" window, and a
+                // recent period imported two months ago was excluded from it.
+                .filter(sql: "COALESCE(periodEnd, collectedAt) >= ?", arguments: [from])
+                .filter(sql: "COALESCE(periodEnd, collectedAt) <= ?", arguments: [to])
+                .order(sql: "COALESCE(periodEnd, collectedAt) ASC")
                 .fetchAll(db)
         }
     }

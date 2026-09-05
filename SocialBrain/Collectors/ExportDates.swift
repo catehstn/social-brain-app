@@ -15,7 +15,7 @@ enum ExportDates {
     ///
     /// `en_US_POSIX` throughout: a user with a Thai or Persian locale would
     /// otherwise parse a Gregorian date against a different calendar, which is
-    /// the bug found in `GoogleSearchConsoleCollector` (#68).
+    /// the bug found in `GoogleSearchConsoleCollector`, fixed in #104.
     private static let formats = [
         "yyyy-MM-dd'T'HH:mm:ss.SSSZ",
         "yyyy-MM-dd'T'HH:mm:ssZ",
@@ -47,9 +47,18 @@ enum ExportDates {
     /// snapshot it produces describes the state at the end of that period.
     /// Returns `nil` when the column is absent or nothing parses, so callers can
     /// fall back rather than silently record an epoch date.
-    static func latest(in rows: [[String]], column: Int?) -> Date? {
-        guard let column else { return nil }
-        return rows.compactMap { date(from: $0[safe: column]) }.max()
+    ///
+    /// A negative index counts as absent: the importers' `columnIndex` helper
+    /// signals a missing column with `-1`, not `nil`, so an `Int?` parameter
+    /// alone would not catch it.
+    static func latest(in rows: [[String]], column: Int?, now: Date = .now) -> Date? {
+        guard let column, column >= 0 else { return nil }
+        // Clamped to now. Substack exports include scheduled posts, so a future
+        // date is a real possibility, and a future periodEnd would put the row
+        // beyond every Dashboard range and make it permanently the latest.
+        return rows.compactMap { date(from: $0[safe: column]) }
+            .filter { $0 <= now }
+            .max()
     }
 }
 
