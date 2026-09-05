@@ -50,10 +50,14 @@ struct ButtondownCollector: Collector {
             "new_subscribers":  .int(new),
             "emails_sent":      .int(stats.count)
         ]
-        if !stats.openRates.isEmpty {
-            let avgOpen  = stats.openRates.reduce(0, +) / Double(stats.openRates.count)
-            let avgClick = stats.clickRates.reduce(0, +) / Double(stats.clickRates.count)
-            metrics["avg_open_rate"]  = .double(avgOpen)
+        // Each average guards its own divisor. Previously both were gated on
+        // openRates while avgClick divided by clickRates.count, so an email with
+        // an open rate and no click rate produced 0/0 = NaN — which JSONEncoder
+        // then refuses, aborting the entire collection run.
+        if let avgOpen = stats.openRates.mean {
+            metrics["avg_open_rate"] = .double(avgOpen)
+        }
+        if let avgClick = stats.clickRates.mean {
             metrics["avg_click_rate"] = .double(avgClick)
         }
 
@@ -151,4 +155,12 @@ private func iso8601Date(_ date: Date) -> String {
     let fmt = ISO8601DateFormatter()
     fmt.formatOptions = [.withFullDate]
     return fmt.string(from: date)
+}
+
+private extension Collection where Element == Double {
+    /// The arithmetic mean, or `nil` when empty — so an empty collection can
+    /// never yield NaN by dividing by zero.
+    var mean: Double? {
+        isEmpty ? nil : reduce(0, +) / Double(count)
+    }
 }

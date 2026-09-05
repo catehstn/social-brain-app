@@ -152,4 +152,75 @@ struct ButtondownCollectorTests {
         #expect(session.queryValues("publish_date__gte", path: "/v1/emails").isEmpty)
     }
 
+    @Test("An email with an open rate but no click rate does not produce NaN")
+    func openRateWithoutClickRateIsNotNaN() async throws {
+        // The exact shape that aborted every collection run: the guard checked
+        // openRates while the divisor was clickRates.count, so 0/0 = NaN, and
+        // JSONEncoder refuses NaN when the snapshot is persisted.
+        // open_rate present, click_rate absent — Buttondown omits click_rate for
+        // an email containing no links.
+        let emails = """
+            {
+              "count": 1,
+              "next": null,
+              "previous": null,
+              "results": [
+                { "id": "e1", "subject": "No links", "email_stats": { "open_rate": 0.45 } }
+              ]
+            }
+            """
+        let session = MockURLSession([
+            "/v1/subscribers": (ButtondownCollectorTests.subscribersJSON, 200),
+            "/v1/emails":      (emails, 200)
+        ])
+        let collector = ButtondownCollector(
+            session: session,
+            baseURL: URL(string: "https://api.buttondown.email/v1")!
+        )
+
+        let data = try await collector.collect(since: nil, credentials: Credentials(["api_key": "k"]))
+
+        for (key, value) in data.metrics {
+            if case .double(let d) = value {
+                #expect(!d.isNaN, "\(key) is NaN")
+                #expect(d.isFinite, "\(key) is not finite")
+            }
+        }
+        // The metric is omitted rather than reported as zero: no clicks were
+        // measured, which is not the same as a zero click rate.
+        #expect(data.metrics["avg_click_rate"] == nil)
+    }
+
+    @Test("Metrics survive JSON encoding, which is what a NaN breaks")
+    func metricsAreEncodable() async throws {
+        // open_rate present, click_rate absent — Buttondown omits click_rate for
+        // an email containing no links.
+        let emails = """
+            {
+              "count": 1,
+              "next": null,
+              "previous": null,
+              "results": [
+                { "id": "e1", "subject": "No links", "email_stats": { "open_rate": 0.45 } }
+              ]
+            }
+            """
+        let session = MockURLSession([
+            "/v1/subscribers": (ButtondownCollectorTests.subscribersJSON, 200),
+            "/v1/emails":      (emails, 200)
+        ])
+        let collector = ButtondownCollector(
+            session: session,
+            baseURL: URL(string: "https://api.buttondown.email/v1")!
+        )
+
+        let data = try await collector.collect(since: nil, credentials: Credentials(["api_key": "k"]))
+
+        // Asserting !isNaN alone would not catch a different unencodable value;
+        // this is the operation that actually failed in production.
+        #expect(throws: Never.self) {
+            _ = try JSONEncoder().encode(data.metrics)
+        }
+    }
+
 }

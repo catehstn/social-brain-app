@@ -119,7 +119,9 @@ struct RunView: View {
             Text("\(completed) / \(total) platforms")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            platformResultList
+            // Live progress genuinely is the pre-persist view; persistence has
+            // not happened yet while the run is in flight.
+            platformResultList(viewModel.completedPlatforms)
         }
         .padding(.top, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -133,7 +135,12 @@ struct RunView: View {
                     statBadge(label: "Errors", value: "\(summary.errorCount)", color: .red)
                 }
             }
-            platformResultList
+            // summary.results, not viewModel.completedPlatforms: the latter is
+            // populated from the progress callback, i.e. before persistence. A
+            // platform demoted to a failure because its metrics could not be
+            // saved would show a green tick here while the badge above counted
+            // it as an error.
+            platformResultList(summary.results)
             if viewModel.generatedPrompt != nil {
                 Button {
                     showingPrompt = true
@@ -157,8 +164,8 @@ struct RunView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var platformResultList: some View {
-        List(viewModel.completedPlatforms, id: \.platform) { result in
+    private func platformResultList(_ results: [CollectionResult]) -> some View {
+        List(results, id: \.instance) { result in
             HStack {
                 Image(systemName: result.isSuccess ? "checkmark.circle.fill" : "xmark.circle.fill")
                     .foregroundStyle(result.isSuccess ? .green : .red)

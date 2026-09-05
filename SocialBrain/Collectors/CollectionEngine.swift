@@ -115,16 +115,52 @@ actor CollectionEngine {
         }
 
         // Persist successful snapshots.
+        //
+        // A failure here used to propagate straight out of `run`, so one
+        // platform whose metrics could not be encoded took the whole collection
+        // with it: every snapshot after it went unsaved and `completeRun` never
+        // ran, leaving a dangling open run in the database. One bad collector
+        // must not cost the other thirteen — demote it to a failure for that
+        // platform and carry on.
+        var persisted: [CollectionResult] = []
         for result in results {
-            if let data = result.platformData {
+            guard let data = result.platformData else {
+                persisted.append(result)
+                continue
+            }
+            do {
                 var snapshot = try PlatformSnapshot(runID: runID, data: data)
                 try await database.saveSnapshot(&snapshot)
+                persisted.append(result)
+            } catch {
+                // Wrapped, not raw: a raw EncodingError or GRDB DatabaseError
+                // is not LocalizedError, so the Run screen would render "The
+                // operation couldn't be completed. (Swift.EncodingError error
+                // 0.)". It is also a genuinely different kind of failure from a
+                // collector error — the data was fetched successfully and then
+                // lost, and the user cannot fix it by re-entering a token.
+                persisted.append(.failure(
+                    platform: data.platform,
+                    instanceName: data.instanceName,
+                    error: CollectorError.persistenceFailed(underlying: error)
+                ))
             }
         }
+        results = persisted
 
         // Mark the run as completed.
+        //
+        // Also non-fatal. This throws for the same reasons saveSnapshot does —
+        // disk full, locked database — and letting it propagate would leave
+        // exactly the dangling open run that demoting persistence errors was
+        // meant to prevent, while discarding a summary whose results are all
+        // already known.
         let errorCount = results.filter { !$0.isSuccess }.count
-        try await database.completeRun(id: runID, errorCount: errorCount)
+        do {
+            try await database.completeRun(id: runID, errorCount: errorCount)
+        } catch {
+            NSLog("Could not mark run %lld complete: %@", runID, error.localizedDescription)
+        }
 
         let completedAt = Date()
         return CollectionSummary(

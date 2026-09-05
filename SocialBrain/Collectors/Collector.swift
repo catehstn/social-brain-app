@@ -32,11 +32,15 @@ extension Collector {
 
 enum CollectorError: LocalizedError, Sendable {
     case missingCredential(String)
-    /// A credential is present but cannot be used — e.g. a site URL that no
-    /// amount of encoding turns into a valid request URL. Distinct from
-    /// `missingCredential`, because "you didn't enter it" and "what you entered
-    /// won't work" need different things from the user.
+    /// A credential is present but cannot be used — e.g. a site URL in a form
+    /// Search Console does not accept. Distinct from `missingCredential`,
+    /// because "you didn't enter it" and "what you entered won't work" need
+    /// different things from the user.
     case invalidCredential(key: String, reason: String)
+    /// Collected successfully, then could not be written to the database.
+    /// Distinct from a collector failure: the data existed and was lost, and
+    /// there is nothing the user can re-enter to fix it.
+    case persistenceFailed(underlying: any Error)
     case httpError(statusCode: Int, body: String)
     case decodingError(String)
     case networkError(underlying: Error)
@@ -47,6 +51,8 @@ enum CollectorError: LocalizedError, Sendable {
             "Missing credential '\(key)'"
         case .invalidCredential(let key, let reason):
             "Credential '\(key)' is not usable: \(reason)"
+        case .persistenceFailed(let underlying):
+            "Collected, but could not be saved: \(underlying.localizedDescription)"
         case .httpError(let code, let body):
             "HTTP \(code): \(body.prefix(200))"
         case .decodingError(let msg):
