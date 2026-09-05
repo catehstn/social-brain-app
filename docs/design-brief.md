@@ -32,12 +32,11 @@ Me (Cate). Weekly cadence, usually Saturday or Sunday morning with coffee. Also:
 - **Analytics goal** — the user's stated priority (chosen during onboarding). Displayed as a badge in the sidebar. Colours the prompt.
 - **Prompt** — a Claude-shaped text blob assembled from the latest run.
 
-**Platforms (13):**
-- **API key:** Buttondown · GoatCounter · Calendly · Amazon KDP · Google Search Console · Buffer
-- **OAuth / token:** Mastodon · Bluesky · Jetpack (WordPress.com)
-- **File export (drag-drop):** LinkedIn (XLSX) · O'Reilly (email) · Substack (CSV)
+**Platforms (13):** grouped as `Platform.swift` declares them —
+- **API key:** Buttondown · GoatCounter · Calendly · Buffer
+- **OAuth / token:** Mastodon · Bluesky · Jetpack (WordPress.com) · Google Search Console
+- **File export (drag-drop):** LinkedIn (XLSX) · O'Reilly (email) · Substack (CSV) · Amazon KDP
 - **No auth:** Hacker News
-- **Also collects:** Mentions synthesis (aggregates HN / GSC / mastodon / bluesky mention data)
 
 ## Sidebar (top-level navigation)
 
@@ -87,7 +86,7 @@ This is the chart-heavy screen. Not the home briefing.
 - Empty state: "No runs yet — run a collection to see history here."
 
 ### Platforms
-- **Adaptive grid of cards** (mid-redesign — see `trycycle-plan.md` in the repo). Each card:
+- **Adaptive grid of cards** (grid shipped in [#31](https://github.com/catehstn/social-brain-app/pull/31); polish pending in [#40](https://github.com/catehstn/social-brain-app/issues/40)). Each card:
   - SF Symbol icon (accent-coloured)
   - Platform display name
   - Status: "Not set up" (secondary) or "N accounts" (with green ✓)
@@ -106,7 +105,7 @@ This is the chart-heavy screen. Not the home briefing.
 4. **Ready** — confirmation, "Go to Platforms" primary action.
 
 ### Settings *(macOS Prefs window)*
-- Data location (default `~/Library/Application Support/SocialBrain/`).
+- Data location (default `~/Library/Containers/com.catehuston.SocialBrain/Data/Library/Application Support/SocialBrain/` — the app is sandboxed).
 - Auto-refresh: on/off + time-of-day picker (uses `NSBackgroundActivityScheduler`).
 - Notifications: stale-export reminders (uses `UserNotifications`).
 - Analytics goal (also editable here).
