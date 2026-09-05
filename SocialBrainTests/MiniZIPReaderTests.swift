@@ -83,11 +83,7 @@ struct MiniZIPReaderTests {
         let body = String(repeating: "x", count: 1000)
         var data = try makeZIP(["a.txt": body])
 
-        let signature: [UInt8] = [0x50, 0x4B, 0x01, 0x02]
-        let bytes = [UInt8](data)
-        let start = try #require(
-            (0..<(bytes.count - 4)).first { Array(bytes[$0..<($0 + 4)]) == signature }
-        )
+        let start = try #require(Self.centralDirectoryOffset(in: data))
         data.replaceSubrange((start + 24)..<(start + 28),
                              with: UInt32(4000).littleEndianBytes)
 
@@ -114,20 +110,38 @@ struct MiniZIPReaderTests {
         }
     }
 
-    @Test("A truncated archive is rejected rather than parsed as short")
-    func rejectsTruncated() throws {
+    @Test("Corrupted compressed bytes are rejected")
+    func rejectsCorruptedStream() throws {
         let body = String(repeating: "social brain,", count: 2000)
-        let full = try makeZIP(["sheet.xml": body])
+        var data = try makeZIP(["sheet.xml": body])
 
-        // Keep the central directory (so the entry is found) but cut the
-        // compressed data. The old code accepted Z_OK after Z_FINISH, so this
-        // returned a silently short file instead of failing.
-        var truncated = full
-        truncated.replaceSubrange(40..<80, with: Data(repeating: 0, count: 40))
+        // Overwrite inside the deflate payload, which starts after the local
+        // header. Computed rather than hard-coded: a fixed byte range only lands
+        // in the payload by accident of the entry name's length.
+        let payloadStart = try #require(Self.firstPayloadOffset(in: data))
+        data.replaceSubrange(payloadStart..<(payloadStart + 40),
+                             with: Data(repeating: 0xFF, count: 40))
 
         #expect(throws: (any Error).self) {
-            let reader = try MiniZIPReader(data: truncated)
-            _ = try reader.extractEntry(named: "sheet.xml")
+            _ = try MiniZIPReader(data: data).extractEntry(named: "sheet.xml")
+        }
+    }
+
+    @Test("A genuinely truncated entry is rejected, not returned short")
+    func rejectsTruncatedEntry() throws {
+        // Halve the declared compressed size so zlib runs out of input with the
+        // output buffer still roomy — measured to give Z_BUF_ERROR with
+        // total_out below capacity, which is the real truncation signature.
+        let body = String(repeating: "social brain,", count: 2000)
+        var data = try makeZIP(["sheet.xml": body])
+
+        let cd = try #require(Self.centralDirectoryOffset(in: data))
+        let declared = Self.readLE32(data, at: cd + 20)
+        data.replaceSubrange((cd + 20)..<(cd + 24),
+                             with: UInt32(declared / 2).littleEndianBytes)
+
+        #expect(throws: (any Error).self) {
+            _ = try MiniZIPReader(data: data).extractEntry(named: "sheet.xml")
         }
     }
 
@@ -152,12 +166,7 @@ struct MiniZIPReaderTests {
         // Rewrite the *central directory* entry's uncompressed-size field, which
         // is what the reader parses — not the local header. Central directory
         // file header: signature 0x02014B50, uncompressed size at offset 24.
-        let signature: [UInt8] = [0x50, 0x4B, 0x01, 0x02]
-        let bytes = [UInt8](data)
-        let start = try #require(
-            (0..<(bytes.count - 4)).first { Array(bytes[$0..<($0 + 4)]) == signature },
-            "no central directory header found in the fixture"
-        )
+        let start = try #require(Self.centralDirectoryOffset(in: data))
         data.replaceSubrange((start + 24)..<(start + 28),
                              with: UInt32(2_000_000_000).littleEndianBytes)
 
@@ -167,12 +176,64 @@ struct MiniZIPReaderTests {
         }
     }
 
-    @Test("The size limit is a sane order of magnitude")
+    @Test("The size limit stays close to the use case")
     func limitIsReasonable() {
-        // Large enough for any real spreadsheet sheet, small enough that a
-        // crafted claim cannot exhaust memory.
-        #expect(MiniZIPReader.maximumEntrySize >= 64 * 1_048_576)
-        #expect(MiniZIPReader.maximumEntrySize <= 512 * 1_048_576)
+        // A LinkedIn analytics sheet is single-digit KB. The upper bound matters
+        // most: each extracted entry is handed to XMLDocument, whose DOM is
+        // several times the source size, so a generous cap is not protective.
+        // An earlier version of this test asserted >= 64 MB, which would have
+        // blocked tightening it — the bound it enshrined was the loose one.
+        #expect(MiniZIPReader.maximumEntrySize >= 4 * 1_048_576)
+        #expect(MiniZIPReader.maximumEntrySize <= 64 * 1_048_576)
+    }
+
+    @Test("A stored entry over the limit is refused too")
+    func refusesOversizedStoredEntry() throws {
+        // The cap previously applied only to deflated entries, so a stored one
+        // walked straight past it.
+        var data = try makeZIP(["a.txt": "small"], compressed: false)
+        let cd = try #require(Self.centralDirectoryOffset(in: data))
+        // compressedSize at +20, uncompressedSize at +24; stored means equal.
+        let huge = UInt32(100_000_000).littleEndianBytes
+        data.replaceSubrange((cd + 20)..<(cd + 24), with: huge)
+        data.replaceSubrange((cd + 24)..<(cd + 28), with: huge)
+
+        #expect(throws: (any Error).self) {
+            _ = try MiniZIPReader(data: data).extractEntry(named: "a.txt")
+        }
+    }
+
+    // MARK: - Locating structures
+
+    /// Offset of the first central-directory header, found via the end-of-central
+    /// -directory record rather than by scanning — a scan from zero can match
+    /// the signature inside compressed data.
+    static func centralDirectoryOffset(in data: Data) -> Int? {
+        let signature: [UInt8] = [0x50, 0x4B, 0x05, 0x06]
+        let bytes = [UInt8](data)
+        guard bytes.count > 22 else { return nil }
+        for i in stride(from: bytes.count - 22, through: 0, by: -1)
+        where Array(bytes[i..<(i + 4)]) == signature {
+            return Int(readLE32(data, at: i + 16))
+        }
+        return nil
+    }
+
+    /// Offset of the first entry's compressed payload, past its local header.
+    static func firstPayloadOffset(in data: Data) -> Int? {
+        guard data.count > 30 else { return nil }
+        let nameLength = Int(readLE16(data, at: 26))
+        let extraLength = Int(readLE16(data, at: 28))
+        return 30 + nameLength + extraLength
+    }
+
+    static func readLE16(_ data: Data, at offset: Int) -> UInt16 {
+        UInt16(data[offset]) | (UInt16(data[offset + 1]) << 8)
+    }
+
+    static func readLE32(_ data: Data, at offset: Int) -> UInt32 {
+        UInt32(data[offset]) | (UInt32(data[offset + 1]) << 8)
+            | (UInt32(data[offset + 2]) << 16) | (UInt32(data[offset + 3]) << 24)
     }
 }
 

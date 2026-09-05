@@ -95,9 +95,23 @@ struct LinkedInXLSXParser {
         // Skip string-typed cells.
         guard cell.attribute(forName: "t")?.stringValue != "s" else { return nil }
         guard let vNodes = try? cell.nodes(forXPath: "*[local-name()='v']"),
-              let raw = vNodes.first?.stringValue,
-              let d   = Double(raw) else { return nil }
-        return Int(d)
+              let raw = vNodes.first?.stringValue else { return nil }
+        return Self.safeInt(raw)
+    }
+
+    /// Converts a spreadsheet cell to an `Int`, refusing values that would trap.
+    ///
+    /// `Int(Double)` is a **trapping** conversion: `Double("1e999")` parses as
+    /// infinity, and `Int(.infinity)` crashes the process. `try?` does not catch
+    /// a trap. A crafted `.xlsx` containing `<v>1e999</v>` therefore killed the
+    /// app outright — verified — which made hardening the ZIP layer beside it
+    /// beside the point.
+    static func safeInt(_ raw: String) -> Int? {
+        guard let value = Double(raw), value.isFinite else { return nil }
+        // Well inside Int's range and far beyond any real metric, so the
+        // conversion below cannot trap and a nonsense cell cannot dominate a sum.
+        guard value.magnitude < 1e15 else { return nil }
+        return Int(value)
     }
 
     /// Finds the column letter (e.g. "C") whose header in row 1 contains "engagement".
@@ -133,8 +147,11 @@ struct LinkedInXLSXParser {
             guard el.attribute(forName: "t")?.stringValue != "s" else { continue }
             guard let vNodes = try? el.nodes(forXPath: "*[local-name()='v']"),
                   let raw    = vNodes.first?.stringValue,
-                  let d      = Double(raw) else { continue }
-            total += Int(d)
+                  let value  = Self.safeInt(raw) else { continue }
+            // Overflow-safe: two 9e14 cells would otherwise trap on +=.
+            let (sum, overflowed) = total.addingReportingOverflow(value)
+            guard !overflowed else { continue }
+            total = sum
         }
         return total
     }
