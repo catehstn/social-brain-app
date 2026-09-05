@@ -144,12 +144,19 @@ struct PromptAssembler {
             lines.append(sub)
         }
         if let v = data.intMetric("emails_sent") { lines.append("Newsletters sent: \(v)") }
+        // Reported independently. Nesting the click rate inside the open rate
+        // was safe while the two were always emitted together, but each now
+        // guards its own divisor — so an open-absent, click-present snapshot is
+        // a real state, and the click rate was being silently dropped.
+        var rates: [String] = []
         if let open = data.doubleMetric("avg_open_rate") {
-            var rate = "Average open rate: \(pct(open))"
-            if let click = data.doubleMetric("avg_click_rate") {
-                rate += ", click rate: \(pct(click))"
-            }
-            lines.append(rate)
+            rates.append("Average open rate: \(pct(open))")
+        }
+        if let click = data.doubleMetric("avg_click_rate") {
+            rates.append("Average click rate: \(pct(click))")
+        }
+        if !rates.isEmpty {
+            lines.append(rates.joined(separator: ", "))
         }
         return lines
     }

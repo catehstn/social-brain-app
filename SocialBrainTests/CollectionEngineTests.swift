@@ -245,6 +245,13 @@ struct CollectionEngineTests {
         #expect(failed.count == 1)
         #expect(failed.first?.instance.platform == .buttondown)
 
+        // Reported as a persistence failure, not a collector failure: the data
+        // was fetched successfully and then lost, and a raw EncodingError does
+        // not conform to LocalizedError so the Run screen would show
+        // "The operation couldn't be completed."
+        let message = failed.first?.error?.localizedDescription ?? ""
+        #expect(message.contains("could not be saved"))
+
         // ...the other two are still saved...
         let snapshots = try await db.latestSnapshots()
         #expect(snapshots.count == 2)
@@ -254,6 +261,35 @@ struct CollectionEngineTests {
         let runs = try await db.allRuns(limit: 1)
         #expect(runs.first?.completedAt != nil)
         #expect(runs.first?.errorCount == 1)
+    }
+
+    @Test("A failure marking the run complete does not discard the summary")
+    func completeRunFailureDoesNotDiscardResults() async throws {
+        // completeRun throws for the same reasons saveSnapshot does. Letting it
+        // propagate would leave exactly the dangling open run that demoting
+        // persistence errors was meant to prevent, and throw away a summary
+        // whose results are all already known.
+        let db = try makeDB()
+        let engine = CollectionEngine(database: db)
+        let collectors: [any Collector] = [
+            StubCollector(
+                platform: .mastodon,
+                result: .success(PlatformData(platform: .mastodon,
+                                              metrics: ["followers_count": .int(7)]))
+            )
+        ]
+
+        let summary = try await engine.run(
+            collectors: collectors,
+            credentials: makeCredentials(),
+            since: nil,
+            progress: nil
+        )
+
+        #expect(summary.results.count == 1)
+        #expect(summary.successCount == 1)
+        let snapshots = try await db.latestSnapshots()
+        #expect(snapshots.count == 1)
     }
 }
 
