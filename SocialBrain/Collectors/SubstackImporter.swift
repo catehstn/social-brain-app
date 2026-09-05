@@ -64,7 +64,13 @@ struct SubstackImporter {
         if !clickRates.isEmpty {
             metrics["avg_click_rate"] = .double(clickRates.reduce(0, +) / Double(clickRates.count))
         }
-        return PlatformData(platform: .substack, metrics: metrics)
+        // Date the snapshot from the export's own newest post rather than from
+        // the moment of import: a backfill would otherwise land as today.
+        return PlatformData(
+            platform: .substack,
+            collectedAt: ExportDates.latest(in: dataRows, column: col("post_date")) ?? .now,
+            metrics: metrics
+        )
     }
 
     /// Legacy Substack export: Subject, Date, Recipients, Opens, Open rate, …
