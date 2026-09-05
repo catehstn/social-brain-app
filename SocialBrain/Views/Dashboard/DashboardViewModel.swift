@@ -87,7 +87,7 @@ final class DashboardViewModel {
                 default: continue
                 }
                 pointsPerKey[key, default: []].append(
-                    MetricPoint(date: snap.collectedAt, value: value)
+                    MetricPoint(date: snap.periodEnd ?? snap.collectedAt, value: value)
                 )
             }
         }

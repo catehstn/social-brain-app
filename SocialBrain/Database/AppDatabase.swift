@@ -255,6 +255,15 @@ actor AppDatabase {
             )
         }
 
+        migrator.registerMigration("v3_period_end") { db in
+            // The period an imported export describes, distinct from when it was
+            // collected. Overloading collectedAt with both roles broke
+            // uniqueness, the staleness clock and the spike comparison at once.
+            try db.alter(table: "platformSnapshot") { t in
+                t.add(column: "periodEnd", .datetime)
+            }
+        }
+
         return migrator
     }
 }
@@ -428,9 +437,14 @@ extension AppDatabase {
                     )
                     """)
                 .fetchAll(db)
-            return Dictionary(uniqueKeysWithValues: rows.compactMap { row in
+            // `uniqueKeysWithValues` is a precondition, not an error — two rows
+            // sharing a MAX(collectedAt) for one instance would trap, and no
+            // caller's do/catch can absorb that. Keep the higher rowid instead.
+            return Dictionary(rows.compactMap { row -> (PlatformInstance, PlatformSnapshot)? in
                 guard let inst = row.instanceEnum else { return nil }
                 return (inst, row)
+            }, uniquingKeysWith: { first, second in
+                (second.id ?? 0) > (first.id ?? 0) ? second : first
             })
         }
     }

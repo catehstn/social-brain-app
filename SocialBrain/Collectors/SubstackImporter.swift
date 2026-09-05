@@ -64,11 +64,13 @@ struct SubstackImporter {
         if !clickRates.isEmpty {
             metrics["avg_click_rate"] = .double(clickRates.reduce(0, +) / Double(clickRates.count))
         }
-        // Date the snapshot from the export's own newest post rather than from
-        // the moment of import: a backfill would otherwise land as today.
+        // periodEnd, not collectedAt. The import happened now — that is what
+        // orders snapshots and drives the staleness reminder — but the data
+        // describes the period ending at the newest post, which is what the
+        // chart axis and the prompt should say.
         return PlatformData(
             platform: .substack,
-            collectedAt: ExportDates.latest(in: dataRows, column: col("post_date")) ?? .now,
+            periodEnd: ExportDates.latest(in: dataRows, column: col("post_date")),
             metrics: metrics
         )
     }

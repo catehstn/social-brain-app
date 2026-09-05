@@ -70,6 +70,9 @@ public struct PlatformData: Sendable, Codable {
     /// The instance name for this data point. Defaults to `"default"` for single-instance setups.
     public let instanceName: String
     public let collectedAt: Date
+    /// For file imports, the end of the period the export covers. `nil` for live
+    /// collectors, whose `collectedAt` already is the period end.
+    public let periodEnd: Date?
     /// Named metrics; keys are platform-specific (e.g. "subscriber_count", "followers").
     public let metrics: [String: MetricValue]
 
@@ -77,11 +80,13 @@ public struct PlatformData: Sendable, Codable {
         platform: Platform,
         instanceName: String = "default",
         collectedAt: Date = .now,
+        periodEnd: Date? = nil,
         metrics: [String: MetricValue]
     ) {
         self.platform = platform
         self.instanceName = instanceName
         self.collectedAt = collectedAt
+        self.periodEnd = periodEnd
         self.metrics = metrics
     }
 

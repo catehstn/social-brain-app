@@ -10,6 +10,16 @@ struct PlatformSnapshot: Identifiable, Codable, FetchableRecord, MutablePersista
     /// Instance name; `"default"` for single-instance setups.
     var instanceName: String
     var collectedAt: Date
+    /// For file imports, the end of the period the export covers.
+    ///
+    /// Separate from `collectedAt` on purpose. `collectedAt` is the observation
+    /// clock — it orders snapshots, decides which is latest, drives the staleness
+    /// reminder and picks the pair `SpikeDetector` compares. `periodEnd` is what
+    /// the chart axis and the prompt should say the data is *about*. Making one
+    /// field do both meant a re-import produced two rows with an identical
+    /// timestamp, which crashed `latestSnapshots()`, and an export more than
+    /// three days old was born stale.
+    var periodEnd: Date?
     /// JSON-encoded `[String: MetricValue]` dictionary.
     var metricsJSON: Data
 
@@ -42,13 +52,15 @@ extension PlatformSnapshot {
         self.platform = data.platform.rawValue
         self.instanceName = data.instanceName
         self.collectedAt = data.collectedAt
+        self.periodEnd = data.periodEnd
         self.metricsJSON = try JSONEncoder().encode(data.metrics)
     }
 
     /// Memberwise initialiser for tests that create snapshots directly.
     init(runID: Int64, platform: String, instanceName: String = "default",
-         collectedAt: Date, metricsJSON: Data) {
+         collectedAt: Date, periodEnd: Date? = nil, metricsJSON: Data) {
         self.id = nil
+        self.periodEnd = periodEnd
         self.runID = runID
         self.platform = platform
         self.instanceName = instanceName

@@ -67,4 +67,68 @@ struct ExportDatesTests {
         // AD rather than falling back to now.
         #expect(ExportDates.latest(in: [["x", "junk"], ["y", ""]], column: 1) == nil)
     }
+    // MARK: - Why periodEnd is separate from collectedAt
+
+    @Test("Importing the same export twice does not crash latestSnapshots")
+    func doubleImportDoesNotCrash() async throws {
+        // latestSnapshots() builds a Dictionary(uniqueKeysWithValues:), which is
+        // a precondition — duplicate keys trap, and no caller's do/catch can
+        // absorb that. Dating snapshots from the export made two imports of one
+        // file produce byte-identical timestamps, so dropping a file twice hard-
+        // crashed the Feed and Dashboard tabs.
+        let db = try AppDatabase.makeInMemory()
+        let csv = """
+        post_id,post_date,title,open_rate
+        1,2026-03-20,Only,0.45
+        """
+        let data = try #require(csv.data(using: .utf8))
+
+        for _ in 0..<2 {
+            let parsed = try SubstackImporter().parse(data: data)
+            var run = CollectionRun(startedAt: Date(), platformCount: 1, errorCount: 0)
+            try await db.saveRun(&run)
+            var snapshot = try PlatformSnapshot(runID: run.id!, data: parsed)
+            try await db.saveSnapshot(&snapshot)
+        }
+
+        let latest = try await db.latestSnapshots()
+        #expect(latest.count == 1)
+        // The period still comes from the file even though both rows share it.
+        #expect(latest.values.first?.periodEnd == ExportDates.date(from: "2026-03-20"))
+    }
+
+    @Test("An export whose newest post is old is not born stale")
+    func oldExportIsNotBornStale() throws {
+        // Substack's stale threshold is 3 days. Dating the snapshot from the
+        // export meant any weekly newsletter's export was stale the moment it
+        // was imported — inverting the card's meaning from "you haven't
+        // re-exported" to "you haven't published".
+        let old = Date().addingTimeInterval(-30 * 86_400)
+        let snapshot = try PlatformSnapshot(
+            runID: 1,
+            data: PlatformData(platform: .substack, periodEnd: old, metrics: ["posts_published": .int(3)])
+        )
+
+        // The staleness clock reads collectedAt, which is the import time.
+        #expect(abs(snapshot.collectedAt.timeIntervalSinceNow) < 60)
+        #expect(snapshot.periodEnd == old)
+    }
+
+    @Test("Two snapshots of the same period are still distinguishable in time")
+    func sameperiodSnapshotsAreOrdered() throws {
+        // SpikeDetector compares the two most recent snapshots. If both carried
+        // the export's date they would be identical and every real change would
+        // read as 0%.
+        let period = Date(timeIntervalSince1970: 1_767_225_600)
+        let first = try PlatformSnapshot(
+            runID: 1, data: PlatformData(platform: .substack, periodEnd: period, metrics: [:])
+        )
+        let second = try PlatformSnapshot(
+            runID: 2, data: PlatformData(platform: .substack, periodEnd: period, metrics: [:])
+        )
+
+        #expect(first.periodEnd == second.periodEnd)
+        #expect(first.collectedAt != second.collectedAt)
+    }
+
 }

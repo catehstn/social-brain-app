@@ -118,8 +118,8 @@ struct SubstackImporterTests {
         let result = try importer.parse(data: data)
         #expect(result.doubleMetric("avg_open_rate") == nil)
     }
-    @Test("The snapshot is dated from the export, not from the moment of import")
-    func snapshotIsDatedFromTheExport() throws {
+    @Test("The export's own period is recorded, without moving the import clock")
+    func exportPeriodIsRecorded() throws {
         // Importing an old export used to file it as today's snapshot, so a
         // backfill landed on top of current data.
         let csv = """
@@ -131,19 +131,27 @@ struct SubstackImporterTests {
         let data = try #require(csv.data(using: .utf8))
         let result = try SubstackImporter().parse(data: data)
 
-        // The newest post in the file, not the first row and not now.
-        #expect(result.collectedAt == ExportDates.date(from: "2026-03-20"))
-        #expect(result.collectedAt.timeIntervalSinceNow < -60)
+        // periodEnd is the newest post in the file — not the first row.
+        #expect(result.periodEnd == ExportDates.date(from: "2026-03-20"))
+
+        // collectedAt stays the import clock. Moving it broke three things at
+        // once: two imports of one file produced identical timestamps and
+        // crashed latestSnapshots(), any export older than the staleness
+        // threshold was born stale, and SpikeDetector compared a snapshot with
+        // its own duplicate.
+        #expect(abs(result.collectedAt.timeIntervalSinceNow) < 60)
     }
 
-    @Test("An export with no usable dates falls back to now rather than the epoch")
-    func fallsBackToNow() throws {
+    @Test("An export with no usable dates records no period rather than the epoch")
+    func noPeriodWhenNoDates() throws {
         let csv = """
         post_id,post_date,title,open_rate
         1,,First,0.45
         """
         let data = try #require(csv.data(using: .utf8))
         let result = try SubstackImporter().parse(data: data)
+
+        #expect(result.periodEnd == nil)
 
         #expect(abs(result.collectedAt.timeIntervalSinceNow) < 60)
     }

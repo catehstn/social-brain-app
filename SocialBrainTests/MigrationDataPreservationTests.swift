@@ -111,6 +111,22 @@ struct MigrationDataPreservationTests {
         }
     }
 
+    @Test("v3 leaves periodEnd null for rows that predate it")
+    func v3LeavesPeriodEndNull() throws {
+        // Existing snapshots have no period information, and inventing one would
+        // move them on the chart axis. Null means "use collectedAt".
+        let dbQueue = try makeV1Database()
+        try seedV1Data(dbQueue)
+
+        try AppDatabase.migrator.migrate(dbQueue)
+
+        try dbQueue.read { db in
+            let rows = try Row.fetchAll(db, sql: "SELECT periodEnd FROM platformSnapshot")
+            #expect(rows.count == 2)
+            #expect(rows.allSatisfy { ($0["periodEnd"] as Date?) == nil })
+        }
+    }
+
     @Test("v2 backfills instanceName as 'default' for pre-existing rows")
     func v2BackfillsInstanceName() throws {
         let dbQueue = try makeV1Database()
@@ -342,6 +358,6 @@ struct MigrationConfigurationTests {
         // launch-time failure rather than a compile error. Pinning the list turns
         // that into a test failure — and makes adding a v3 a deliberate act that
         // forces this suite to be updated alongside it.
-        #expect(AppDatabase.migrator.migrations == ["v1_initial", "v2_instance_names"])
+        #expect(AppDatabase.migrator.migrations == ["v1_initial", "v2_instance_names", "v3_period_end"])
     }
 }
