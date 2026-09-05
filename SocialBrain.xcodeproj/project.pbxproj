@@ -33,6 +33,8 @@
 		3DF0243C592A170BD8F961C3 /* JetpackCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 233B30A951BEC219E0C67B33 /* JetpackCollector.swift */; };
 		3FC09E874B0464EB24AECAA4 /* FeedCardBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACC5336B194C9D8D25CABB52 /* FeedCardBuilder.swift */; };
 		407889F33573100C2D412A63 /* GoatCounterCollectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F47A8E8E119F792F87DE78BB /* GoatCounterCollectorTests.swift */; };
+		4A501089521D41A593813A47 /* HackerNewsCollectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA65B5FD9D46492280A38AFD /* HackerNewsCollectorTests.swift */; };
+		EC8225949ED847DEAAC013C6 /* BufferCollectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9BEBD8246564F5D8A48E556 /* BufferCollectorTests.swift */; };
 		2EB5890154684DDCBD031256 /* GoogleSearchConsoleCollectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40B452FF98434381A7B3E89E /* GoogleSearchConsoleCollectorTests.swift */; };
 		41808A9E3EBDEB021C6F0356 /* LinkedInImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAAAC8C465952D5111BCE709 /* LinkedInImporterTests.swift */; };
 		0D27EDE3F65844E99B491838 /* MiniZIPReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4A710A131D442F2A9F340CF /* MiniZIPReaderTests.swift */; };
@@ -248,6 +250,8 @@
 		F284E6CCC2F1782721703DDE /* Platform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Platform.swift; sourceTree = "<group>"; };
 		F38A28EA239666AB10ACAEA3 /* SocialBrainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialBrainTests.swift; sourceTree = "<group>"; };
 		F47A8E8E119F792F87DE78BB /* GoatCounterCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoatCounterCollectorTests.swift; sourceTree = "<group>"; };
+		DA65B5FD9D46492280A38AFD /* HackerNewsCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HackerNewsCollectorTests.swift; sourceTree = "<group>"; };
+		C9BEBD8246564F5D8A48E556 /* BufferCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BufferCollectorTests.swift; sourceTree = "<group>"; };
 		40B452FF98434381A7B3E89E /* GoogleSearchConsoleCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleSearchConsoleCollectorTests.swift; sourceTree = "<group>"; };
 		FA2BAEB2923B9E65E8E39568 /* ButtondownCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButtondownCollectorTests.swift; sourceTree = "<group>"; };
 		FAAAC8C465952D5111BCE709 /* LinkedInImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedInImporterTests.swift; sourceTree = "<group>"; };
@@ -471,6 +475,8 @@
 				E83BC22CE0C5C53010A28382 /* FeedDatabaseTests.swift */,
 				51E3F715FA10EB4303470093 /* FeedViewModelTests.swift */,
 				F47A8E8E119F792F87DE78BB /* GoatCounterCollectorTests.swift */,
+				DA65B5FD9D46492280A38AFD /* HackerNewsCollectorTests.swift */,
+				C9BEBD8246564F5D8A48E556 /* BufferCollectorTests.swift */,
 				40B452FF98434381A7B3E89E /* GoogleSearchConsoleCollectorTests.swift */,
 				D7F1E234A0DE49718BDE9022 /* HighReachDetectorTests.swift */,
 				836CA271B1BC38157EA386DB /* InstanceRegistryTests.swift */,
@@ -724,6 +730,8 @@
 				C740E7026EB2B18252077290 /* FeedDatabaseTests.swift in Sources */,
 				5A3BC438A6E27326D77E94DA /* FeedViewModelTests.swift in Sources */,
 				407889F33573100C2D412A63 /* GoatCounterCollectorTests.swift in Sources */,
+				4A501089521D41A593813A47 /* HackerNewsCollectorTests.swift in Sources */,
+				EC8225949ED847DEAAC013C6 /* BufferCollectorTests.swift in Sources */,
 				2EB5890154684DDCBD031256 /* GoogleSearchConsoleCollectorTests.swift in Sources */,
 				14559F0CE878B76315A55696 /* HighReachDetectorTests.swift in Sources */,
 				8CA49A53C2AC7231B44C85C0 /* InstanceRegistryTests.swift in Sources */,

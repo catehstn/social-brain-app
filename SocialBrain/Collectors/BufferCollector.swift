@@ -123,7 +123,12 @@ struct BufferCollector: Collector {
         let updates = envelope.updates
 
         guard let since else { return updates }
-        return updates.filter { $0.sentAt >= since }
+        // A sent post without a sent_at cannot be placed in the window, so it is
+        // excluded rather than silently counted as in-period.
+        return updates.filter { update in
+            guard let sentAt = update.sentAt else { return false }
+            return sentAt >= since
+        }
     }
 
     private func fetchScheduledCounts(profiles: [ProfileInfo], token: String) async throws -> Int {
@@ -178,7 +183,11 @@ private struct UpdatesEnvelope: Decodable {
 
 private struct Update: Decodable {
     let id: String
-    let sentAt: Date
+    /// Optional because a *pending* post has not been sent and carries no
+    /// `sent_at`. It was required, so decoding `pending.json` threw, the `try?`
+    /// in `fetchScheduledCounts` swallowed it, and `scheduled_updates` was
+    /// always 0 — a metric that has never reported anything but zero.
+    let sentAt: Date?
     let statistics: UpdateStats?
 
     enum CodingKeys: String, CodingKey {
@@ -190,9 +199,9 @@ private struct Update: Decodable {
     init(from decoder: Decoder) throws {
         let c    = try decoder.container(keyedBy: CodingKeys.self)
         id         = try c.decode(String.self, forKey: .id)
-        // Buffer returns sent_at as a Unix timestamp integer.
-        let ts   = try c.decode(Double.self, forKey: .sentAt)
-        sentAt   = Date(timeIntervalSince1970: ts)
+        // Buffer returns sent_at as a Unix timestamp integer, when it is present.
+        sentAt = (try? c.decode(Double.self, forKey: .sentAt))
+            .map(Date.init(timeIntervalSince1970:))
         statistics = try? c.decode(UpdateStats.self, forKey: .statistics)
     }
 }
