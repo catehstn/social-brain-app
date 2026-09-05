@@ -4,15 +4,15 @@ import Testing
 @Suite("Platform SF Symbol Tests")
 struct PlatformSFSymbolTests {
 
-    // Test 15: All 14 platforms have non-empty SF Symbol
+    // All platforms have a non-empty SF Symbol
     @Test("All platforms have non-empty sfSymbol")
     func testAllPlatformsHaveSFSymbol() {
         for platform in Platform.allCases {
             #expect(!platform.sfSymbol.isEmpty, "Platform \(platform.rawValue) has empty sfSymbol")
         }
-        // Pinned to catch an addition that misses the sfSymbol switch. 13 since
-        // Vercel was retired in #43.
-        #expect(Platform.allCases.count == 13)
+        // The list itself is pinned in RetiredPlatformDataTests, which subsumes
+        // a bare count — two pins would just be two things to update.
+        #expect(!Platform.allCases.isEmpty)
     }
 
     // Test 16: Specific symbol assignments match spec

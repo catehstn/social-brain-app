@@ -20,7 +20,11 @@ struct RetiredPlatformDataTests {
             runID: run.id!,
             platform: "vercel",
             collectedAt: Date(timeIntervalSince1970: 1_767_225_600),
-            metricsJSON: Data(#"{"deployments":{"int":12}}"#.utf8)
+            // Encoded the way the app really writes it. The hand-written
+            // `{"int":12}` shape does not decode — MetricValue is tagged — so
+            // "a retired row breaks nothing when read across" was never
+            // exercised against a row that decodes at all.
+            metricsJSON: try JSONEncoder().encode(["deployments": MetricValue.int(12)])
         )
         try await db.saveSnapshot(&snapshot)
     }
@@ -44,6 +48,8 @@ struct RetiredPlatformDataTests {
         let remaining = try await db.snapshots(forRunID: 1)
         #expect(remaining.count == 1)
         #expect(remaining.first?.platform == "vercel")
+        // And it is still readable, not just present.
+        #expect(try remaining.first?.decodedMetrics()["deployments"] == .int(12))
     }
 
     @Test("A retired row is skipped rather than crashing the queries that span it")
@@ -67,8 +73,13 @@ struct RetiredPlatformDataTests {
         #expect(!latest.keys.contains { $0.platform.rawValue == "vercel" })
     }
 
-    @Test("The platform list is pinned, so a removal or addition is deliberate")
+    @Test("The platform list is pinned, so a silent removal or rename cannot happen")
     func platformListIsPinned() {
+        // Deliberately not about *additions* — those already break the build in
+        // eight exhaustive switches. The two changes that compile silently are
+        // what this guards: removing a case, and renaming a raw value. A rename
+        // would orphan every stored snapshot row and every Keychain item, which
+        // is exactly the failure this retirement is being careful about.
         #expect(Platform.allCases.map(\.rawValue).sorted() == [
             "amazon", "bluesky", "buffer", "buttondown", "calendly",
             "goat_counter", "google_search_console", "hacker_news", "jetpack",

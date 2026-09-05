@@ -122,14 +122,13 @@ not to `~/Library/Application Support`, which is where you'd think to look.
 
 Grouped by how much work they are to connect:
 
-- **API key** — Buttondown, GoatCounter, Calendly, Buffer, Vercel
+- **API key** — Buttondown, GoatCounter, Calendly, Buffer
 - **OAuth / token** — Mastodon, Bluesky, Jetpack (WordPress.com), Google Search Console
 - **File export** — Amazon KDP, LinkedIn (XLSX), O'Reilly (email), Substack (CSV)
 - **No auth** — Hacker News
 
 Groupings come from `Platform.authType` in `SocialBrain/Models/Platform.swift` —
-check there rather than trusting this list. Vercel still ships but is slated for
-removal in #43.
+check there rather than trusting this list.
 
 Per-platform setup instructions are in `docs/index.html`.
 
