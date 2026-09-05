@@ -198,7 +198,7 @@ protocol Collector: Sendable {
 ```
 
 Platforms are grouped by integration difficulty for the onboarding UI:
-- **Easy (API key):** Buttondown, GoatCounter, Calendly, Buffer, Vercel
+- **Easy (API key):** Buttondown, GoatCounter, Calendly, Buffer
 - **Medium (OAuth / token):** Mastodon, Jetpack, Bluesky, Google Search Console
 - **Hard (file export):** Amazon KDP, LinkedIn, O'Reilly, Substack
 - **No auth:** Hacker News

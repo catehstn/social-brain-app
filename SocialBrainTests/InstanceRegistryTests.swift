@@ -65,9 +65,9 @@ struct InstanceRegistryTests {
 
     @Test("Registry survives UserDefaults round-trip")
     func roundTrip() {
-        registry.add(instanceName: "persisted", to: .vercel)
+        registry.add(instanceName: "persisted", to: .buffer)
         // Simulate restart by re-reading from the same defaults
-        let names = registry.instances(for: .vercel)
+        let names = registry.instances(for: .buffer)
         #expect(names.contains("persisted"))
     }
 

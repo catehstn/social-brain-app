@@ -5,7 +5,6 @@ public enum Platform: String, CaseIterable, Codable, Hashable, Sendable, Identif
     public var id: String { rawValue }
     case buttondown
     case goatCounter = "goat_counter"
-    case vercel
     case calendly
     case amazon
     case mastodon
@@ -22,7 +21,6 @@ public enum Platform: String, CaseIterable, Codable, Hashable, Sendable, Identif
         switch self {
         case .buttondown:          "Buttondown"
         case .goatCounter:         "GoatCounter"
-        case .vercel:              "Vercel"
         case .calendly:            "Calendly"
         case .amazon:              "Amazon KDP"
         case .mastodon:            "Mastodon"
@@ -39,7 +37,7 @@ public enum Platform: String, CaseIterable, Codable, Hashable, Sendable, Identif
 
     public var authType: AuthType {
         switch self {
-        case .buttondown, .goatCounter, .vercel, .calendly, .buffer:
+        case .buttondown, .goatCounter, .calendly, .buffer:
             return .apiKey
         case .mastodon, .jetpack, .bluesky, .googleSearchConsole:
             return .oauthToken
@@ -55,7 +53,6 @@ public enum Platform: String, CaseIterable, Codable, Hashable, Sendable, Identif
         switch self {
         case .buttondown:          "envelope.fill"
         case .goatCounter:         "chart.bar.fill"
-        case .vercel:              "triangle.fill"
         case .calendly:            "calendar"
         case .amazon:              "books.vertical.fill"
         case .mastodon:            "bubble.left.and.bubble.right.fill"

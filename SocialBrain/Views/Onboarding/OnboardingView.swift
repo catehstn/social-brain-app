@@ -121,7 +121,7 @@ struct OnboardingView: View {
                 icon: "key",
                 title: "API Key",
                 color: .blue,
-                platforms: "Buttondown, GoatCounter, Vercel, Calendly",
+                platforms: "Buttondown, GoatCounter, Calendly, Buffer",
                 detail: "Paste an API key from each platform's settings page.",
                 docsAnchor: "api-key"
             )

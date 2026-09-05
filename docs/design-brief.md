@@ -6,7 +6,7 @@ Design brief for Claude Design. This is the visual/interaction spec, not an engi
 
 ## What it is
 
-A single-user macOS app for one person's weekly social-media analytics loop. Ground-up Swift rewrite of an earlier Python CLI. It (a) pulls data from ~14 platforms on a schedule, (b) surfaces what matters via a Feed of typed cards, (c) charts trends per-platform, per-time-range, (d) assembles a Claude-shaped prompt the user pastes into claude.ai for the weekly report. **The app does not call the Claude API** — it prepares the prompt and hands off.
+A single-user macOS app for one person's weekly social-media analytics loop. Ground-up Swift rewrite of an earlier Python CLI. It (a) pulls data from ~13 platforms on a schedule, (b) surfaces what matters via a Feed of typed cards, (c) charts trends per-platform, per-time-range, (d) assembles a Claude-shaped prompt the user pastes into claude.ai for the weekly report. **The app does not call the Claude API** — it prepares the prompt and hands off.
 
 One user, one machine, offline-first, SQLite is the source of truth.
 
@@ -32,7 +32,7 @@ Me (Cate). Weekly cadence, usually Saturday or Sunday morning with coffee. Also:
 - **Analytics goal** — the user's stated priority (chosen during onboarding). Displayed as a badge in the sidebar. Colours the prompt.
 - **Prompt** — a Claude-shaped text blob assembled from the latest run.
 
-**Platforms (14):**
+**Platforms (13):**
 - **API key:** Buttondown · GoatCounter · Calendly · Amazon KDP · Google Search Console · Buffer
 - **OAuth / token:** Mastodon · Bluesky · Jetpack (WordPress.com)
 - **File export (drag-drop):** LinkedIn (XLSX) · O'Reilly (email) · Substack (CSV)

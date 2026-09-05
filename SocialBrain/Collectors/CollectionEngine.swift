@@ -201,8 +201,6 @@ enum CollectorRegistry {
             var c = ButtondownCollector(); c.instanceName = instance.instanceName; return c
         case .goatCounter:
             var c = GoatCounterCollector(); c.instanceName = instance.instanceName; return c
-        case .vercel:
-            var c = VercelCollector(); c.instanceName = instance.instanceName; return c
         case .calendly:
             var c = CalendlyCollector(); c.instanceName = instance.instanceName; return c
         case .mastodon:

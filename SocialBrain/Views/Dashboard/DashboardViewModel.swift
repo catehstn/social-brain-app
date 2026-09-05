@@ -120,10 +120,6 @@ final class DashboardViewModel {
         case .goatCounter:
             return [("total_pageviews", "Pageviews"),
                     ("unique_visitors", "Visitors")]
-        case .vercel:
-            return [("deployments", "Deployments"),
-                    ("production_deployments", "Production"),
-                    ("error_deployments", "Errors")]
         case .calendly:
             return [("events_count", "Events"),
                     ("unique_invitees", "Invitees")]
