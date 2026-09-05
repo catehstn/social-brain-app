@@ -77,12 +77,34 @@ struct LinkedInXLSXParser {
 
     // MARK: - Shared strings
 
-    private func extractSharedStrings(from zip: MiniZIPReader) -> [String] {
-        guard let xml  = try? zip.extractEntry(named: "xl/sharedStrings.xml"),
-              let doc  = try? XMLDocument(data: xml),
-              let nodes = try? doc.nodes(forXPath:
-                  "//*[local-name()='si']/*[local-name()='t']") else { return [] }
-        return nodes.map { $0.stringValue ?? "" }
+    /// Reads the shared-string table, one entry per `<si>`.
+    ///
+    /// The previous XPath was `si/t`, which only matches a plain string. When
+    /// any part of a cell is styled differently, Excel splits it into rich-text
+    /// runs — `<si><r><t>Hello </t></r><r><t>world</t></r></si>` — and that
+    /// XPath matched **none** of them. Because the table is addressed by index,
+    /// a skipped entry shifts every subsequent lookup by one, so all text after
+    /// the first styled cell came back as the wrong string. Header detection
+    /// then failed to find its column and silently fell back to a hard-coded
+    /// one. Wrong data, not a failed import.
+    ///
+    /// One entry is emitted per `<si>` whether or not it has runs, which is what
+    /// keeps the indices aligned; runs are concatenated in document order.
+    /// Phonetic hints (`<rPh>`, used in Japanese workbooks) carry their own `<t>`
+    /// and are excluded — they are pronunciation guides, not content.
+    /// Internal rather than private so the index-alignment behaviour can be
+    /// tested directly; a shift here corrupts every later lookup silently.
+    func extractSharedStrings(from zip: MiniZIPReader) -> [String] {
+        guard let xml = try? zip.extractEntry(named: "xl/sharedStrings.xml"),
+              let doc = try? XMLDocument(data: xml),
+              let items = try? doc.nodes(forXPath: "//*[local-name()='si']")
+        else { return [] }
+
+        return items.map { item in
+            let texts = (try? item.nodes(forXPath:
+                ".//*[local-name()='t'][not(ancestor::*[local-name()='rPh'])]")) ?? []
+            return texts.compactMap(\.stringValue).joined()
+        }
     }
 
     // MARK: - Cell lookup
