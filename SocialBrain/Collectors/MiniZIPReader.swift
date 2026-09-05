@@ -12,6 +12,11 @@ struct MiniZIPReader {
         case notAZIPFile
         case corruptedArchive
         case decompressionFailed
+        case truncatedStream
+        /// Internal: our guessed output buffer filled up. Never surfaced to the
+        /// user — the caller grows the buffer and retries.
+        case outputBufferTooSmall
+        case entryTooLarge(reported: Int, limit: Int)
         case entryNotFound(String)
 
         var errorDescription: String? {
@@ -19,6 +24,16 @@ struct MiniZIPReader {
             case .notAZIPFile:              "The file is not a valid ZIP archive."
             case .corruptedArchive:         "The ZIP archive is corrupted or unsupported."
             case .decompressionFailed:      "Decompression of a ZIP entry failed."
+            case .truncatedStream:
+                "A ZIP entry ended before it was complete — the file is truncated or corrupt."
+            case .outputBufferTooSmall:
+                "A ZIP entry was larger than expected."
+            case let .entryTooLarge(reported, limit):
+                """
+                A ZIP entry needs \(reported) bytes, over the \(limit / 1_048_576) MB limit. \
+                Either it is not the export this expects, or the file is crafted to \
+                exhaust memory.
+                """
             case .entryNotFound(let name):  "Entry '\(name)' not found in the archive."
             }
         }
@@ -95,7 +110,12 @@ struct MiniZIPReader {
         let slice = data[dataStart..<dataEnd]
 
         switch entry.compressionMethod {
-        case 0:  return Data(slice)
+        case 0:
+            // Stored entries bypassed the cap, so the limit was inconsistent.
+            guard slice.count <= Self.maximumEntrySize else {
+                throw ZIPError.entryTooLarge(reported: slice.count, limit: Self.maximumEntrySize)
+            }
+            return Data(slice)
         case 8:  return try inflateRaw(slice, expectedSize: Int(entry.uncompressedSize))
         default: throw ZIPError.decompressionFailed
         }
@@ -115,10 +135,43 @@ struct MiniZIPReader {
         throw ZIPError.notAZIPFile
     }
 
+    /// Largest entry this will inflate.
+    ///
+    /// The uncompressed size comes from the archive's own header, which is
+    /// attacker-controlled for any file the user drags in — a `UInt32` allows a
+    /// claim of up to 4 GiB, and the old code allocated it without question. A
+    /// spreadsheet sheet does not approach this; anything that does is either
+    /// not the export we expect or is crafted to exhaust memory.
+    /// A LinkedIn analytics sheet is single-digit kilobytes. This is four
+    /// orders of magnitude above the use case and still small enough that the
+    /// libxml2 DOM built from it cannot exhaust a sandboxed app.
+    static let maximumEntrySize = 32 * 1_048_576  // 32 MB
+
     private func inflateRaw(_ compressed: Data, expectedSize: Int) throws -> Data {
-        // Guard against files that report 0 uncompressed size.
-        let outputSize = expectedSize > 0 ? expectedSize : compressed.count * 4
+        guard expectedSize <= Self.maximumEntrySize else {
+            throw ZIPError.entryTooLarge(reported: expectedSize, limit: Self.maximumEntrySize)
+        }
+
+        // A reported size of 0 means the header didn't say (streamed entries do
+        // this). Start from a guess and grow, rather than trusting one.
+        if expectedSize > 0 {
+            return try inflateOnce(compressed, into: expectedSize)
+        }
+        var attempt = Swift.max(compressed.count * 4, 64 * 1024)
+        while attempt <= Self.maximumEntrySize {
+            do {
+                return try inflateOnce(compressed, into: attempt)
+            } catch ZIPError.outputBufferTooSmall {
+                attempt *= 4
+            }
+        }
+        // The size was never declared, so don't report a fabricated one.
+        throw ZIPError.entryTooLarge(reported: attempt, limit: Self.maximumEntrySize)
+    }
+
+    private func inflateOnce(_ compressed: Data, into outputSize: Int) throws -> Data {
         var output = Data(count: outputSize)
+        var producedBytes = 0
 
         let zlibResult: Int32 = compressed.withUnsafeBytes { srcBuf in
             output.withUnsafeMutableBytes { dstBuf in
@@ -136,15 +189,35 @@ struct MiniZIPReader {
                     return Z_MEM_ERROR
                 }
                 let ret = inflate(&strm, Z_FINISH)
+                producedBytes = Int(strm.total_out)
                 inflateEnd(&strm)
                 return ret
             }
         }
 
-        guard zlibResult == Z_STREAM_END || zlibResult == Z_OK else {
-            throw ZIPError.decompressionFailed
+        // Only Z_STREAM_END means the stream finished.
+        //
+        // Note zlib never returns Z_OK under Z_FINISH — it rewrites that to
+        // Z_BUF_ERROR (inflate.c). Measured: a too-small buffer and a truncated
+        // input both give Z_BUF_ERROR, never 0. So the previous
+        // `Z_STREAM_END || Z_OK` guard was already rejecting both; dropping the
+        // Z_OK arm removes dead code rather than closing a hole.
+        //
+        // total_out is what actually distinguishes the two, and the retry loop
+        // needs that distinction: a full buffer means our guess was too small,
+        // a partial one means the input ran out.
+        if zlibResult != Z_STREAM_END {
+            guard zlibResult == Z_BUF_ERROR else {
+                throw ZIPError.decompressionFailed
+            }
+            throw producedBytes >= outputSize
+                ? ZIPError.outputBufferTooSmall
+                : ZIPError.truncatedStream
         }
-        return output
+
+        // Trim: a header may over-report, and the tail would otherwise be zeros
+        // that the caller reads as real content.
+        return output.prefix(producedBytes)
     }
 }
 

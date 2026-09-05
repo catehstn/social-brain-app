@@ -34,6 +34,8 @@
 		407889F33573100C2D412A63 /* GoatCounterCollectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F47A8E8E119F792F87DE78BB /* GoatCounterCollectorTests.swift */; };
 		2EB5890154684DDCBD031256 /* GoogleSearchConsoleCollectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40B452FF98434381A7B3E89E /* GoogleSearchConsoleCollectorTests.swift */; };
 		41808A9E3EBDEB021C6F0356 /* LinkedInImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAAAC8C465952D5111BCE709 /* LinkedInImporterTests.swift */; };
+		0D27EDE3F65844E99B491838 /* MiniZIPReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4A710A131D442F2A9F340CF /* MiniZIPReaderTests.swift */; };
+		DDAA8FCB752646609CA0ACEE /* LinkedInXLSXValueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2CBC651A7B448F3A36D9A8F /* LinkedInXLSXValueTests.swift */; };
 		4191FC6B119FADC3239CC4BB /* MultiInstanceCollectorRegistryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3FA317ABA5497F70A72CB383 /* MultiInstanceCollectorRegistryTests.swift */; };
 		447B075F2FC34BAC77627E6F /* SocialBrainApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC44EC6EF398FFC22CB3058 /* SocialBrainApp.swift */; };
 		458EEE16BCE5A7B805A755CB /* PlatformCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81BF28AB5EB607F9CA733CD0 /* PlatformCard.swift */; };
@@ -244,6 +246,8 @@
 		40B452FF98434381A7B3E89E /* GoogleSearchConsoleCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleSearchConsoleCollectorTests.swift; sourceTree = "<group>"; };
 		FA2BAEB2923B9E65E8E39568 /* ButtondownCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButtondownCollectorTests.swift; sourceTree = "<group>"; };
 		FAAAC8C465952D5111BCE709 /* LinkedInImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedInImporterTests.swift; sourceTree = "<group>"; };
+		E4A710A131D442F2A9F340CF /* MiniZIPReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniZIPReaderTests.swift; sourceTree = "<group>"; };
+		A2CBC651A7B448F3A36D9A8F /* LinkedInXLSXValueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedInXLSXValueTests.swift; sourceTree = "<group>"; };
 		FC45E6B188F3C9F6832156DD /* SpikeDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeDetectorTests.swift; sourceTree = "<group>"; };
 		387E3CA89E67464486E85CCC /* SpikeNotifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeNotifierTests.swift; sourceTree = "<group>"; };
 		E5A3C1CF7C7A45D09C4FD2C9 /* MockURLSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockURLSessionTests.swift; sourceTree = "<group>"; };
@@ -465,6 +469,8 @@
 				836CA271B1BC38157EA386DB /* InstanceRegistryTests.swift */,
 				47C394A535DB6447C77C9396 /* JetpackCollectorTests.swift */,
 				FAAAC8C465952D5111BCE709 /* LinkedInImporterTests.swift */,
+				E4A710A131D442F2A9F340CF /* MiniZIPReaderTests.swift */,
+				A2CBC651A7B448F3A36D9A8F /* LinkedInXLSXValueTests.swift */,
 				A0578C20F0D69DC239D837C5 /* MastodonCollectorTests.swift */,
 				3FA317ABA5497F70A72CB383 /* MultiInstanceCollectorRegistryTests.swift */,
 				C3C41D3F3B0270D6350F2348 /* MultiInstanceDatabaseTests.swift */,
@@ -714,6 +720,8 @@
 				8CA49A53C2AC7231B44C85C0 /* InstanceRegistryTests.swift in Sources */,
 				C7D2B785C1C8E1A2D0D09475 /* JetpackCollectorTests.swift in Sources */,
 				41808A9E3EBDEB021C6F0356 /* LinkedInImporterTests.swift in Sources */,
+				0D27EDE3F65844E99B491838 /* MiniZIPReaderTests.swift in Sources */,
+				DDAA8FCB752646609CA0ACEE /* LinkedInXLSXValueTests.swift in Sources */,
 				223EF7B850879D74716F9B54 /* MastodonCollectorTests.swift in Sources */,
 				1B6F660A8EF1D70970EF5077 /* MockURLSession.swift in Sources */,
 				6B78C5C8DDF74E208A922F55 /* ScratchKeychain.swift in Sources */,
