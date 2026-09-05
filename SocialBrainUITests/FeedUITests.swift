@@ -1,4 +1,5 @@
 import XCTest
+@testable import SocialBrain
 
 @MainActor
 final class FeedUITests: XCTestCase {
@@ -7,6 +8,10 @@ final class FeedUITests: XCTestCase {
     override func setUp() async throws {
         continueAfterFailure = false
         app = XCUIApplication()
+        // UI tests launch the app as a separate process, which does NOT inherit
+        // XCTestConfigurationFilePath — so without this the app under test opens
+        // and migrates the developer's real database (#100).
+        app.launchArguments += [AppDatabase.uiTestLaunchArgument]
         app.launch()
     }
 

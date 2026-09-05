@@ -26,14 +26,26 @@ actor AppDatabase {
         return try AppDatabase(dbPool)
     }
 
-    /// `true` when running inside an XCTest host.
+    /// `true` when this process must not touch the user's real data.
     ///
-    /// `AppDelegate` already uses this variable to close windows at launch, so
-    /// the app is aware it is under test; it just wasn't using that to keep away
-    /// from the real data.
+    /// Two signals, because there are two ways the app runs under test:
+    ///
+    /// - **Unit tests** are injected into the app host, which therefore has
+    ///   `XCTestConfigurationFilePath` set. `AppDelegate` already keys off this
+    ///   to close windows at launch.
+    /// - **UI tests** launch the app as a *separate process*, which does **not**
+    ///   inherit that variable — that is precisely why the windows stay open for
+    ///   them. So the UI test target passes a launch argument instead. Without
+    ///   this second signal a UI-test run still opened and migrated the real
+    ///   store, which the first version of this change missed.
     static var isRunningUnderTest: Bool {
-        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+        let info = ProcessInfo.processInfo
+        return info.environment["XCTestConfigurationFilePath"] != nil
+            || info.arguments.contains(uiTestLaunchArgument)
     }
+
+    /// Passed by `SocialBrainUITests` so the launched app keeps off the real data.
+    static let uiTestLaunchArgument = "-useThrowawayDatabase"
 
     /// Where the database lives — the real Application Support location
     /// normally, a per-process temporary directory under a test host.
@@ -41,9 +53,11 @@ actor AppDatabase {
         let fm = FileManager.default
         let container: URL
         if isRunningUnderTest {
-            // Per-process, so concurrent test runs cannot collide, and nothing
-            // survives to be inherited by the next run.
-            removeStaleTestDatabases()
+            // Per-process, so concurrent test runs cannot collide. A directory
+            // is also removed on first use in this process: pids are recycled,
+            // so without that a run assigned a leftover pid would inherit the
+            // previous run's database rather than starting clean.
+            prepareTestContainerOnce()
             container = fm.temporaryDirectory
                 .appendingPathComponent(testContainerPrefix + "\(ProcessInfo.processInfo.processIdentifier)",
                                         isDirectory: true)
@@ -68,6 +82,18 @@ actor AppDatabase {
     /// accumulated elsewhere in this app; one file per test run adds up the same
     /// way. Only directories belonging to processes that are no longer running
     /// are removed, so concurrent runs are safe.
+    /// Runs the cleanup exactly once per process, however often the path is
+    /// resolved. `Bool` rather than a closure so the value is `Sendable`; the
+    /// work happens in the initialiser, which Swift runs lazily and exactly once.
+    private static let didPrepareTestContainer: Bool = {
+        removeStaleTestDatabases()
+        return true
+    }()
+
+    private static func prepareTestContainerOnce() {
+        _ = didPrepareTestContainer
+    }
+
     private static func removeStaleTestDatabases() {
         let fm = FileManager.default
         let current = ProcessInfo.processInfo.processIdentifier
@@ -77,9 +103,17 @@ actor AppDatabase {
 
         for entry in entries where entry.lastPathComponent.hasPrefix(testContainerPrefix) {
             let suffix = entry.lastPathComponent.dropFirst(testContainerPrefix.count)
-            guard let pid = Int32(suffix), pid != current else { continue }
-            // kill(pid, 0) succeeds only if the process exists and is signalable;
-            // ESRCH means it is gone and the directory is safe to remove.
+            // pid > 0: kill(0, …) and kill(-1, …) address a process group and
+            // every process respectively, which is not what is meant here.
+            guard let pid = Int32(suffix), pid > 0 else { continue }
+
+            if pid == current {
+                // Ours, inherited from a dead process that had this pid. Start clean.
+                try? fm.removeItem(at: entry)
+                continue
+            }
+            // kill(pid, 0) succeeds only if the process exists and is signalable.
+            // ESRCH means it is gone; EPERM means it exists, so leave it alone.
             if kill(pid, 0) != 0 && errno == ESRCH {
                 try? fm.removeItem(at: entry)
             }

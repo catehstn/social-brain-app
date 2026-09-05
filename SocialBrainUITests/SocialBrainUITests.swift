@@ -1,4 +1,5 @@
 import XCTest
+@testable import SocialBrain
 
 @MainActor
 final class SocialBrainUITests: XCTestCase {
@@ -6,6 +7,10 @@ final class SocialBrainUITests: XCTestCase {
 
     override func setUp() async throws {
         continueAfterFailure = false
+        // UI tests launch the app as a separate process, which does NOT inherit
+        // XCTestConfigurationFilePath — so without this the app under test opens
+        // and migrates the developer's real database (#100).
+        app.launchArguments += [AppDatabase.uiTestLaunchArgument]
         // Reset onboarding state so the wizard always appears on launch.
         app.launchArguments += ["-hasCompletedOnboarding", "0"]
         // Reset hidden-platform state so grid tests always start with all platforms visible.
