@@ -52,8 +52,8 @@ struct SubstackImporter {
         let dataRows = rows.filter { !$0.allSatisfy(\.isEmpty) }
         guard !dataRows.isEmpty else { throw ImportError.emptyFile }
 
-        let openRates  = dataRows.compactMap { openRate(from: $0[safe: col("open_rate")]) }
-        let clickRates = dataRows.compactMap { openRate(from: $0[safe: col("click_rate")]) }
+        let openRates  = dataRows.compactMap { RateParsing.rate(from: $0[safe: col("open_rate")], isPercentColumn: false) }
+        let clickRates = dataRows.compactMap { RateParsing.rate(from: $0[safe: col("click_rate")], isPercentColumn: false) }
 
         var metrics: [String: MetricValue] = [
             "posts_published": .int(dataRows.count)
@@ -73,8 +73,8 @@ struct SubstackImporter {
         let dataRows = rows.filter { !$0.allSatisfy(\.isEmpty) }
         guard !dataRows.isEmpty else { throw ImportError.emptyFile }
 
-        let openRates  = dataRows.compactMap { openRate(from: $0[safe: col("open rate")]) }
-        let clickRates = dataRows.compactMap { openRate(from: $0[safe: col("click rate")]) }
+        let openRates  = dataRows.compactMap { RateParsing.rate(from: $0[safe: col("open rate")], isPercentColumn: false) }
+        let clickRates = dataRows.compactMap { RateParsing.rate(from: $0[safe: col("click rate")], isPercentColumn: false) }
 
         var metrics: [String: MetricValue] = [
             "posts_published": .int(dataRows.count)
@@ -93,15 +93,6 @@ struct SubstackImporter {
     /// Returns a closure mapping a column name to its index, or -1 if absent.
     private func columnIndex(_ header: [String]) -> (String) -> Int {
         { name in header.firstIndex(of: name) ?? -1 }
-    }
-
-    /// Parses an open/click rate string (e.g. "45.2%", "0.452", "45.2") → 0–1 Double.
-    private func openRate(from raw: String?) -> Double? {
-        guard let raw else { return nil }
-        var s = raw.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "%", with: "")
-        guard let value = Double(s) else { return nil }
-        // If >1 assume percentage stored as 0–100; normalise to 0–1
-        return value > 1 ? value / 100 : value
     }
 
     // MARK: - RFC 4180 CSV parser

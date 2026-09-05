@@ -65,7 +65,14 @@ struct LinkedInImporter {
             if let v = intValue(row[safe: col("likes")])        { totalLikes       += v }
             if let v = intValue(row[safe: col("comments")])     { totalComments    += v }
             if let v = intValue(row[safe: col("shares")])       { totalShares      += v }
-            if let v = ctrValue(row[safe: col("ctr (%)") ?? col("ctr")]) { ctrs.append(v) }
+            // The export's column is literally "CTR (%)", so when it resolves
+            // that way the values are percentages regardless of magnitude.
+            let percentColumn = col("ctr (%)")
+            let ctrColumn = percentColumn ?? col("ctr")
+            if let v = RateParsing.rate(from: row[safe: ctrColumn],
+                                        isPercentColumn: percentColumn != nil) {
+                ctrs.append(v)
+            }
         }
 
         var metrics: [String: MetricValue] = [
@@ -92,14 +99,6 @@ struct LinkedInImporter {
     private func intValue(_ raw: String?) -> Int? {
         guard let raw = raw?.trimmingCharacters(in: .whitespaces) else { return nil }
         return Int(raw)
-    }
-
-    /// Parses CTR as "2.72" or "2.72%" → 0–1 Double.
-    private func ctrValue(_ raw: String?) -> Double? {
-        guard let raw = raw?.trimmingCharacters(in: .whitespaces)
-                                .replacingOccurrences(of: "%", with: ""),
-              let v = Double(raw) else { return nil }
-        return v > 1 ? v / 100 : v
     }
 
     // MARK: - RFC 4180 CSV parser (shared with SubstackImporter)
