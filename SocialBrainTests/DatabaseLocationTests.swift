@@ -61,15 +61,15 @@ struct DatabaseLocationTests {
         #expect(url.path.hasPrefix(FileManager.default.temporaryDirectory.path))
     }
 
-    @Test("A UI-test launch argument also selects the throwaway database")
-    func uiTestArgumentIsRecognised() {
+    @Test("A UI-test environment variable also selects the throwaway database")
+    func uiTestEnvironmentKeyIsRecognised() {
         // UI tests launch the app as a separate process with no
-        // XCTestConfigurationFilePath, so the argument is the only signal.
-        // The UI test targets hard-code this string, because importing the app
-        // module into a UI test target pulls in GRDB, which they do not link.
-        // This assertion is what keeps the two spellings in step.
-        #expect(AppDatabase.uiTestLaunchArgument == "-useThrowawayDatabase")
-        #expect(ProcessInfo.processInfo.arguments.contains(AppDatabase.uiTestLaunchArgument)
-                || AppDatabase.isRunningUnderTest)
+        // XCTestConfigurationFilePath, so this variable is the only signal.
+        // Both UI test targets hard-code the string, because importing the app
+        // module into a UI test target pulls in GRDB which they do not link —
+        // this assertion is what keeps the spellings in step.
+        #expect(AppDatabase.throwawayDatabaseEnvironmentKey == "SOCIALBRAIN_USE_THROWAWAY_DATABASE")
+        // Only "1" counts, so an unset-but-present variable cannot enable it.
+        #expect(AppDatabase.isRunningUnderTest)
     }
 }

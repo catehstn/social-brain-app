@@ -35,17 +35,23 @@ actor AppDatabase {
     ///   to close windows at launch.
     /// - **UI tests** launch the app as a *separate process*, which does **not**
     ///   inherit that variable — that is precisely why the windows stay open for
-    ///   them. So the UI test target passes a launch argument instead. Without
-    ///   this second signal a UI-test run still opened and migrated the real
-    ///   store, which the first version of this change missed.
+    ///   them. So the UI test targets set their own environment variable.
+    ///   Without this second signal a UI-test run still opened and migrated the
+    ///   real store, which the first version of this change missed.
+    ///
+    /// Deliberately an environment variable rather than a launch argument:
+    /// `NSUserDefaults` parses the argument domain as `-key value` pairs, so a
+    /// bare `-useThrowawayDatabase` swallows whichever flag follows it as its
+    /// value. That silently broke `-hasCompletedOnboarding 0` and with it every
+    /// onboarding UI test.
     static var isRunningUnderTest: Bool {
         let info = ProcessInfo.processInfo
         return info.environment["XCTestConfigurationFilePath"] != nil
-            || info.arguments.contains(uiTestLaunchArgument)
+            || info.environment[throwawayDatabaseEnvironmentKey] == "1"
     }
 
-    /// Passed by `SocialBrainUITests` so the launched app keeps off the real data.
-    static let uiTestLaunchArgument = "-useThrowawayDatabase"
+    /// Set by `SocialBrainUITests` so the launched app keeps off the real data.
+    static let throwawayDatabaseEnvironmentKey = "SOCIALBRAIN_USE_THROWAWAY_DATABASE"
 
     /// Where the database lives — the real Application Support location
     /// normally, a per-process temporary directory under a test host.
