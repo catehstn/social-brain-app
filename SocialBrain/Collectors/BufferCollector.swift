@@ -209,7 +209,20 @@ private struct Update: Decodable {
 private struct UpdateStats: Decodable {
     let clicks:  Int?
     let reach:   Int?
-    let likes:   Int?
+    /// Buffer's v1 documentation shows `favorites`, not `likes`, and says so
+    /// explicitly: *"'favorites' is equivalent to 'likes'. We have left this as
+    /// 'favorites' for now for backward compatibility."* Only `likes` was
+    /// decoded, so on any service that sends the documented name the count was
+    /// silently zero. Both are read; whichever arrives wins.
+    private let likesField: Int?
+    private let favoritesField: Int?
+    var likes: Int? { likesField ?? favoritesField }
     let comments: Int?
     let shares:  Int?
+
+    enum CodingKeys: String, CodingKey {
+        case clicks, reach, comments, shares
+        case likesField = "likes"
+        case favoritesField = "favorites"
+    }
 }

@@ -65,7 +65,15 @@ struct HackerNewsCollector: Collector {
         var url = Self.apiBase.appendingPathComponent("search")
         url.append(queryItems: [
             URLQueryItem(name: "query",                        value: domain),
-            URLQueryItem(name: "restrictSearchableAttributes", value: "url,story_url"),
+            // `url` only. Adding `story_url` returns HTTP 400 — it is not in the
+            // index's searchableAttributes — so every collection failed outright.
+            // Verified against the live API:
+            //   ?restrictSearchableAttributes=url,story_url → 400
+            //     "attribute story_url is not in searchableAttributes setting"
+            //   ?restrictSearchableAttributes=url            → 200, real hits
+            // The restriction still matters: without it the query matches the
+            // domain appearing in comment text, which is not a mention of it.
+            URLQueryItem(name: "restrictSearchableAttributes", value: "url"),
             URLQueryItem(name: "numericFilters",               value: "created_at_i>\(sinceTimestamp)"),
             URLQueryItem(name: "hitsPerPage",                  value: "100")
         ])

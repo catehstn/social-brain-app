@@ -4,10 +4,11 @@ import Foundation
 
 /// Buffer had no test suite beyond a setup-URL check (#48).
 ///
-/// Notably this also pins where the access token travels. Buffer's API takes it
-/// as a query parameter, which puts a live credential into every server log and
-/// proxy along the way — #85 tracks moving it to a header, and these assertions
-/// are what will show that change actually happened.
+/// It also records where the access token currently travels. Buffer accepts it
+/// in the Authorization header, the body *or* the query string — this collector
+/// chooses the query string, which puts a live credential into every server log
+/// and proxy along the way. That is a choice, not an API constraint, and #85
+/// tracks changing it; the assertion below is what makes that change visible.
 @Suite("Buffer Collector Tests")
 struct BufferCollectorTests {
 
@@ -18,10 +19,19 @@ struct BufferCollectorTests {
         ]
         """
 
-    private static let sentJSON = """
+    private static let sentP1JSON = """
         {"updates":[
           {"id":"u1","sent_at":1767225600,"statistics":{"clicks":10,"reach":100,"likes":5}},
           {"id":"u2","sent_at":1767312000,"statistics":{"clicks":3,"reach":40,"likes":1}}
+        ]}
+        """
+
+    /// One post, and its like count arrives as `favorites` — the name Buffer's
+    /// own v1 documentation uses. Only `likes` was decoded, so this contributed
+    /// zero.
+    private static let sentP2JSON = """
+        {"updates":[
+          {"id":"u3","sent_at":1767225600,"statistics":{"clicks":7,"reach":60,"favorites":4}}
         ]}
         """
 
@@ -32,8 +42,8 @@ struct BufferCollectorTests {
     private func makeSession() -> MockURLSession {
         MockURLSession([
             "/1/profiles.json": (Self.profilesJSON, 200),
-            "/1/profiles/p1/updates/sent.json": (Self.sentJSON, 200),
-            "/1/profiles/p2/updates/sent.json": (Self.sentJSON, 200),
+            "/1/profiles/p1/updates/sent.json": (Self.sentP1JSON, 200),
+            "/1/profiles/p2/updates/sent.json": (Self.sentP2JSON, 200),
             "/1/profiles/p1/updates/pending.json": (Self.pendingJSON, 200),
             "/1/profiles/p2/updates/pending.json": (Self.pendingJSON, 200)
         ])
@@ -49,11 +59,11 @@ struct BufferCollectorTests {
             .collect(since: nil, credentials: credentials)
 
         #expect(data.metrics["profiles_count"] == .int(2))
-        // Two profiles, two sent posts each.
-        #expect(data.metrics["sent_updates"] == .int(4))
-        #expect(data.metrics["total_clicks"] == .int(26))
-        #expect(data.metrics["total_reach"] == .int(280))
-        #expect(data.metrics["total_likes"] == .int(12))
+        #expect(data.metrics["sent_updates"] == .int(3))
+        #expect(data.metrics["total_clicks"] == .int(20))
+        #expect(data.metrics["total_reach"] == .int(200))
+        // 5 + 1 from `likes`, 4 from `favorites`. Reading only `likes` gives 6.
+        #expect(data.metrics["total_likes"] == .int(10))
     }
 
     @Test("Counts everything still queued")
@@ -67,16 +77,48 @@ struct BufferCollectorTests {
         #expect(data.metrics["scheduled_updates"] == .int(6))
     }
 
-    @Test("Names the top profiles by sent count")
+    @Test("Names the top profiles by sent count, most first")
     func namesTopProfiles() async throws {
+        // The profiles send different counts on purpose. With both on two the
+        // ordering was nondeterministic, so this could only assert non-nil —
+        // and replacing the whole label with a constant left it passing.
         let data = try await BufferCollector(session: makeSession())
             .collect(since: nil, credentials: credentials)
 
-        // Both profiles sent two; whichever ordering, both should be present and
-        // the third slot empty.
-        let top = [data.metrics["top_profile_1"], data.metrics["top_profile_2"]]
-        #expect(top.allSatisfy { $0 != nil })
+        // Exact strings, not "contains": replacing the whole label with a
+        // constant left a contains-check passing, so the service name and
+        // username formatting were entirely unverified.
+        #expect(data.metrics["top_profile_1"] == .string("Mastodon (cate) (2 posts)"))
+        #expect(data.metrics["top_profile_2"] == .string("Bluesky (cate.bsky) (1 posts)"))
         #expect(data.metrics["top_profile_3"] == nil)
+    }
+
+    @Test("since filters sent posts to the window")
+    func sinceFiltersSentPosts() async throws {
+        // Every other test collects with since: nil, so the whole filtering
+        // branch was dead in the suite — replacing it with `return updates`
+        // left them all green.
+        let sent = """
+            {"updates":[
+              {"id":"old","sent_at":1735689600,"statistics":{"clicks":1}},
+              {"id":"new","sent_at":1767312000,"statistics":{"clicks":2}},
+              {"id":"undated","statistics":{"clicks":99}}
+            ]}
+            """
+        let session = MockURLSession([
+            "/1/profiles.json": ("[{\"id\":\"p1\",\"service\":\"mastodon\"}]", 200),
+            "/1/profiles/p1/updates/sent.json": (sent, 200),
+            "/1/profiles/p1/updates/pending.json": (Self.pendingJSON, 200)
+        ])
+        let since = Date(timeIntervalSince1970: 1_767_225_600)  // 2026-01-01
+
+        let data = try await BufferCollector(session: session)
+            .collect(since: since, credentials: credentials)
+
+        // Only "new" is in the window. "undated" has no sent_at and so cannot be
+        // placed in it — counting it would inflate the period.
+        #expect(data.metrics["sent_updates"] == .int(1))
+        #expect(data.metrics["total_clicks"] == .int(2))
     }
 
     @Test("No connected profiles yields zeros rather than a failure")
@@ -104,14 +146,13 @@ struct BufferCollectorTests {
         #expect(tokens.allSatisfy { $0 == "tok-123" })
     }
 
-    @Test("The token currently travels in the query string, which #85 tracks")
-    func tokenIsInTheQueryString() async throws {
+    @Test("Records where the token currently travels, so #85 is a visible change")
+    func recordsCurrentTokenPlacement() async throws {
         let session = makeSession()
         _ = try await BufferCollector(session: session).collect(since: nil, credentials: credentials)
 
-        // Deliberately asserting the *current* behaviour so that #85's move to a
-        // header is a visible, deliberate change rather than a silent one. When
-        // that lands, this assertion flips to checking the Authorization header.
+        // Asserting today's behaviour, not endorsing it. When #85 moves the
+        // token to a header this test should flip rather than be deleted.
         #expect(session.requestedURLs.allSatisfy { $0.absoluteString.contains("access_token=") })
         #expect(session.headerValues("Authorization", path: "/1/profiles.json").isEmpty)
     }

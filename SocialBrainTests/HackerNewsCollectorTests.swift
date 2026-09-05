@@ -15,7 +15,7 @@ struct HackerNewsCollectorTests {
            "points":120,"num_comments":45},
           {"objectID":"2","title":"Another one","url":"https://example.com/b",
            "points":40,"num_comments":8},
-          {"objectID":"3","story_title":"Comment thread","url":"https://example.com/c",
+          {"objectID":"3","title":"Third story","url":"https://example.com/c",
            "points":75,"num_comments":12},
           {"objectID":"4","title":"No points yet","url":"https://example.com/d",
            "points":0,"num_comments":0}
@@ -46,28 +46,39 @@ struct HackerNewsCollectorTests {
         let data = try await collector.collect(since: nil, credentials: credentials)
 
         #expect(data.metrics["top_story_1"] == .string("A post about widgets (120 pts)"))
-        #expect(data.metrics["top_story_2"] == .string("Comment thread (75 pts)"))
+        #expect(data.metrics["top_story_2"] == .string("Third story (75 pts)"))
         #expect(data.metrics["top_story_3"] == .string("Another one (40 pts)"))
     }
 
     @Test("A hit with no points is excluded from the top stories")
     func excludesZeroPointHits() async throws {
-        let collector = HackerNewsCollector(session: makeSession())
-        let data = try await collector.collect(since: nil, credentials: credentials)
+        // Two hits, one with zero points. With the previous four-hit fixture
+        // prefix(3) dropped the zero-point hit anyway, so removing the filter
+        // left the test passing — it tested the prefix, not the filter.
+        let json = """
+            {"hits":[
+              {"objectID":"1","title":"Real","url":"https://example.com/a","points":10,"num_comments":1},
+              {"objectID":"2","title":"Nothing yet","url":"https://example.com/b","points":0,"num_comments":0}
+            ]}
+            """
+        let data = try await HackerNewsCollector(session: makeSession(json))
+            .collect(since: nil, credentials: credentials)
 
-        // Four hits, but only three have points — there is no fourth slot, and
-        // the zero-point one must not occupy one.
-        #expect(data.metrics["top_story_4"] == nil)
-        #expect(data.metrics.values.contains(.string("No points yet (0 pts)")) == false)
+        #expect(data.metrics["top_story_1"] == .string("Real (10 pts)"))
+        #expect(data.metrics["top_story_2"] == nil)
     }
 
-    @Test("A comment hit falls back to story_title")
-    func usesStoryTitleForComments() async throws {
-        let collector = HackerNewsCollector(session: makeSession())
-        let data = try await collector.collect(since: nil, credentials: credentials)
+    @Test("A hit with no title at all is labelled rather than dropped")
+    func handlesMissingTitle() async throws {
+        // The story_title fallback exists for comment hits, but comments carry
+        // no `url` and so can never match under restrictSearchableAttributes=url.
+        // Verified against the live API: 32 of 32 hits were stories with a url
+        // and no story_title. This covers the reachable case instead.
+        let json = #"{"hits":[{"objectID":"9","url":"https://example.com/x","points":5,"num_comments":0}]}"#
+        let data = try await HackerNewsCollector(session: makeSession(json))
+            .collect(since: nil, credentials: credentials)
 
-        // objectID 3 has no `title`, only `story_title`.
-        #expect(data.metrics["top_story_2"] == .string("Comment thread (75 pts)"))
+        #expect(data.metrics["top_story_1"] == .string("(untitled) (5 pts)"))
     }
 
     @Test("An empty result set yields zeros rather than absent metrics")
@@ -88,10 +99,11 @@ struct HackerNewsCollectorTests {
         _ = try await HackerNewsCollector(session: session).collect(since: nil, credentials: credentials)
 
         #expect(session.queryValue("query", path: "/api/v1/search") == "example.com")
-        // Without this the search matches the domain appearing in body text,
-        // which is not a mention of the site.
-        #expect(session.queryValue("restrictSearchableAttributes", path: "/api/v1/search")
-                == "url,story_url")
+        // Without the restriction the search matches the domain appearing in
+        // comment text, which is not a mention of the site.
+        // `url` alone. This test first asserted "url,story_url" — pinning a
+        // value the live API rejects with HTTP 400.
+        #expect(session.queryValue("restrictSearchableAttributes", path: "/api/v1/search") == "url")
     }
 
     @Test("since is sent as a numeric created_at filter")
