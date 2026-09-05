@@ -87,7 +87,16 @@ actor NotificationManager {
     /// - Parameter alerts: The spike alerts to report. Does nothing when the array is empty.
     func sendSpikeAlerts(_ alerts: [SpikeAlert]) async {
         guard !alerts.isEmpty else { return }
-        guard await Self.authorizationStatus() == .authorized else { return }
+        guard await Self.authorizationStatus() == .authorized else {
+            // On an unsigned, self-built app this is the likely state, not an
+            // edge case. Silence here means a spike detected by the background
+            // run is never surfaced and nothing records that it happened. (The
+            // Feed still recomputes spike cards on next open, so the user does
+            // eventually see it — but not when it mattered.)
+            NSLog("Spike alerts not delivered — notifications are not authorised: %@",
+                  alerts.map(\.summary).joined(separator: "; "))
+            return
+        }
 
         let content = UNMutableNotificationContent()
         if alerts.count == 1 {

@@ -74,7 +74,7 @@ final class RunViewModel {
 
         // Detect spikes — compare the latest two snapshots for each platform
         // that succeeded in this run and fire a notification if anything is notable.
-        await detectAndNotifySpikes(for: summary)
+        await SpikeNotifier(database: database).notifySpikes(for: summary)
 
         // Build a [PlatformInstance: PlatformSnapshot] dictionary from successful results.
         var snapshotsByInstance: [PlatformInstance: PlatformSnapshot] = [:]
@@ -110,27 +110,6 @@ final class RunViewModel {
             goalCustomText: AnalyticsGoal.customText
         )
         generatedPrompt = assembler.assemble(input)
-    }
-
-    private func detectAndNotifySpikes(for summary: CollectionSummary) async {
-        let detector = SpikeDetector()
-        var allAlerts: [SpikeAlert] = []
-
-        let successfulInstances: [PlatformInstance] = summary.results.compactMap { result in
-            guard let data = result.platformData else { return nil }
-            return PlatformInstance(platform: data.platform, instanceName: data.instanceName)
-        }
-        for instance in successfulInstances {
-            guard let pair = try? await database.twoLatestSnapshots(
-                for: instance.platform, instanceName: instance.instanceName),
-                  pair.count == 2 else { continue }
-            let alerts = detector.detect(current: pair[0], previous: pair[1])
-            allAlerts.append(contentsOf: alerts)
-        }
-
-        if !allAlerts.isEmpty {
-            await NotificationManager.shared.sendSpikeAlerts(allAlerts)
-        }
     }
 
     private func periodLabel(since: Date?) -> String {

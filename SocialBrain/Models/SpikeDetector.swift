@@ -4,6 +4,10 @@ import Foundation
 struct SpikeAlert: Sendable {
     /// The platform the metric belongs to.
     let platform: Platform
+    /// Which instance of that platform. Two Mastodon accounts both spiking
+    /// otherwise produce two identical-looking notification lines, and the
+    /// notification is the one surface where the user has no other context.
+    let instanceName: String
     /// Human-readable metric name (e.g. "Followers").
     let metricLabel: String
     /// The raw metric key used in `[String: MetricValue]` dictionaries.
@@ -24,7 +28,10 @@ struct SpikeAlert: Sendable {
     /// A short human-readable description, e.g. "+23.4% Followers on Mastodon".
     var summary: String {
         let sign = isIncrease ? "+" : ""
-        return "\(sign)\(String(format: "%.1f", percentChange))% \(metricLabel) on \(platform.displayName)"
+        let source = instanceName == "default"
+            ? platform.displayName
+            : "\(platform.displayName) (\(instanceName))"
+        return "\(sign)\(String(format: "%.1f", percentChange))% \(metricLabel) on \(source)"
     }
 }
 
@@ -66,6 +73,7 @@ struct SpikeDetector: Sendable {
 
             alerts.append(SpikeAlert(
                 platform: platformEnum,
+                instanceName: current.instanceName,
                 metricLabel: label,
                 metricKey: key,
                 previousValue: previousVal,

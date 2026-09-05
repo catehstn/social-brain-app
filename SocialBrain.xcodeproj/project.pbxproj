@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		03E57B365A3F826FDCAB8124 /* SpikeDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC45E6B188F3C9F6832156DD /* SpikeDetectorTests.swift */; };
+		422D0B9930444F0D866F235D /* SpikeNotifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 387E3CA89E67464486E85CCC /* SpikeNotifierTests.swift */; };
 		972A1EE96F744FFBA1A6C0C9 /* MockURLSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5A3C1CF7C7A45D09C4FD2C9 /* MockURLSessionTests.swift */; };
 		92F2BBD0283D4563B9E3F4FB /* ISO8601DecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D99545779F1740D98B000C30 /* ISO8601DecodingTests.swift */; };
 		0434DB34C669B38CFF30CF6E /* MultiInstanceDatabaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3C41D3F3B0270D6350F2348 /* MultiInstanceDatabaseTests.swift */; };
@@ -94,6 +95,7 @@
 		A8CD2064A0E8BA9E95C2C4AC /* ButtondownCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 801F1E9ADC1711F447E9F944 /* ButtondownCollector.swift */; };
 		A97F0568846BF3C7E478F5E5 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AA5FEEB657E076A0A25BF49 /* HistoryView.swift */; };
 		AAB8502F1F7DC7636BBA245E /* SpikeDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209D38A7438EFED51026AFD6 /* SpikeDetector.swift */; };
+		B2EEAA1C9548441C9540082C /* SpikeNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = D568BD7195E04D5F8C307373 /* SpikeNotifier.swift */; };
 		B29F8E575E37C3A0B5B3B59A /* CollectionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 859D5802079DEAF815EA07E2 /* CollectionEngine.swift */; };
 		B610EEBF361401A69ADD881F /* SetupURLTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F7810A270CE8C2B6617FE4E /* SetupURLTests.swift */; };
 		B9A1154B6BC0766DE56BF70A /* FeedPlatformData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6627A9F277A9FD7656876707 /* FeedPlatformData.swift */; };
@@ -150,6 +152,7 @@
 		1CA3670FAFF76AEA37623FCB /* BackgroundRefreshScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundRefreshScheduler.swift; sourceTree = "<group>"; };
 		1E51178C97A9FDB0FAB33FDA /* GoalBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalBadgeView.swift; sourceTree = "<group>"; };
 		209D38A7438EFED51026AFD6 /* SpikeDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeDetector.swift; sourceTree = "<group>"; };
+		D568BD7195E04D5F8C307373 /* SpikeNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeNotifier.swift; sourceTree = "<group>"; };
 		20AEED312641FBC088302881 /* HackerNewsCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HackerNewsCollector.swift; sourceTree = "<group>"; };
 		2128E07069D06A4F85D58B9B /* VercelCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VercelCollector.swift; sourceTree = "<group>"; };
 		233B30A951BEC219E0C67B33 /* JetpackCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JetpackCollector.swift; sourceTree = "<group>"; };
@@ -242,6 +245,7 @@
 		FA2BAEB2923B9E65E8E39568 /* ButtondownCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ButtondownCollectorTests.swift; sourceTree = "<group>"; };
 		FAAAC8C465952D5111BCE709 /* LinkedInImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedInImporterTests.swift; sourceTree = "<group>"; };
 		FC45E6B188F3C9F6832156DD /* SpikeDetectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeDetectorTests.swift; sourceTree = "<group>"; };
+		387E3CA89E67464486E85CCC /* SpikeNotifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeNotifierTests.swift; sourceTree = "<group>"; };
 		E5A3C1CF7C7A45D09C4FD2C9 /* MockURLSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockURLSessionTests.swift; sourceTree = "<group>"; };
 		D99545779F1740D98B000C30 /* ISO8601DecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ISO8601DecodingTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6A7B8C9D0E1F2 /* MastodonOAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonOAuth.swift; sourceTree = "<group>"; };
@@ -305,6 +309,7 @@
 				6DFC93798463FDD37AEEFC8B /* PlatformInstance.swift */,
 				2CE2F9E554F4AA61D7679995 /* PlatformVisibilityStore.swift */,
 				209D38A7438EFED51026AFD6 /* SpikeDetector.swift */,
+				D568BD7195E04D5F8C307373 /* SpikeNotifier.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -473,6 +478,7 @@
 				623DE38C88FED64C2371FD12 /* SidebarTests.swift */,
 				F38A28EA239666AB10ACAEA3 /* SocialBrainTests.swift */,
 				FC45E6B188F3C9F6832156DD /* SpikeDetectorTests.swift */,
+				387E3CA89E67464486E85CCC /* SpikeNotifierTests.swift */,
 				E5A3C1CF7C7A45D09C4FD2C9 /* MockURLSessionTests.swift */,
 				D99545779F1740D98B000C30 /* ISO8601DecodingTests.swift */,
 				D2505C743A6696B343E4774E /* SubstackImporterTests.swift */,
@@ -723,6 +729,7 @@
 				201DD632FD1D2D7811D799F0 /* SidebarTests.swift in Sources */,
 				A34D99688ABEC06792FD7CDD /* SocialBrainTests.swift in Sources */,
 				03E57B365A3F826FDCAB8124 /* SpikeDetectorTests.swift in Sources */,
+				422D0B9930444F0D866F235D /* SpikeNotifierTests.swift in Sources */,
 				972A1EE96F744FFBA1A6C0C9 /* MockURLSessionTests.swift in Sources */,
 				92F2BBD0283D4563B9E3F4FB /* ISO8601DecodingTests.swift in Sources */,
 				07EB2774970E7FDB3EAC6E83 /* SubstackImporterTests.swift in Sources */,
@@ -796,6 +803,7 @@
 				547445EE2C995915742EAA66 /* SidebarItem.swift in Sources */,
 				447B075F2FC34BAC77627E6F /* SocialBrainApp.swift in Sources */,
 				AAB8502F1F7DC7636BBA245E /* SpikeDetector.swift in Sources */,
+				B2EEAA1C9548441C9540082C /* SpikeNotifier.swift in Sources */,
 				5C18DFF0CD1A386ACA251EFF /* SubstackImporter.swift in Sources */,
 				85D3921C27997386AF05423D /* VercelCollector.swift in Sources */,
 				D4E5F6A7B8C9D0E1F2A3B4C5 /* WordPressOAuth.swift in Sources */,

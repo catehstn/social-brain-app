@@ -78,18 +78,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
 
         // Start the daily background refresh for API-based platforms.
         BackgroundRefreshScheduler.shared.start {
-            // Run without a date filter so the background task always fetches
-            // the latest state regardless of the user's last manual run.
-            let collectors = CollectorRegistry.configured()
-                .filter { $0.platform.authType == .apiKey || $0.platform.authType == .oauthToken }
-            guard !collectors.isEmpty else { return }
-            let engine = CollectionEngine(database: database)
-            _ = try? await engine.run(
+            await Self.runBackgroundRefresh(database: database)
+        }
+    }
+
+    /// One scheduled refresh.
+    ///
+    /// A named function rather than an inline closure so it can be tested. As a
+    /// closure, deleting the `notifySpikes` call below left every test passing —
+    /// the one behaviour this exists to provide had no regression guard at all.
+    ///
+    /// - Parameters:
+    ///   - collectors: defaults to the configured API-backed platforms.
+    ///   - notifier: defaults to the real one, which posts a system notification.
+    static func runBackgroundRefresh(
+        database: AppDatabase,
+        collectors: [any Collector]? = nil,
+        credentials: (@Sendable (PlatformInstance) throws -> Credentials?)? = nil,
+        notifier: SpikeNotifier? = nil
+    ) async {
+        // Run without a date filter so the background task always fetches the
+        // latest state regardless of the user's last manual run.
+        let collectors = collectors ?? CollectorRegistry.configured()
+            .filter { $0.platform.authType == .apiKey || $0.platform.authType == .oauthToken }
+        guard !collectors.isEmpty else { return }
+
+        let engine = CollectionEngine(database: database)
+        let summary: CollectionSummary
+        do {
+            summary = try await engine.run(
                 collectors: collectors,
-                credentials: { platform in try KeychainStore.shared.load(for: platform) },
+                credentials: credentials ?? { instance in
+                    try KeychainStore.shared.load(for: instance)
+                },
                 since: nil,
                 progress: { _ in }
             )
+        } catch {
+            // Was a bare `try?`. An unattended path that fails silently once a
+            // day forever is the failure mode this app already has too much of.
+            NSLog("Background refresh failed: %@", error.localizedDescription)
+            return
         }
+
+        // The whole point of a background run: this is the path that can
+        // actually surprise the user, and it was the one path that never
+        // detected a spike or sent a notification.
+        await (notifier ?? SpikeNotifier(database: database)).notifySpikes(for: summary)
     }
 }
