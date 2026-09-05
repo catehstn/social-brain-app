@@ -93,6 +93,36 @@ struct LinkedInImporterTests {
         #expect(abs(ctr - 0.0072) < 1e-9)
     }
 
+    @Test("The real Page-export header is read as a fraction, not a percentage")
+    func pageExportHeaderIsAFraction() throws {
+        // Real company Page exports head this column "Click through rate (CTR)"
+        // and store a fraction: 328 clicks / 1369 impressions appears as
+        // 0.239590943. Treating it as a percentage would divide by 100 again.
+        let csv = """
+        Date,ShareLink,ShareCommentary,Impressions,Clicks,Click through rate (CTR),Likes,Comments,Shares
+        2026-01-15,https://www.linkedin.com/post/1,Post,1369,328,0.239590943,4,1,0
+        """
+        let data = try #require(csv.data(using: .utf8))
+        let result = try importer.parse(data: data)
+
+        let ctr = try #require(result.doubleMetric("avg_ctr"))
+        #expect(abs(ctr - 0.239590943) < 1e-9)
+    }
+
+    @Test("A bare ctr header falls back to magnitude rather than guessing percent")
+    func bareCtrHeaderUsesMagnitude() throws {
+        let csv = """
+        Date,ShareLink,ShareCommentary,Impressions,Clicks,CTR,Likes,Comments,Shares
+        2026-01-15,https://www.linkedin.com/post/1,Post,10000,72,0.0072,4,1,0
+        """
+        let data = try #require(csv.data(using: .utf8))
+        let result = try importer.parse(data: data)
+
+        // Already a fraction; must not be divided again.
+        let ctr = try #require(result.doubleMetric("avg_ctr"))
+        #expect(abs(ctr - 0.0072) < 1e-9)
+    }
+
     // MARK: - Edge cases
 
     @Test("Omits engagement metrics when all zeros")

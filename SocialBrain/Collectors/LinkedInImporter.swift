@@ -9,6 +9,11 @@ import Foundation
 /// Expected columns (order-independent, case-insensitive):
 ///   Date, ShareLink, ShareCommentary, Impressions, Clicks, CTR (%), Likes, Comments, Shares
 ///
+/// **This header list is unverified.** It was written alongside the importer,
+/// not copied from a real export, and no LinkedIn fixture exists in the repo to
+/// check it against. Real exports found elsewhere disagree — see `ctrColumn`.
+/// #70 is blocked on obtaining one genuine file.
+///
 /// Key metrics produced:
 /// - `posts_published`    – total number of posts in the file
 /// - `total_impressions`  – sum of impressions across all posts
@@ -65,12 +70,11 @@ struct LinkedInImporter {
             if let v = intValue(row[safe: col("likes")])        { totalLikes       += v }
             if let v = intValue(row[safe: col("comments")])     { totalComments    += v }
             if let v = intValue(row[safe: col("shares")])       { totalShares      += v }
-            // The export's column is literally "CTR (%)", so when it resolves
-            // that way the values are percentages regardless of magnitude.
-            let percentColumn = col("ctr (%)")
-            let ctrColumn = percentColumn ?? col("ctr")
-            if let v = RateParsing.rate(from: row[safe: ctrColumn],
-                                        isPercentColumn: percentColumn != nil) {
+            // Header handling here is on shaky ground and deliberately
+            // conservative — see the note above `ctrColumns`.
+            if let resolved = ctrColumn(col),
+               let v = RateParsing.rate(from: row[safe: resolved.index],
+                                        isPercentColumn: resolved.isPercent) {
                 ctrs.append(v)
             }
         }
@@ -99,6 +103,39 @@ struct LinkedInImporter {
     private func intValue(_ raw: String?) -> Int? {
         guard let raw = raw?.trimmingCharacters(in: .whitespaces) else { return nil }
         return Int(raw)
+    }
+
+    /// Resolves the click-through-rate column, and whether its values are
+    /// percentages or fractions.
+    ///
+    /// **The units here are not confirmed against a real export.** This file's
+    /// own doc comment claims the column is headed `CTR (%)`, but that string
+    /// originates in the commit that wrote this importer (451be0f) rather than
+    /// in any observed file, and the repo contains no LinkedIn fixture to check
+    /// it against. Evidence gathered from real exports published elsewhere says:
+    ///
+    /// - The personal data archive has no CTR column at all.
+    /// - The Creator analytics XLSX has no CTR column.
+    /// - The company Page CSV has `Click through rate (CTR)`, holding a
+    ///   **fraction** — 328 clicks / 1369 impressions appears as `0.239590943`.
+    ///
+    /// So a header saying `%` is treated as percentages, and the real observed
+    /// header is treated as a fraction. A bare `ctr` falls back to magnitude,
+    /// which is right for fractions and wrong only for a sub-1% percentage
+    /// column that nobody has yet shown exists.
+    ///
+    /// Localisation defeats any header rule: the Spanish Page export heads this
+    /// column `Porcentaje de clics` — literally "percentage of clicks" — while
+    /// still holding a fraction. Matching on `%` would get that exactly wrong,
+    /// which is why this matches known headers rather than looking for a marker.
+    ///
+    /// Settling this needs one real export. Tracked in #70.
+    private func ctrColumn(_ col: (String) -> Int?) -> (index: Int, isPercent: Bool)? {
+        // Percentage-valued headers first, then fraction-valued, then unknown.
+        if let i = col("ctr (%)") { return (i, true) }
+        if let i = col("click through rate (ctr)") { return (i, false) }
+        if let i = col("ctr") { return (i, false) }
+        return nil
     }
 
     // MARK: - RFC 4180 CSV parser (shared with SubstackImporter)
