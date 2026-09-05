@@ -138,4 +138,30 @@ struct MockURLSessionTests {
         }
     }
 
+    @Test("An HTTP error does not put the response body in its message")
+    func httpErrorDoesNotEchoTheBody() {
+        // The message is rendered on the Run screen, which is the screen most
+        // likely to be screenshotted. An error body from an authenticated API
+        // can carry account details, and 200 characters of it used to be shown
+        // verbatim.
+        let secret = "user_email=cate@example.com&internal_id=abc123"
+        let error = CollectorError.httpError(statusCode: 403, body: secret)
+
+        let message = error.localizedDescription
+        #expect(!message.contains("cate@example.com"))
+        #expect(!message.contains("abc123"))
+        #expect(message.contains("403"))
+        // Still actionable — the status is turned into advice, which is what
+        // the echoed body was standing in for.
+        #expect(message.lowercased().contains("credentials"))
+    }
+
+    @Test("Status codes are turned into something actionable",
+          arguments: [(401, "credentials"), (404, "wasn't found"), (429, "rate limited"),
+                      (503, "temporary")])
+    func statusHintsAreUseful(code: Int, expected: String) {
+        let message = CollectorError.httpError(statusCode: code, body: "").localizedDescription
+        #expect(message.lowercased().contains(expected.lowercased()))
+    }
+
 }

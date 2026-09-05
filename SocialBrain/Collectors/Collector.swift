@@ -31,6 +31,19 @@ extension Collector {
 // MARK: - Errors
 
 enum CollectorError: LocalizedError, Sendable {
+
+    /// Turns a status code into something actionable, which is what the echoed
+    /// response body was standing in for.
+    static func hint(forStatus code: Int) -> String {
+        switch code {
+        case 401, 403: " — the credentials were rejected. Check the token hasn't expired or been revoked."
+        case 404:      " — the endpoint or property wasn't found. Check the account or site identifier."
+        case 429:      " — rate limited. Try again later."
+        case 500...599: " — the service is having problems. This is usually temporary."
+        default:       ""
+        }
+    }
+
     case missingCredential(String)
     /// A credential is present but cannot be used — e.g. a site URL in a form
     /// Search Console does not accept. Distinct from `missingCredential`,
@@ -53,8 +66,12 @@ enum CollectorError: LocalizedError, Sendable {
             "Credential '\(key)' is not usable: \(reason)"
         case .persistenceFailed(let underlying):
             "Collected, but could not be saved: \(underlying.localizedDescription)"
-        case .httpError(let code, let body):
-            "HTTP \(code): \(body.prefix(200))"
+        case .httpError(let code, _):
+            // The body is deliberately not shown. An error response from an
+            // authenticated API can carry account details, and this string is
+            // rendered on the Run screen — the screen most likely to end up in
+            // a screenshot. The body is still carried on the case for logging.
+            "HTTP \(code)\(Self.hint(forStatus: code))"
         case .decodingError(let msg):
             "Failed to decode response: \(msg)"
         case .networkError(let err):

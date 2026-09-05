@@ -4,11 +4,11 @@ import Foundation
 
 /// Buffer had no test suite beyond a setup-URL check (#48).
 ///
-/// It also records where the access token currently travels. Buffer accepts it
-/// in the Authorization header, the body *or* the query string — this collector
-/// chooses the query string, which puts a live credential into every server log
-/// and proxy along the way. That is a choice, not an API constraint, and #85
-/// tracks changing it; the assertion below is what makes that change visible.
+/// It also pins where the access token travels. It used to go in the query
+/// string, which writes a live credential into server access logs, proxy logs
+/// and browser history on every request. Buffer accepts the Authorization
+/// header too, so that was a choice rather than a constraint; #85 changed it,
+/// and the assertions below are what stop it drifting back.
 @Suite("Buffer Collector Tests")
 struct BufferCollectorTests {
 
@@ -138,23 +138,25 @@ struct BufferCollectorTests {
         let session = makeSession()
         _ = try await BufferCollector(session: session).collect(since: nil, credentials: credentials)
 
-        let tokens = session.requestedURLs.compactMap { url -> String? in
-            URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                .queryItems?.first { $0.name == "access_token" }?.value
+        let paths = Set(session.requestedURLs.map(\.path))
+        #expect(!paths.isEmpty)
+        for path in paths {
+            #expect(session.headerValues("Authorization", path: path).allSatisfy { $0 == "Bearer tok-123" },
+                    "missing or wrong Authorization on \(path)")
+            #expect(!session.headerValues("Authorization", path: path).isEmpty,
+                    "no Authorization header on \(path)")
         }
-        #expect(tokens.count == session.requestedURLs.count)
-        #expect(tokens.allSatisfy { $0 == "tok-123" })
     }
 
-    @Test("Records where the token currently travels, so #85 is a visible change")
-    func recordsCurrentTokenPlacement() async throws {
+    @Test("The token travels in a header, never in the URL")
+    func tokenIsSentAsAHeader() async throws {
         let session = makeSession()
         _ = try await BufferCollector(session: session).collect(since: nil, credentials: credentials)
 
-        // Asserting today's behaviour, not endorsing it. When #85 moves the
-        // token to a header this test should flip rather than be deleted.
-        #expect(session.requestedURLs.allSatisfy { $0.absoluteString.contains("access_token=") })
-        #expect(session.headerValues("Authorization", path: "/1/profiles.json").isEmpty)
+        // A query string is recorded verbatim in access logs, so a credential
+        // there is written somewhere it does not need to be — on every request.
+        #expect(session.requestedURLs.allSatisfy { !$0.absoluteString.contains("access_token") })
+        #expect(session.headerValues("Authorization", path: "/1/profiles.json") == ["Bearer tok-123"])
     }
 
     @Test("Each connected profile is queried for both sent and pending posts")
