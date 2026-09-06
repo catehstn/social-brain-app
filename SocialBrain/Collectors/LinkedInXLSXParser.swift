@@ -207,9 +207,10 @@ struct LinkedInXLSXParser {
     ///
     /// `XMLDocument` **parses** a deeply nested document happily and then dies
     /// releasing it: the tree is destroyed recursively, so around 50,000 levels
-    /// the process takes SIGILL in `deinit`. That ordering is the whole problem
-    /// — the parse has already returned by then, so no `try` can catch it, and
-    /// the app is simply gone.
+    /// the process dies in `deinit` — SIGILL on one machine here, SIGSEGV on
+    /// another, which is what a blown stack looks like either way. That
+    /// ordering is the whole problem: the parse has already returned, so no
+    /// `try` can catch it, and the app is simply gone.
     ///
     /// Neither existing limit helps. There is no DTD, so the prolog walk never
     /// looks; and `<a>` repeated deflates to almost nothing, so 350 KB of it is

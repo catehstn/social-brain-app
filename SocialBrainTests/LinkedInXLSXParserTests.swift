@@ -472,6 +472,62 @@ struct LinkedInXLSXParserTests {
         }
     }
 
+    @Test("The depth scan reads UTF-16 too", arguments: [true, false])
+    func deepNestingIsRefusedInUTF16(littleEndian: Bool) throws {
+        // The scanner strides two bytes at a time for UTF-16, and nothing
+        // pinned that: forcing the stride back to one left every parser test
+        // green.
+        //
+        // Plain deep nesting does not pin it either, which is the subtlety. At
+        // stride one the `<` of each `<a>` is still found and still counted, so
+        // the depth comes out the same and the part is still refused — right
+        // answer, broken reason. What breaks is `skipPast`: `-->` in UTF-16 is
+        // `2D 00 2D 00 3E 00`, so at stride one it never matches, the comment
+        // skip runs to the end of the part, and everything after it — including
+        // the nesting — is never seen.
+        //
+        // Hence a comment first, then the depth.
+        let depth = 60_000
+        let xml = "<sst xmlns=\"\(Self.spreadsheetNS)\"><!-- a comment -->"
+            + String(repeating: "<a>", count: depth) + "x"
+            + String(repeating: "</a>", count: depth) + "</sst>"
+
+        var bytes = Data(littleEndian ? [0xFF, 0xFE] : [0xFE, 0xFF])
+        bytes.append(Data(xml.utf16.flatMap {
+            littleEndian ? [UInt8($0 & 0xFF), UInt8($0 >> 8)]
+                         : [UInt8($0 >> 8), UInt8($0 & 0xFF)]
+        }))
+
+        #expect(throws: LinkedInXLSXParser.ParseError.tooDeeplyNested) {
+            try LinkedInXLSXParser.parseXML(bytes)
+        }
+    }
+
+    @Test("A UTF-16 comment full of tags is still skipped, not counted")
+    func utf16CommentContentsAreNotDepth() throws {
+        // Pins the two-byte stride, which the deep-nesting tests above do not:
+        // at stride one the `<` of each element is still found and still
+        // counted, so the depth comes out the same and the part is still
+        // refused — right answer, wrong reason.
+        //
+        // Where the stride actually decides something is `lookingAt`. In
+        // UTF-16 `<!--` is `3C 00 21 00 2D 00 2D 00`, so at stride one it never
+        // matches and the comment is not recognised as one. Its contents get
+        // read as markup instead, and a comment full of tags is then counted as
+        // real nesting — refusing a legitimate file.
+        let noise = String(repeating: "<a><b><c>", count: 200)
+        let xml = """
+            <sst xmlns="\(Self.spreadsheetNS)"><!-- \(noise) -->\
+            <si><t>Alpha</t></si></sst>
+            """
+        var bytes = Data([0xFF, 0xFE])
+        bytes.append(Data(xml.utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] }))
+
+        let doc = try LinkedInXLSXParser.parseXML(bytes)
+        let items = try doc.nodes(forXPath: "//*[local-name()='si']")
+        #expect(items.count == 1)
+    }
+
     @Test("Ordinary spreadsheet nesting is nowhere near the limit")
     func realisticNestingIsAccepted() throws {
         // worksheet/sheetData/row/c/v is five deep. The positive control that
