@@ -48,6 +48,24 @@ struct SubstackImporterTests {
         #expect(abs(rate - 0.50) < 0.001)
     }
 
+    @Test("A sub-1% click rate carrying a % sign is not read as 50%")
+    func subOnePercentWithSignIsNotInflated() throws {
+        // The behaviour change this shares a PR with, at the importer level
+        // rather than the helper's. "0.5%" used to reach the magnitude
+        // heuristic, which sees 0.5, decides it is already a fraction, and
+        // records a 50% click rate for a newsletter clicking at half a percent.
+        // A literal % settles it without guessing.
+        let csv = """
+        title,post_date,delivered,click_rate
+        "A","2026-01-01","500","0.5%"
+        "B","2026-02-01","500","0.7%"
+        """
+        let data = try #require(csv.data(using: .utf8))
+        let result = try importer.parse(data: data)
+        let rate = try #require(result.doubleMetric("avg_click_rate"))
+        #expect(abs(rate - 0.006) < 1e-9)
+    }
+
     @Test("Parses percentage rate with % sign")
     func parsesPercentSign() throws {
         let csv = """
