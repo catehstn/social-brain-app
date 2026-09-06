@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // MARK: - URLSession abstraction (for testability)
 
@@ -40,6 +41,7 @@ enum CollectorError: LocalizedError, Sendable {
         case 404:      " — the endpoint or property wasn't found. Check the account or site identifier."
         case 429:      " — rate limited. Try again later."
         case 500...599: " — the service is having problems. This is usually temporary."
+        case 400...499: " — the service rejected the request. The details are in Console.app under the SocialBrain subsystem."
         default:       ""
         }
     }
@@ -70,7 +72,8 @@ enum CollectorError: LocalizedError, Sendable {
             // The body is deliberately not shown. An error response from an
             // authenticated API can carry account details, and this string is
             // rendered on the Run screen — the screen most likely to end up in
-            // a screenshot. The body is still carried on the case for logging.
+            // a screenshot. It goes to the log instead, where the hints point;
+            // see the throw site in decodeJSON.
             "HTTP \(code)\(Self.hint(forStatus: code))"
         case .decodingError(let msg):
             "Failed to decode response: \(msg)"
@@ -79,6 +82,10 @@ enum CollectorError: LocalizedError, Sendable {
         }
     }
 }
+
+/// Where collector failures go. The subsystem name is what the 4xx hint tells
+/// the user to filter Console.app by, so the two have to stay in step.
+let collectorLog = Logger(subsystem: "com.catehuston.SocialBrain", category: "collector")
 
 // MARK: - Shared HTTP helpers
 
@@ -106,6 +113,13 @@ func decodeJSON<T: Decodable>(
     }
     guard (200..<300).contains(http.statusCode) else {
         let body = String(decoding: data, as: UTF8.self)
+        // The body does not go in the user-facing message, but it is the only
+        // thing that says *which* field or parameter a 400 objected to, so it
+        // has to survive somewhere. `.private` keeps it out of logs collected
+        // by anyone else — it is an authenticated API's response and can carry
+        // account details — while leaving it readable in Console.app on the
+        // user's own machine, which is what the 4xx hint points them at.
+        collectorLog.error("HTTP \(http.statusCode, privacy: .public) from \(http.url?.path ?? "?", privacy: .public): \(body, privacy: .private)")
         throw CollectorError.httpError(statusCode: http.statusCode, body: body)
     }
     do {

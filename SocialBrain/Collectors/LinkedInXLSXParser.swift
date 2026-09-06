@@ -23,14 +23,16 @@ import Foundation
 /// - `new_followers`      – sum of new followers in the period (FOLLOWERS sheet)
 struct LinkedInXLSXParser {
 
-    enum ParseError: LocalizedError {
+    enum ParseError: LocalizedError, Equatable {
         case notXLSX
         case noUsableData
+        case unsafeXML
 
         var errorDescription: String? {
             switch self {
             case .notXLSX:       "The file is not a valid LinkedIn XLSX export."
             case .noUsableData:  "No usable metrics were found in the LinkedIn XLSX file."
+            case .unsafeXML:     "The file contains a document type declaration, which a spreadsheet export never has."
             }
         }
     }
@@ -43,20 +45,18 @@ struct LinkedInXLSXParser {
         }
 
         let zip = try MiniZIPReader(data: data)
-        let sharedStrings = extractSharedStrings(from: zip)
+        let sharedStrings = try extractSharedStrings(from: zip)
 
         var metrics: [String: MetricValue] = [:]
 
         // -- DISCOVERY (sheet1) --
-        if let xml = try? zip.extractEntry(named: "xl/worksheets/sheet1.xml"),
-           let doc = try? Self.parseXML(xml) {
+        if let doc = try parsePart(zip, named: "xl/worksheets/sheet1.xml") {
             if let v = numericCell(doc, ref: "B2") { metrics["total_impressions"] = .int(v) }
             if let v = numericCell(doc, ref: "B3") { metrics["members_reached"]   = .int(v) }
         }
 
         // -- ENGAGEMENT (sheet2): sum Engagements column from row 2 onward --
-        if let xml = try? zip.extractEntry(named: "xl/worksheets/sheet2.xml"),
-           let doc = try? Self.parseXML(xml) {
+        if let doc = try parsePart(zip, named: "xl/worksheets/sheet2.xml") {
             // Detect which column holds Engagements (typically "C") from the header row.
             let engCol = engagementsColumn(in: doc, sharedStrings: sharedStrings) ?? "C"
             let total  = sumColumn(in: doc, col: engCol, startRow: 2)
@@ -64,8 +64,7 @@ struct LinkedInXLSXParser {
         }
 
         // -- FOLLOWERS (sheet4) --
-        if let xml = try? zip.extractEntry(named: "xl/worksheets/sheet4.xml"),
-           let doc = try? Self.parseXML(xml) {
+        if let doc = try parsePart(zip, named: "xl/worksheets/sheet4.xml") {
             if let v = numericCell(doc, ref: "B1") { metrics["total_followers"] = .int(v) }
             let newF = sumColumn(in: doc, col: "B", startRow: 4)
             if newF > 0 { metrics["new_followers"] = .int(newF) }
@@ -73,6 +72,74 @@ struct LinkedInXLSXParser {
 
         guard !metrics.isEmpty else { throw ParseError.noUsableData }
         return PlatformData(platform: .linkedin, metrics: metrics)
+    }
+
+    // MARK: - XML
+
+    /// Parses a spreadsheet part, refusing any document that carries a DTD.
+    ///
+    /// A `.xlsx` is a file the user drags in from outside the app, so every part
+    /// inside it is untrusted input. Two separate attacks arrive through the DTD:
+    ///
+    /// **External entities (XXE).** `XMLDocument(data:)` resolves them by
+    /// default, so `<!ENTITY x SYSTEM "file:///etc/hosts">` puts that file's
+    /// contents into a parsed cell. Confirmed against this parser, not inferred:
+    /// with the guard removed, the shared-string table came back holding the
+    /// contents of the named file. Network fetches are *not* reachable:
+    /// Foundation sets `XML_PARSE_NONET` and refuses them with "Attempt to load
+    /// network entity" — so this is a local file read, not an SSRF.
+    ///
+    /// **Entity expansion.** `.nodeLoadExternalEntitiesNever` does nothing about
+    /// entities defined inline. Ten levels of ten-fold nesting is 602 bytes of
+    /// XML that expands to a gigabyte, and libxml2 applies no limit. The 32 MB
+    /// cap in `MiniZIPReader` does not help: the amplification is against the
+    /// *compressed* size, so a legal file well under the cap can still drive the
+    /// app into multi-GB allocation.
+    ///
+    /// Rejecting the DTD outright closes both, and is stricter than the option
+    /// alone. Nothing a spreadsheet producer writes has one — the check costs a
+    /// substring scan and no legitimate export has ever tripped it. It has to
+    /// happen *before* parsing: by the time `XMLDocument` hands back a document
+    /// whose `.dtd` is non-nil, the expansion has already run.
+    ///
+    /// The scan covers UTF-16 as well as UTF-8, since ECMA-376 permits it and a
+    /// UTF-8-only scan would miss `<\0!\0D\0O\0…`. A cell whose *text* contains
+    /// "&lt;!DOCTYPE" is escaped in the part and does not trip this.
+    static func parseXML(_ data: Data) throws -> XMLDocument {
+        guard !containsDoctype(data) else { throw ParseError.unsafeXML }
+        // Belt and braces: if the scan above is ever bypassed, external entities
+        // still do not resolve.
+        return try XMLDocument(data: data, options: [.nodeLoadExternalEntitiesNever])
+    }
+
+    /// Reads and parses one part, tolerating a missing or malformed one but
+    /// never a refused one.
+    ///
+    /// Which sheets exist varies between exports, so a part that will not load
+    /// is normal and the caller skips it. A part carrying a DTD is not normal —
+    /// no spreadsheet producer writes one — so that refusal propagates rather
+    /// than being flattened into "no usable metrics", which would send someone
+    /// looking for a problem with their export.
+    private func parsePart(_ zip: MiniZIPReader, named name: String) throws -> XMLDocument? {
+        guard let xml = try? zip.extractEntry(named: name) else { return nil }
+        do {
+            return try Self.parseXML(xml)
+        } catch ParseError.unsafeXML {
+            throw ParseError.unsafeXML
+        } catch {
+            return nil
+        }
+    }
+
+    private static func containsDoctype(_ data: Data) -> Bool {
+        let token = Data("<!DOCTYPE".utf8)
+        if data.range(of: token) != nil { return true }
+        // UTF-16 of ASCII is the same bytes interleaved with nulls, either
+        // endianness. Dropping the nulls reduces both to the UTF-8 case.
+        if data.contains(0x00) {
+            return Data(data.filter { $0 != 0x00 }).range(of: token) != nil
+        }
+        return false
     }
 
     // MARK: - Shared strings
@@ -92,25 +159,11 @@ struct LinkedInXLSXParser {
     /// keeps the indices aligned; runs are concatenated in document order.
     /// Phonetic hints (`<rPh>`, used in Japanese workbooks) carry their own `<t>`
     /// and are excluded — they are pronunciation guides, not content.
-    /// Parses a document part with external entity resolution disabled.
     ///
-    /// `XMLDocument(data:)` defaults to resolving external entities, so a
-    /// crafted `.xlsx` — a file the user drags in from outside the app — can
-    /// name a local path or a URL in its DTD and have the parser fetch it. That
-    /// is the XXE class: it can read files the sandbox permits and make network
-    /// requests the user did not ask for.
-    ///
-    /// Nothing in a spreadsheet part needs an external entity, so they are
-    /// refused outright rather than resolved.
-    static func parseXML(_ data: Data) throws -> XMLDocument {
-        try XMLDocument(data: data, options: [.nodeLoadExternalEntitiesNever])
-    }
-
     /// Internal rather than private so the index-alignment behaviour can be
     /// tested directly; a shift here corrupts every later lookup silently.
-    func extractSharedStrings(from zip: MiniZIPReader) -> [String] {
-        guard let xml = try? zip.extractEntry(named: "xl/sharedStrings.xml"),
-              let doc = try? Self.parseXML(xml),
+    func extractSharedStrings(from zip: MiniZIPReader) throws -> [String] {
+        guard let doc = try parsePart(zip, named: "xl/sharedStrings.xml"),
               let items = try? doc.nodes(forXPath: "//*[local-name()='si']")
         else { return [] }
 

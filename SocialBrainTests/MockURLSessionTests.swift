@@ -158,10 +158,24 @@ struct MockURLSessionTests {
 
     @Test("Status codes are turned into something actionable",
           arguments: [(401, "credentials"), (404, "wasn't found"), (429, "rate limited"),
-                      (503, "temporary")])
+                      (503, "temporary"),
+                      // 400 is where the body used to be doing the work: it is
+                      // the status that says *which* field was wrong, and it
+                      // matched none of the specific hints, so suppressing the
+                      // body left a bare "HTTP 400" and nothing to act on.
+                      (400, "rejected the request"), (422, "rejected the request")])
     func statusHintsAreUseful(code: Int, expected: String) {
         let message = CollectorError.httpError(statusCode: code, body: "").localizedDescription
         #expect(message.lowercased().contains(expected.lowercased()))
+    }
+
+    @Test("No HTTP error is left as a bare status number",
+          arguments: [400, 401, 402, 403, 404, 409, 410, 422, 429, 451, 500, 503])
+    func noStatusIsLeftBare(code: Int) {
+        // The generic hint exists so that suppressing the body cannot silently
+        // remove the last diagnosable thing about a failure.
+        let message = CollectorError.httpError(statusCode: code, body: "").localizedDescription
+        #expect(message != "HTTP \(code)")
     }
 
 }
