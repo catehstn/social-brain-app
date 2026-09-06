@@ -63,7 +63,7 @@ struct SpikeDetector: Sendable {
         /// feature.
         ///
         /// The floor is per metric because the metrics are not on one scale,
-        /// and a single global floor gets most of them wrong. Three families:
+        /// and a single global floor gets most of them wrong. Four families:
         ///
         /// - **Averages** (`avg_favourites` and friends) carry the floor. They
         ///   are derived from a handful of posts, so movement below a few
@@ -71,9 +71,18 @@ struct SpikeDetector: Sendable {
         /// - **Rates** are 0–1 fractions, so any count-sized floor would mute
         ///   every one of them. One percentage point is the equivalent scale.
         /// - **Raw counts of discrete events** get no floor. Each unit is a
-        ///   real thing that happened: selling 1 book then 4 is news, and so is
-        ///   three Hacker News mentions dropping to none. This is the case an
+        ///   real thing that happened: selling 1 book then 2 is news, and so is
+        ///   two Hacker News mentions dropping to none. This is the case an
         ///   earlier version of this change got wrong, muting both.
+        /// - **Ranks** get no floor, and the reasoning inverts: for
+        ///   `avg_position` a small number is the *best* state, so a floor
+        ///   suppresses exactly the good news.
+        ///
+        /// `royalties_usd` fits none of the four and is left unfloored. It is a
+        /// continuous currency amount, so it can move on marketplace mix or FX
+        /// with no extra sale — genuinely the noise this exists to stop — but
+        /// flooring it at any dollar figure mutes a real sales month on a 99c
+        /// ebook, which is worse. Left deliberately, not overlooked.
         var floor: Double = 0
     }
 
@@ -98,10 +107,12 @@ struct SpikeDetector: Sendable {
                   previousVal != 0
             else { continue }
 
-            // Both gates, not either: a large relative change between tiny
-            // numbers is not news, and a small relative change between large
-            // ones is not either. Whichever side is bigger decides, so a
-            // collapse to zero still reports.
+            // The floor gate and the percentage gate below are both required:
+            // a large relative change between tiny numbers is not news, and a
+            // small relative change between large ones is not either. Within
+            // this gate, whichever side is bigger decides — so a collapse to
+            // zero still reports, as long as where it fell from cleared the
+            // floor.
             guard max(abs(currentVal), abs(previousVal)) >= metric.floor else { continue }
 
             let pctChange = abs(((currentVal - previousVal) / abs(previousVal)) * 100)

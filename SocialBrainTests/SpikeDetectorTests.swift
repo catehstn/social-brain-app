@@ -218,14 +218,27 @@ struct SpikeDetectorTests {
         let current  = try makeSnapshot(platform: .mastodon, metrics: ["avg_favourites": .double(0.7)])
 
         #expect(SpikeDetector().detect(current: current, previous: previous).isEmpty)
+
+        // The other side of the bracket. 2.0 → 2.6 is +30% and still under the
+        // floor, so lowering the floor to catch it fails here.
+        let justUnder = try makeSnapshot(platform: .mastodon, metrics: ["avg_favourites": .double(2.6)])
+        let below     = try makeSnapshot(platform: .mastodon, metrics: ["avg_favourites": .double(2.0)])
+
+        #expect(SpikeDetector().detect(current: justUnder, previous: below).isEmpty)
     }
 
     @Test("A real shift in a small-but-meaningful average still surfaces")
     func meaningfulAveragesStillSurface() throws {
         // The floor is on the values, not the change, precisely so this
-        // survives: 4 → 5 average favourites is a genuine 25% engagement shift.
-        let previous = try makeSnapshot(platform: .mastodon, metrics: ["avg_favourites": .double(4.0)])
-        let current  = try makeSnapshot(platform: .mastodon, metrics: ["avg_favourites": .double(5.0)])
+        // survives: 3.5 → 4.4 average favourites is a genuine 26% shift.
+        //
+        // Together with tinyNumbersAreNotSpikes below, this brackets the floor
+        // rather than merely clearing it: 2.6 must stay silent and 4.4 must
+        // fire, so the constant is pinned into (2.6, 4.4]. An earlier version
+        // used 4 → 5, which passes at a floor of 5 as well as 3 — the value the
+        // PR argues for was not held by anything.
+        let previous = try makeSnapshot(platform: .mastodon, metrics: ["avg_favourites": .double(3.5)])
+        let current  = try makeSnapshot(platform: .mastodon, metrics: ["avg_favourites": .double(4.4)])
 
         #expect(SpikeDetector().detect(current: current, previous: previous).count == 1)
     }
@@ -264,15 +277,19 @@ struct SpikeDetectorTests {
 
     // MARK: - Raw event counts are not averages
 
-    @Test("Selling one book then four is news, however small the numbers")
+    @Test("Selling one book then two is news, however small the numbers")
     func smallCountsOfDiscreteEventsStillSurface() throws {
-        // An average can move without anything happening. A count cannot: four
-        // units sold is four real sales. An earlier version of the floor
-        // applied one count-sized number to every metric and muted this — on a
-        // 99c ebook the royalties stayed under the floor too, so a 4x sales
+        // An average can move without anything happening. A count cannot: two
+        // units sold is two real sales. An earlier version of the floor applied
+        // one count-sized number to every metric and muted this — on a 99c
+        // ebook the royalties stayed under the floor too, so a doubled sales
         // month produced complete silence.
+        //
+        // Deliberately below averageFloor on both sides. Fixtures that clear it
+        // still pass if someone "consistently" applies the average floor here,
+        // which is the regression actually worth catching.
         let previous = try makeSnapshot(platform: .amazon, metrics: ["units_sold": .double(1)])
-        let current  = try makeSnapshot(platform: .amazon, metrics: ["units_sold": .double(4)])
+        let current  = try makeSnapshot(platform: .amazon, metrics: ["units_sold": .double(2)])
 
         let alerts = SpikeDetector().detect(current: current, previous: previous)
         #expect(alerts.map(\.metricKey) == ["units_sold"])
@@ -280,7 +297,7 @@ struct SpikeDetectorTests {
 
     @Test("Dropping off Hacker News altogether is reported")
     func collapseToZeroIsReported() throws {
-        let previous = try makeSnapshot(platform: .hackerNews, metrics: ["mention_count": .double(3)])
+        let previous = try makeSnapshot(platform: .hackerNews, metrics: ["mention_count": .double(2)])
         let current  = try makeSnapshot(platform: .hackerNews, metrics: ["mention_count": .double(0)])
 
         let alerts = SpikeDetector().detect(current: current, previous: previous)
@@ -291,9 +308,11 @@ struct SpikeDetectorTests {
     @Test("Climbing the search rankings is not muted for being a small number")
     func averagePositionHasNoFloor() throws {
         // Rank is the one metric where small is the *best* state, so a floor
-        // would suppress precisely the good news.
-        let previous = try makeSnapshot(platform: .googleSearchConsole, metrics: ["avg_position": .double(4)])
-        let current  = try makeSnapshot(platform: .googleSearchConsole, metrics: ["avg_position": .double(3)])
+        // would suppress precisely the good news. Named avg_position, so it is
+        // the likeliest metric to get the average floor applied by mistake —
+        // the fixture sits below that floor so the mistake fails here.
+        let previous = try makeSnapshot(platform: .googleSearchConsole, metrics: ["avg_position": .double(2.5)])
+        let current  = try makeSnapshot(platform: .googleSearchConsole, metrics: ["avg_position": .double(1.8)])
 
         let alerts = SpikeDetector().detect(current: current, previous: previous)
         #expect(alerts.map(\.metricKey) == ["avg_position"])

@@ -72,7 +72,7 @@ The reason to open the app most days.
 - Empty state: "Nothing yet — run a collection to populate your feed."
 - Refresh action in toolbar; also pulls automatically after a Run finishes.
 
-Feed cards are **generated**, not hand-written — the app runs `SpikeDetector` (≥20% change between last two snapshots) and `HighReachDetector` (absolute thresholds + ≥30% relative lift) over each new snapshot. The Feed is the *"what's new that matters"* view; Dashboard is *"show me the trend."*
+Feed cards are **generated**, not hand-written — the app runs `SpikeDetector` (≥20% change between the last two snapshots, and only where the metric itself clears a per-metric magnitude floor — averages and rates have one, raw event counts and ranks do not) and `HighReachDetector` (absolute thresholds + ≥30% relative lift) over each new snapshot. The Feed is the *"what's new that matters"* view; Dashboard is *"show me the trend."*
 
 ### Dashboard
 - Toolbar: instance picker (dropdown) + time-range segmented control (Week / Month / 3 Months / All Time) + refresh button.
