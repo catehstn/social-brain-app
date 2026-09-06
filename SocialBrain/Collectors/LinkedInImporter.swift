@@ -71,7 +71,7 @@ struct LinkedInImporter {
             if let v = intValue(row[safe: col("comments")])     { totalComments    += v }
             if let v = intValue(row[safe: col("shares")])       { totalShares      += v }
             // Header handling here is on shaky ground and deliberately
-            // conservative — see the note above `ctrColumns`.
+            // conservative — see the note above `ctrColumn`.
             if let resolved = ctrColumn(col),
                let v = RateParsing.rate(from: row[safe: resolved.index],
                                         isPercentColumn: resolved.isPercent) {

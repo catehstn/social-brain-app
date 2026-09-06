@@ -2,10 +2,16 @@ import Testing
 import Foundation
 @testable import SocialBrain
 
-/// The magnitude heuristic these replace (`value > 1 ? value / 100 : value`)
-/// existed in two copies and was wrong in both, for the common case rather than
-/// the edge case: typical post and newsletter click rates are below 1%, and
-/// every one of those was inflated 100x on its way into the prompt.
+/// Covers the shared rate parser.
+///
+/// The magnitude heuristic (`value > 1 ? value / 100 : value`) existed in two
+/// copies. It is **not** removed here — it is still the fallback, and both real
+/// call sites reach it. What changed is that it now sits behind two signals
+/// that are not guesses, and lives in one place instead of two.
+///
+/// An earlier version of this comment said the heuristic was replaced, and that
+/// it had been inflating LinkedIn CTR 100x. Neither is true: see the note on
+/// `RateParsing` itself and #70.
 @Suite("Rate parsing")
 struct RateParsingTests {
 
