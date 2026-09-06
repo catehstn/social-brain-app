@@ -89,12 +89,16 @@ struct PlatformCredentialSheet: View {
             // scheduled_events:read covers GET /scheduled_events. Verified
             // against developer.calendly.com/docs/authentication/scopes.
             //
-            // There is no "default" scope, which is what this used to say.
-            // Tokens issued before Calendly introduced scoped permissions kept
-            // full access, so the old wording described a checkbox that has
-            // never existed — and a *new* token grants no API access at all
-            // until scopes are requested, so someone following it got a token
-            // that silently returned nothing.
+            // The current scope catalogue has no "default" scope, which is
+            // what this used to say. Tokens issued before Calendly introduced
+            // scoped permissions kept full access, so the old wording was
+            // harmless for anyone who already had one — but a *new* token
+            // grants no API access until scopes are requested, and the API then
+            // answers with a 403 saying the permissions are insufficient.
+            //
+            // Not claiming the "default" checkbox never existed: the current
+            // catalogue is verifiable and the historical one is not. It is
+            // wrong now, which is enough.
             permissionsNote("Permissions needed: users:read and scheduled_events:read")
             field("Personal Access Token", key: "api_key", secure: true,
                   help: "Create one at calendly.com/integrations/api_webhooks",
