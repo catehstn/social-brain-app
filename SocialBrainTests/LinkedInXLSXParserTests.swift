@@ -367,6 +367,9 @@ struct LinkedInXLSXParserTests {
         }
     }
 
+    private static let spreadsheetNS =
+        "http://schemas.openxmlformats.org/spreadsheetml/2006/main"
+
     @Test("A UTF-7 part cannot hide the DOCTYPE token behind an escape")
     func utf7IsRefused() throws {
         // The evasion that made sniffing the first bytes insufficient. UTF-7
@@ -444,6 +447,90 @@ struct LinkedInXLSXParserTests {
         #expect(throws: LinkedInXLSXParser.ParseError.malformedProlog) {
             try parser.extractSharedStrings(from: zip)
         }
+    }
+
+    // MARK: - Nesting depth
+
+    @Test("A part that nests deeply enough to kill the process is refused")
+    func deepNestingIsRefused() throws {
+        // #129. XMLDocument parses this happily and then dies releasing it —
+        // the tree is destroyed recursively, so around 50,000 levels the
+        // process takes SIGILL in deinit. The parse has already returned by
+        // then, so no `try` catches it.
+        //
+        // Neither existing limit helps: no DTD, so the prolog walk never looks;
+        // and `<a>` repeated deflates to almost nothing, so 350 KB of it is a
+        // 647-byte .xlsx, three orders of magnitude under the 32 MB entry cap.
+        let depth = 60_000
+        let xml = "<sst xmlns=\"\(Self.spreadsheetNS)\">"
+            + String(repeating: "<a>", count: depth) + "x"
+            + String(repeating: "</a>", count: depth) + "</sst>"
+        let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
+
+        #expect(throws: LinkedInXLSXParser.ParseError.tooDeeplyNested) {
+            try parser.extractSharedStrings(from: zip)
+        }
+    }
+
+    @Test("Ordinary spreadsheet nesting is nowhere near the limit")
+    func realisticNestingIsAccepted() throws {
+        // worksheet/sheetData/row/c/v is five deep. The positive control that
+        // stops the bound from becoming "refuse everything".
+        let xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <sst xmlns="\(Self.spreadsheetNS)">
+              <si><r><rPr><b/></rPr><t>Alpha</t></r><r><t> Beta</t></r></si>
+            </sst>
+            """
+        let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
+        #expect(try parser.extractSharedStrings(from: zip) == ["Alpha Beta"])
+    }
+
+    @Test("Angle brackets inside comments, CDATA and attributes are not counted",
+          arguments: [
+            "<!-- <a><a><a><a> a comment full of tags -->",
+            "<![CDATA[<a><a><a><a> not markup]]>",
+            "<?pi <a><a><a><a> ?>",
+          ])
+    func nonMarkupAngleBracketsAreNotDepth(noise: String) throws {
+        // The scan has to understand enough XML not to miscount. If it treated
+        // any of these as elements it would drift a few levels per occurrence,
+        // and a large real file would eventually be refused as hostile.
+        let xml = """
+            <sst xmlns="\(Self.spreadsheetNS)">\(String(repeating: noise, count: 400))\
+            <si><t>Alpha</t></si></sst>
+            """
+        let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
+        #expect(try parser.extractSharedStrings(from: zip) == ["Alpha"])
+    }
+
+    @Test("A `>` inside an attribute value does not end the tag early")
+    func angleBracketInAttributeIsNotDepth() throws {
+        // Self-closing on purpose. With a paired tag this passes either way —
+        // ending early at the `>` inside the attribute still leaves the open
+        // and its `</si>` balanced, so depth never drifts and the test cannot
+        // fail. Ending `<br note="a > b"/>` early instead loses the trailing
+        // `/`, so it counts as an open that never closes and drifts one level
+        // per element.
+        let xml = """
+            <sst xmlns="\(Self.spreadsheetNS)">\
+            \(String(repeating: "<br note=\"a > b\"/>", count: 400))\
+            <si><t>Alpha</t></si></sst>
+            """
+        let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
+        #expect(try parser.extractSharedStrings(from: zip) == ["Alpha"])
+    }
+
+    @Test("Self-closing tags do not accumulate depth")
+    func selfClosingTagsAreNotDepth() throws {
+        // <x/> opens and closes in one tag. Counting it as an open would drift
+        // one level per element, and a sheet is full of them.
+        let xml = """
+            <sst xmlns="\(Self.spreadsheetNS)">\(String(repeating: "<br/>", count: 400))\
+            <si><t>Alpha</t></si></sst>
+            """
+        let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
+        #expect(try parser.extractSharedStrings(from: zip) == ["Alpha"])
     }
 
     @Test("A part bigger than the prolog scan still parses")
