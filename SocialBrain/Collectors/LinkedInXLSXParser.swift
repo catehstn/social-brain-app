@@ -243,12 +243,21 @@ struct LinkedInXLSXParser {
     /// through the sniff alone. libxml2 honours the declaration via iconv, so
     /// the declaration has to be honoured here too.
     private static func declaredEncodingIsPermitted(_ b: [UInt8]) -> Bool {
-        guard matches(b, at: 0, "<?xml"), let declEnd = find(b, from: 0, "?>") else {
+        // Skip leading whitespace before looking for the declaration. Not
+        // because it is legal there — libxml2 answers "XML declaration allowed
+        // only at the start of the document" — but because anchoring at byte 0
+        // meant a part opening with a space skipped this check entirely and
+        // fell through to "no declaration, therefore permitted". Nothing
+        // exploits that today; it is the seam a future encoding evasion would
+        // use, and it costs two lines to close.
+        var start = 0
+        while start < b.count, isSpace(b[start]) { start += 1 }
+        guard matches(b, at: start, "<?xml"), let declEnd = find(b, from: start, "?>") else {
             // No declaration. The sniff already established UTF-8 or UTF-16,
             // which is what a part without one has to be.
             return true
         }
-        let declaration = String(decoding: b[0 ..< declEnd], as: UTF8.self).lowercased()
+        let declaration = String(decoding: b[start ..< declEnd], as: UTF8.self).lowercased()
         guard let keyword = declaration.range(of: "encoding") else { return true }
 
         let after = declaration[keyword.upperBound...]

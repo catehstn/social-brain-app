@@ -408,6 +408,23 @@ struct LinkedInXLSXParserTests {
         }
     }
 
+    @Test("Whitespace before the declaration does not skip the encoding check")
+    func whitespaceBeforeDeclarationStillChecksEncoding() throws {
+        // The encoding check was anchored at byte 0, and the encoding sniff
+        // allows a part to open with whitespace — so a single leading space
+        // meant the declaration was never examined and the part fell through to
+        // "no declaration, therefore permitted".
+        //
+        // Nothing exploited it (libxml2 refuses a declaration that is not at the
+        // very start, and a hidden DOCTYPE still trips the NameStartChar rule),
+        // but it is the seam a future encoding evasion would use.
+        let xml = "  <?xml version=\"1.0\" encoding=\"UTF-7\"?><sst><si><t>x</t></si></sst>"
+
+        #expect(throws: LinkedInXLSXParser.ParseError.unsupportedEncoding) {
+            try LinkedInXLSXParser.parseXML(Data(xml.utf8))
+        }
+    }
+
     @Test("A DOCTYPE padded onto the scan boundary is not read as a root element")
     func doctypeOnTheScanBoundaryIsRefused() throws {
         // The prolog scan reads a bounded prefix. Pad the prolog with legal
