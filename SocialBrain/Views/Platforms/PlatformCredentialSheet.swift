@@ -84,7 +84,22 @@ struct PlatformCredentialSheet: View {
                   help: "The subdomain of your GoatCounter URL — e.g. \"mysite\" from mysite.goatcounter.com")
 
         case .calendly:
-            permissionsNote("Permissions needed: check the \"default\" scope (read user info and scheduled events)")
+            // Calendly's scopes are colon-delimited, and these two are what the
+            // collector actually calls: users:read covers GET /users/me,
+            // scheduled_events:read covers GET /scheduled_events. Verified
+            // against developer.calendly.com/docs/authentication/scopes.
+            //
+            // The current scope catalogue has no "default" scope, which is
+            // what this used to say. Tokens issued before Calendly introduced
+            // scoped permissions kept full access, so the old wording was
+            // harmless for anyone who already had one — but a *new* token
+            // grants no API access until scopes are requested, and the API then
+            // answers with a 403 saying the permissions are insufficient.
+            //
+            // Not claiming the "default" checkbox never existed: the current
+            // catalogue is verifiable and the historical one is not. It is
+            // wrong now, which is enough.
+            permissionsNote("Permissions needed: users:read and scheduled_events:read")
             field("Personal Access Token", key: "api_key", secure: true,
                   help: "Create one at calendly.com/integrations/api_webhooks",
                   helpURL: URL(string: "https://calendly.com/integrations/api_webhooks"))
