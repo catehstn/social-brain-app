@@ -3,12 +3,19 @@ import Foundation
 /// Collects scheduled and sent post analytics from Buffer.
 ///
 /// **This talks to Buffer's v1 REST API, which is retired on 1 February 2027.**
-/// The live API says so itself, in both a `sunset:` response header and the
-/// body: *"The Buffer legacy REST API is deprecated and will be retired on
-/// 1 February 2027. Please migrate to the GraphQL API before then."* Every
-/// endpoint below stops working on that date. Migration is tracked in #117; the
-/// guide maps the REST shapes onto GraphQL, including `sent_at` → `sentAt` and
-/// pending's `due_at` → `dueAt`. Worth knowing before investing in this file.
+/// The API says so itself, in a `sunset:` header and in the body:
+/// *"The Buffer legacy REST API is deprecated and will be retired on 1 February
+/// 2027. Please migrate to the GraphQL API before then."*
+///
+/// Only on a request that carries a token, though — a bare unauthenticated call
+/// is answered by OAuth middleware with a plain 401 and none of those headers.
+/// Anyone re-checking this with a plain `curl` will conclude the note is wrong.
+///
+/// Migration is tracked in #117. The migration guide maps *endpoints*, not
+/// fields: it never mentions `sent_at` or `due_at`, and its GraphQL examples
+/// simply use `sentAt` and `dueAt`. The correspondence is the obvious inference
+/// and not something the guide states — worth knowing before planning against
+/// it. Worth knowing before investing in this file at all.
 ///
 /// Required credentials key:
 /// - `"api_key"` – Buffer access token

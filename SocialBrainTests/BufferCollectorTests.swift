@@ -91,9 +91,13 @@ struct BufferCollectorTests {
             "/1/profiles/p2/updates/pending.json": (Self.pendingJSON, 200)
         ])
 
-        await #expect(throws: (any Error).self) {
+        // CollectorError, not `any Error`: with `any Error` a typo in the fixture
+        // path passes too, because MockURLSessionError.noFixture also satisfies
+        // it — so a broken mock would read as a working test.
+        let error = await #expect(throws: CollectorError.self) {
             try await BufferCollector(session: session).collect(since: nil, credentials: credentials)
         }
+        #expect(error?.localizedDescription.contains("HTTP 500") == true)
     }
 
     @Test("A pending response the decoder cannot read is an error, not a zero")
@@ -109,9 +113,10 @@ struct BufferCollectorTests {
             "/1/profiles/p2/updates/pending.json": (Self.pendingJSON, 200)
         ])
 
-        await #expect(throws: (any Error).self) {
+        let error = await #expect(throws: CollectorError.self) {
             try await BufferCollector(session: session).collect(since: nil, credentials: credentials)
         }
+        #expect(error?.localizedDescription.contains("Failed to decode") == true)
     }
 
     @Test("Names the top profiles by sent count, most first")
