@@ -7,75 +7,116 @@ struct OReillyImporterTests {
 
     private let importer = OReillyImporter()
 
-    // MARK: - Tabular format
+    // MARK: - EML / MIME
 
-    @Test("Parses tabular report with page views and unique users")
-    func tabularReport() throws {
-        let txt = """
-        O'Reilly Learning Platform - Monthly Report - February 2026
+    @Test("Parses payment fields from a multipart EML")
+    func parseEML() throws {
+        let eml = """
+        MIME-Version: 1.0
+        Content-Type: multipart/alternative; boundary="testboundary"
 
-        Title                           Page Views   Unique Users   Completions
-        Swift in Depth                  4521         1203           87
-        Advanced SwiftUI Patterns       2340         810            45
-        Concurrency in Swift            1890         654            32
+        --testboundary
+        Content-Type: text/plain; charset=UTF-8
+
+        Payment Remittance Advice
+
+        --testboundary
+        Content-Type: text/html; charset=UTF-8
+
+        <html><body>
+        <table>
+        <tr><td>Payment Date</td><td>Mar 31, 2026</td></tr>
+        <tr><td>Payment Currency</td><td>USD</td></tr>
+        <tr><td>Payment Amount</td><td>77.96</td></tr>
+        <tr><td>Paper Document Number</td><td>211196</td></tr>
+        </table>
+        <table>
+        <tr>
+          <td>AP-1416088</td><td>30-Mar-26</td><td>ROYALTY STATEMENT</td>
+          <td>77.96</td><td>USD</td><td>.00</td><td>77.96</td>
+        </tr>
+        </table>
+        </body></html>
+
+        --testboundary--
         """
-        let data = try #require(txt.data(using: .utf8))
+        let data = try #require(eml.data(using: .utf8))
         let result = try importer.parse(data: data)
         #expect(result.platform == .oreilly)
-        #expect(result.intMetric("total_page_views") == 8751)
-        #expect(result.intMetric("total_unique_users") == 2667)
-        #expect(result.intMetric("total_completions") == 164)
-        #expect(result.intMetric("titles_count") == 3)
+        #expect(result.doubleMetric("payment_amount") == 77.96)
+        #expect(result.stringMetric("payment_currency") == "USD")
+        #expect(result.stringMetric("payment_date") == "2026-03-31")
+        #expect(result.stringMetric("doc_number") == "211196")
+        #expect(result.intMetric("line_item_count") == 1)
     }
 
-    @Test("Parses tabular report without completions column")
-    func tabularReportNoCompletions() throws {
-        let txt = """
-        Monthly Report
+    @Test("Parses multiple royalty line items")
+    func multipleLineItems() throws {
+        let eml = """
+        MIME-Version: 1.0
+        Content-Type: multipart/alternative; boundary="b"
 
-        Title                   Page Views   Unique Users
-        Book One                1000         300
-        Book Two                2000         600
+        --b
+        Content-Type: text/html; charset=UTF-8
+
+        <html><body>
+        <td>Payment Date</td><td>Jan 31, 2026</td>
+        <td>Payment Currency</td><td>USD</td>
+        <td>Payment Amount</td><td>150.00</td>
+        <td>AP-1000001</td><td>30-Jan-26</td><td>ROYALTY STATEMENT</td><td>75.00</td><td>USD</td><td>.00</td><td>75.00</td>
+        <td>AP-1000002</td><td>30-Jan-26</td><td>ROYALTY STATEMENT</td><td>75.00</td><td>USD</td><td>.00</td><td>75.00</td>
+        </body></html>
+
+        --b--
         """
-        let data = try #require(txt.data(using: .utf8))
+        let data = try #require(eml.data(using: .utf8))
         let result = try importer.parse(data: data)
-        #expect(result.intMetric("total_page_views") == 3000)
-        #expect(result.intMetric("total_unique_users") == 900)
-        #expect(result.intMetric("total_completions") == nil)
+        #expect(result.doubleMetric("payment_amount") == 150.00)
+        #expect(result.intMetric("line_item_count") == 2)
     }
 
-    @Test("Handles comma-formatted numbers")
-    func handlesCommaNumbers() throws {
-        let txt = """
-        Monthly Report
+    @Test("Handles style block in HTML (tokens not leaked)")
+    func styleBlockNotTokenised() throws {
+        let eml = """
+        MIME-Version: 1.0
+        Content-Type: multipart/alternative; boundary="b"
 
-        Title          Page Views   Unique Users
-        Popular Book   12,500       4,200
+        --b
+        Content-Type: text/html; charset=UTF-8
+
+        <html>
+        <head><style>body { font-family: Arial; } .Payment { color: red; }</style></head>
+        <body>
+        <td>Payment Date</td><td>Feb 28, 2026</td>
+        <td>Payment Currency</td><td>USD</td>
+        <td>Payment Amount</td><td>50.00</td>
+        </body></html>
+
+        --b--
         """
-        let data = try #require(txt.data(using: .utf8))
+        let data = try #require(eml.data(using: .utf8))
         let result = try importer.parse(data: data)
-        #expect(result.intMetric("total_page_views") == 12500)
-        #expect(result.intMetric("total_unique_users") == 4200)
+        #expect(result.doubleMetric("payment_amount") == 50.00)
+        #expect(result.stringMetric("payment_date") == "2026-02-28")
     }
 
-    // MARK: - Key-value format
+    @Test("Defaults currency to USD when absent")
+    func missingCurrencyDefaultsToUSD() throws {
+        let eml = """
+        MIME-Version: 1.0
+        Content-Type: multipart/alternative; boundary="b"
 
-    @Test("Parses key-value format")
-    func keyValueFormat() throws {
-        let txt = """
-        O'Reilly Monthly Author Report
+        --b
+        Content-Type: text/html; charset=UTF-8
 
-        Page views: 9,432
-        Unique users: 3,105
-        Completions: 220
-        Titles: 5
+        <td>Payment Date</td><td>Jun 30, 2025</td>
+        <td>Payment Amount</td><td>42.00</td>
+
+        --b--
         """
-        let data = try #require(txt.data(using: .utf8))
+        let data = try #require(eml.data(using: .utf8))
         let result = try importer.parse(data: data)
-        #expect(result.intMetric("total_page_views") == 9432)
-        #expect(result.intMetric("total_unique_users") == 3105)
-        #expect(result.intMetric("total_completions") == 220)
-        #expect(result.intMetric("titles_count") == 5)
+        #expect(result.stringMetric("payment_currency") == "USD")
     }
 
     // MARK: - Error cases
@@ -88,9 +129,9 @@ struct OReillyImporterTests {
         }
     }
 
-    @Test("Throws on unrecognised format")
-    func unrecognisedFormatThrows() {
-        let txt = "Hello world\nThis is not a report\n"
+    @Test("Throws when required payment fields are absent")
+    func missingFieldsThrows() {
+        let txt = "Hello world\nThis is not an O'Reilly email.\n"
         let data = txt.data(using: .utf8)!
         #expect(throws: (any Error).self) {
             try importer.parse(data: data)
