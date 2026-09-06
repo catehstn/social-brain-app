@@ -116,8 +116,12 @@ struct SubstackImporter {
         // periodEnd, same as the current format. This path computed
         // publishedRows and then dropped it on the floor, so a legacy import was
         // stamped with the import clock and filed as today — the staleness the
-        // periodEnd work exists to prevent, and a dead binding that should have
-        // been a warning.
+        // periodEnd work exists to prevent.
+        //
+        // The dead binding did produce "initialization of immutable value
+        // 'publishedRows' was never used" — verified with swiftc on a reduction
+        // of the same construct. So the compiler said so all along and nobody
+        // read it; there is no warning configuration to go and fix.
         //
         // The column is "Date" per the header this parser detects on. That name
         // comes from this file's own doc comment rather than an observed export,
