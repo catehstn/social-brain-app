@@ -167,8 +167,9 @@ Filing an issue is not finished until it carries these:
 `docs/design-brief.md` and `docs/repo-cleanup-plan.md` are living docs referenced
 from here and from the README. When a change makes one of them wrong, fix it in
 the same PR. They go stale fast, and a stale doc is worse than no doc because it
-gets trusted: #61 exists because the design brief promises a mentions synthesis
+gets trusted: #61 exists because the design brief promised a mentions synthesis
 the code has never had, and the design pass was about to be planned from it.
+(The line was cut in #123, so #61 is now about whether to build one at all.)
 
 ## README
 
