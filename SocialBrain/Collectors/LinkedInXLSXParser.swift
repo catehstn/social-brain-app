@@ -29,13 +29,14 @@ struct LinkedInXLSXParser {
         case unsafeXML
         case unsupportedEncoding
         case malformedProlog
+        case tooDeeplyNested
 
         /// Whether this is a refusal to parse a file we *did* recognise, as
         /// opposed to "this is not our format". A refusal has to reach the user
         /// even when the caller is trying several parsers in turn.
         var isRefusal: Bool {
             switch self {
-            case .unsafeXML, .unsupportedEncoding, .malformedProlog: true
+            case .unsafeXML, .unsupportedEncoding, .malformedProlog, .tooDeeplyNested: true
             case .notXLSX, .noUsableData:                            false
             }
         }
@@ -50,6 +51,8 @@ struct LinkedInXLSXParser {
                 "The file's XML is not UTF-8 or UTF-16, which is all a spreadsheet export uses."
             case .malformedProlog:
                 "The file's XML does not start the way a spreadsheet export does."
+            case .tooDeeplyNested:
+                "The file's XML nests far deeper than a spreadsheet ever does."
             }
         }
     }
@@ -177,25 +180,124 @@ struct LinkedInXLSXParser {
     }
 
     private static func rejectUnparseablePart(_ data: Data) throws {
-        guard let (prolog, truncated) = asciiProlog(data) else {
+        let bytes = [UInt8](data)
+        guard let (form, offset) = textForm([UInt8](bytes.prefix(prologScanLimit))) else {
             throw ParseError.unsupportedEncoding
         }
+        let (prolog, truncated) = asciiPrefix(bytes, form: form, offset: offset)
         guard declaredEncodingIsPermitted(prolog) else { throw ParseError.unsupportedEncoding }
         switch prologVerdict(prolog, truncated: truncated) {
-        case .clean:            return
         case .declaresDoctype:  throw ParseError.unsafeXML
         case .unreadable:       throw ParseError.malformedProlog
+        case .clean:            break
+        }
+        guard nestingDepthIsSane(bytes, form: form, offset: offset) else {
+            throw ParseError.tooDeeplyNested
         }
     }
 
+    /// How deeply elements may nest before the part is refused.
+    ///
+    /// A spreadsheet part is under ten deep — `worksheet/sheetData/row/c/v` is
+    /// five — so this is two orders of magnitude of headroom and still nowhere
+    /// near what breaks.
+    private static let maximumNestingDepth = 256
+
+    /// Refuses a part that nests deeply enough to overflow the stack.
+    ///
+    /// `XMLDocument` **parses** a deeply nested document happily and then dies
+    /// releasing it: the tree is destroyed recursively, so around 50,000 levels
+    /// the process dies in `deinit` — SIGILL on one machine here, SIGSEGV on
+    /// another, which is what a blown stack looks like either way. That
+    /// ordering is the whole problem: the parse has already returned, so no
+    /// `try` can catch it, and the app is simply gone.
+    ///
+    /// Neither existing limit helps. There is no DTD, so the prolog walk never
+    /// looks; and `<a>` repeated deflates to almost nothing, so 350 KB of it is
+    /// a **647-byte** `.xlsx`, three orders of magnitude under the 32 MB entry
+    /// cap. See #129.
+    ///
+    /// The scan has to understand enough XML not to miscount: comments, CDATA
+    /// and processing instructions can all contain `<` and `>`, and attribute
+    /// values can contain `>`. Getting any of those wrong reads a legitimate
+    /// file as hostile. It deliberately does *not* try to validate — an
+    /// unbalanced or malformed document is libxml2's problem, and this only
+    /// answers "could this nest deeply enough to kill us".
+    private static func nestingDepthIsSane(_ b: [UInt8], form: TextForm, offset: Int) -> Bool {
+        let step = (form == .utf8) ? 1 : 2
+        let first = offset + (form == .utf16BigEndian ? 1 : 0)
+
+        var depth = 0
+        var i = first
+
+        /// The byte of the character at position `i`, ignoring the UTF-16 zero.
+        func byte(_ at: Int) -> UInt8? { at < b.count ? b[at] : nil }
+
+        func lookingAt(_ token: String, at: Int) -> Bool {
+            var j = at
+            for c in token.utf8 {
+                guard j < b.count, b[j] == c else { return false }
+                j += step
+            }
+            return true
+        }
+
+        /// Advances past `token`, or to the end if it never appears.
+        func skipPast(_ token: String, from: Int) -> Int {
+            var j = from
+            while j < b.count {
+                if lookingAt(token, at: j) { return j + step * token.utf8.count }
+                j += step
+            }
+            return b.count
+        }
+
+        while i < b.count {
+            guard byte(i) == 0x3C else { i += step; continue }  // '<'
+
+            if lookingAt("<!--", at: i) { i = skipPast("-->", from: i); continue }
+            if lookingAt("<![CDATA[", at: i) { i = skipPast("]]>", from: i); continue }
+            if lookingAt("<?", at: i) { i = skipPast("?>", from: i); continue }
+            if lookingAt("<!", at: i) { i = skipPast(">", from: i); continue }
+
+            let closing = lookingAt("</", at: i)
+            if closing { depth -= 1 }
+
+            // Walk the tag to its '>', stepping over quoted attribute values so
+            // a '>' inside one does not end it early.
+            var j = i + step
+            var quote: UInt8?
+            var previous: UInt8 = 0
+            while j < b.count {
+                let c = b[j]
+                if let q = quote {
+                    if c == q { quote = nil }
+                } else if c == 0x22 || c == 0x27 {      // " or '
+                    quote = c
+                } else if c == 0x3E {                   // '>'
+                    break
+                }
+                previous = c
+                j += step
+            }
+            // `<x/>` opens and closes in one tag, so it must not count.
+            if !closing && previous != 0x2F {           // '/'
+                depth += 1
+                if depth > maximumNestingDepth { return false }
+            }
+            i = j + step
+        }
+        return true
+    }
+
     /// The leading bytes of the part reduced to ASCII, and whether the part
-    /// continued past what was read. `nil` if it is not in an encoding OPC
-    /// permits.
-    private static func asciiProlog(_ data: Data) -> (bytes: [UInt8], truncated: Bool)? {
-        let bytes = [UInt8](data.prefix(prologScanLimit))
-        let truncated = data.count > prologScanLimit
-        guard let (form, offset) = textForm(bytes) else { return nil }
-        let body = bytes[offset...]
+    /// continued past what was read.
+    private static func asciiPrefix(
+        _ bytes: [UInt8], form: TextForm, offset: Int
+    ) -> (bytes: [UInt8], truncated: Bool) {
+        let window = bytes.prefix(prologScanLimit)
+        let truncated = bytes.count > prologScanLimit
+        let body = window[offset...]
         switch form {
         case .utf8:
             return (Array(body), truncated)
