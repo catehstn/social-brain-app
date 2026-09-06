@@ -158,7 +158,8 @@ Milestones created and populated:
 
 **M2 — Design pass** *(the five screens, rebuilt from the brief)*
 - #38–#42 P1 — Design pass: Feed, Run, Platforms, Dashboard, Onboarding
-- #61 P1 — Design brief promises a mentions synthesis that doesn't exist
+- #61 P1 — Decide whether to build a mentions synthesis (the brief's claim that
+  it existed is gone; the open question is whether we want it)
 - #46 P2 — Rewrite the Platforms grid UI tests
 - #50 P2 — Tests for the Mastodon and WordPress OAuth flows
 - #56 P2 — Demo mode with seeded mock data
@@ -219,5 +220,6 @@ Six branches remain besides `main`, all deliberately:
   local is newer. That gap has already caught one real bug and cost two
   round-trips.
 - **Whether `SetupURLTests` is worth keeping** (issue #60) — it has never passed.
-- **Mentions synthesis** (issue #61) — the design brief promises it; the code
-  doesn't have it. Settle before M2 starts.
+- **Mentions synthesis** (issue #61) — the brief no longer promises it, because
+  the code has never had it and #123 cut the line. What is left is the actual
+  question: do we want one? Settle before M2 starts.

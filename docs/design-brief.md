@@ -32,12 +32,11 @@ Me (Cate). Weekly cadence, usually Saturday or Sunday morning with coffee. Also:
 - **Analytics goal** — the user's stated priority (chosen during onboarding). Displayed as a badge in the sidebar. Colours the prompt.
 - **Prompt** — a Claude-shaped text blob assembled from the latest run.
 
-**Platforms (13):**
-- **API key:** Buttondown · GoatCounter · Calendly · Amazon KDP · Google Search Console · Buffer
-- **OAuth / token:** Mastodon · Bluesky · Jetpack (WordPress.com)
-- **File export (drag-drop):** LinkedIn (XLSX) · O'Reilly (email) · Substack (CSV)
+**Platforms (13):** grouped as `Platform.swift` declares them —
+- **API key:** Buttondown · GoatCounter · Calendly · Buffer
+- **OAuth / token:** Mastodon · Bluesky · Jetpack (WordPress.com) · Google Search Console
+- **File export (drag-drop):** LinkedIn (XLSX) · O'Reilly (email) · Substack (CSV) · Amazon KDP
 - **No auth:** Hacker News
-- **Also collects:** Mentions synthesis (aggregates HN / GSC / mastodon / bluesky mention data)
 
 ## Sidebar (top-level navigation)
 
@@ -75,7 +74,7 @@ The reason to open the app most days.
 Feed cards are **generated**, not hand-written — the app runs `SpikeDetector` (≥20% change between last two snapshots) and `HighReachDetector` (absolute thresholds + ≥30% relative lift) over each new snapshot. The Feed is the *"what's new that matters"* view; Dashboard is *"show me the trend."*
 
 ### Dashboard
-- Toolbar: instance picker (dropdown) + time-range segmented control (Week / Month / 3 Months / All Time) + refresh button.
+- Toolbar: instance picker (dropdown) + time-range segmented control (7 days / 30 days / 90 days / All time) + refresh button.
 - Body: adaptive grid of `MetricChartView`s using Swift Charts — one card per metric series (followers, page views, engagements, etc.).
 - Empty state: "No data for this range — run a collection first."
 
@@ -87,7 +86,7 @@ This is the chart-heavy screen. Not the home briefing.
 - Empty state: "No runs yet — run a collection to see history here."
 
 ### Platforms
-- **Adaptive grid of cards** (mid-redesign — see `trycycle-plan.md` in the repo). Each card:
+- **Adaptive grid of cards** (grid shipped in [#31](https://github.com/catehstn/social-brain-app/pull/31); a full design pass is [#40](https://github.com/catehstn/social-brain-app/issues/40)). The plan it was built from is `docs/plans/2026-04-13-platforms-redesign-plan.md`. Each card:
   - SF Symbol icon (accent-coloured)
   - Platform display name
   - Status: "Not set up" (secondary) or "N accounts" (with green ✓)
@@ -103,10 +102,15 @@ This is the chart-heavy screen. Not the home briefing.
 1. **Welcome** — what Social Brain does, one paragraph.
 2. **Goal** — pick an analytics goal (predefined options + custom text). Sets the badge; feeds the prompt.
 3. **Connect** — a quick tour of the three platform groups (API / OAuth / File export). Doesn't force any connections — the user goes to Platforms afterward.
-4. **Ready** — confirmation, "Go to Platforms" primary action.
+4. **Ready** — confirmation, "Get Started" primary action.
 
 ### Settings *(macOS Prefs window)*
-- Data location (default `~/Library/Application Support/SocialBrain/`).
+
+*Not built. `SettingsView` currently has only the goal display, a read-only list
+of configured platforms, and "Re-run Wizard". The controls below are proposed —
+see [#92](https://github.com/catehstn/social-brain-app/issues/92).*
+
+- Data location (default `~/Library/Containers/com.catehuston.SocialBrain/Data/Library/Application Support/SocialBrain/` — the app is sandboxed).
 - Auto-refresh: on/off + time-of-day picker (uses `NSBackgroundActivityScheduler`).
 - Notifications: stale-export reminders (uses `UserNotifications`).
 - Analytics goal (also editable here).
