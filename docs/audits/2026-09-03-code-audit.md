@@ -52,7 +52,11 @@ Numbering is stable: don't renumber.
 
 24. **OAuth has no `state` and no PKCE** (`MastodonOAuth.swift:64-69`, `WordPressOAuth.swift:44-49`); Mastodon registers a brand-new OAuth app on every sign-in and never persists the secret, so tokens can't be revoked (`:47-59`); `socialbrain://` isn't declared in `CFBundleURLTypes`. Confirmed.
 25. **`XMLDocument(data:)` on untrusted `.xlsx` with default options** (`LinkedInXLSXParser.swift:52,59,68,82`); pass `.nodeLoadExternalEntitiesNever`. Suspected.
+
+    > **Correction (2026-09-06, #121).** Confirmed, not merely suspected: with default options a DTD naming a local path put that file's contents into the parsed shared-string table. But the suggested fix is **not sufficient** — the option does nothing about entities defined *inline*, and a ~530-byte part expands to a gigabyte with it in place. Nor is a byte scan for the token: EBCDIC and UTF-7 both evade one. #121 refuses the DTD before parsing, after gating the encoding and walking the prolog. Also: no network fetch is reachable, so this is a local file read and not an SSRF.
 26. **Buffer sends the token as `?access_token=`** on every request (`BufferCollector.swift:143-152`); `httpError` echoes 200 bytes of response body into the Run screen. Confirmed.
+
+    > **Correction (2026-09-06).** The body echo is fixed in #121 — the message now carries a status hint and the body goes to a private log. The Buffer half is **not** fixed and is split out as #124: Buffer's v1 auth documentation is gone, and the two live sources show v1 as query-string-only, so moving the token to a header needs one request against a real token first.
 27. **DB open failure is `fatalError`** (`SocialBrainApp.swift:8-15`); no index on `platformSnapshot.runID` while History does one query per run (N+1, `HistoryViewModel.swift:25-36`); `deleteRun`, `BackgroundRefreshScheduler.stop()`, `dashboardInitialPlatform` are dead. Confirmed.
 28. **Stale-export reminders fire once and are never re-armed** (`NotificationManager.swift:42-74`); notification permission is requested on first launch before onboarding explains anything (`SocialBrainApp.swift:51`). Confirmed.
 29. **`SpikeDetector` has no absolute floor** (`:59-66`): 0.5 → 0.7 average favourites is a "40% spike" and a system notification. Design choice, but it will fatigue. Confirmed.

@@ -64,7 +64,7 @@ struct LinkedInXLSXParserTests {
         let xml = sharedStrings("<si><t>Alpha</t></si><si><t>Beta</t></si>")
         let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
 
-        #expect(parser.extractSharedStrings(from: zip) == ["Alpha", "Beta"])
+        #expect(try parser.extractSharedStrings(from: zip) == ["Alpha", "Beta"])
     }
 
     @Test("Rich-text runs are concatenated, not skipped")
@@ -74,7 +74,7 @@ struct LinkedInXLSXParserTests {
         let xml = sharedStrings("<si><r><t>Hello </t></r><r><t>world</t></r></si>")
         let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
 
-        #expect(parser.extractSharedStrings(from: zip) == ["Hello world"])
+        #expect(try parser.extractSharedStrings(from: zip) == ["Hello world"])
     }
 
     @Test("A rich-text entry does not shift the indices of later entries")
@@ -91,7 +91,7 @@ struct LinkedInXLSXParserTests {
 
         // Equality covers the alignment: under the old code this was
         // ["Impressions", "Followers"], so index 2 did not exist at all.
-        #expect(parser.extractSharedStrings(from: zip)
+        #expect(try parser.extractSharedStrings(from: zip)
                 == ["Impressions", "Engagements", "Followers"])
     }
 
@@ -102,7 +102,7 @@ struct LinkedInXLSXParserTests {
         let xml = sharedStrings("<si><t>東京</t><rPh sb=\"0\" eb=\"2\"><t>トウキョウ</t></rPh></si>")
         let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
 
-        #expect(parser.extractSharedStrings(from: zip) == ["東京"])
+        #expect(try parser.extractSharedStrings(from: zip) == ["東京"])
     }
 
     @Test("An empty <t> entry still occupies its index")
@@ -110,7 +110,7 @@ struct LinkedInXLSXParserTests {
         let xml = sharedStrings("<si><t></t></si><si><t>After</t></si>")
         let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
 
-        #expect(parser.extractSharedStrings(from: zip) == ["", "After"])
+        #expect(try parser.extractSharedStrings(from: zip) == ["", "After"])
     }
 
     @Test("A wholly empty <si/> also keeps its slot")
@@ -121,7 +121,7 @@ struct LinkedInXLSXParserTests {
         let xml = sharedStrings("<si/><si><t>After</t></si>")
         let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
 
-        #expect(parser.extractSharedStrings(from: zip) == ["", "After"])
+        #expect(try parser.extractSharedStrings(from: zip) == ["", "After"])
     }
 
     @Test("An entry with both a direct <t> and runs concatenates in document order")
@@ -130,7 +130,7 @@ struct LinkedInXLSXParserTests {
         let xml = sharedStrings("<si><t>Head</t><r><t>Tail</t></r></si>")
         let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
 
-        #expect(parser.extractSharedStrings(from: zip) == ["HeadTail"])
+        #expect(try parser.extractSharedStrings(from: zip) == ["HeadTail"])
     }
 
     @Test("Significant whitespace around real content survives")
@@ -138,13 +138,13 @@ struct LinkedInXLSXParserTests {
         let xml = sharedStrings("<si><t xml:space=\"preserve\"> lead</t></si>")
         let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
 
-        #expect(parser.extractSharedStrings(from: zip) == [" lead"])
+        #expect(try parser.extractSharedStrings(from: zip) == [" lead"])
     }
 
     @Test("A workbook with no shared strings yields an empty table, not a crash")
     func missingTableIsEmpty() throws {
         let zip = try MiniZIPReader(data: try makeXLSX(["xl/worksheets/sheet1.xml": "<x/>"]))
-        #expect(parser.extractSharedStrings(from: zip).isEmpty)
+        #expect(try parser.extractSharedStrings(from: zip).isEmpty)
     }
     // MARK: - End to end
 
@@ -197,4 +197,313 @@ struct LinkedInXLSXParserTests {
         _ = try? parser.parse(data: data)
     }
 
+    // MARK: - Untrusted XML
+
+    /// A shared-strings part wrapping whatever DTD internal subset is given.
+    private func partWithDoctype(_ internalSubset: String, body: String) -> String {
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE sst [\(internalSubset)]>
+        <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+          <si><t>\(body)</t></si>
+        </sst>
+        """
+    }
+
+    @Test("A part carrying a document type declaration is refused")
+    func doctypeIsRefused() throws {
+        let xml = partWithDoctype("<!ENTITY harmless \"x\">", body: "&harmless;")
+        let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
+
+        #expect(throws: LinkedInXLSXParser.ParseError.unsafeXML) {
+            try parser.extractSharedStrings(from: zip)
+        }
+    }
+
+    @Test("A benign part still parses, so the refusal is not refusing everything")
+    func benignPartsStillParse() throws {
+        // The positive control for the test above. Without it, a change that
+        // broke extraction entirely would leave every refusal assertion green.
+        let xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+              <si><t>Alpha</t></si>
+            </sst>
+            """
+        let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
+        #expect(try parser.extractSharedStrings(from: zip) == ["Alpha"])
+    }
+
+    @Test("The contents of a local file never reach a parsed value")
+    func externalEntitiesCannotReadLocalFiles() throws {
+        // XXE. Confirmed against this parser before the fix: XMLDocument
+        // resolves external entities by default, so a crafted .xlsx names a
+        // path in its DTD and the file's contents land in the shared-string
+        // table.
+        //
+        // The fixture is written here with a unique sentinel rather than
+        // pointing at /etc/hosts, so the assertion does not depend on the
+        // contents of a machine-global file that the test does not control.
+        //
+        // Deliberately asserts containment rather than mechanism: it fails if
+        // the DTD guard and the entity option are *both* removed, which is the
+        // property that matters. Network fetches are not tested because they
+        // are not reachable — Foundation sets XML_PARSE_NONET and refuses them.
+        let sentinel = "SENTINEL-\(UUID().uuidString)"
+        let secret = FileManager.default.temporaryDirectory
+            .appendingPathComponent("xxe-probe-\(UUID().uuidString).txt")
+        try Data(sentinel.utf8).write(to: secret)
+        defer { try? FileManager.default.removeItem(at: secret) }
+
+        let xml = partWithDoctype(
+            "<!ENTITY xxe SYSTEM \"file://\(secret.path)\">", body: "&xxe;")
+        let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
+
+        // Asserts on the shared-string table, not on parse()'s metrics: the
+        // strings are where the entity would land, and metrics never carry
+        // them, so asserting on the returned PlatformData passes no matter what
+        // the parser does. Whether the file is refused or merely parsed with
+        // the entity dropped, the sentinel must not appear here.
+        let strings = (try? parser.extractSharedStrings(from: zip)) ?? []
+        #expect(!strings.joined().contains(sentinel))
+    }
+
+    @Test("A part that expands to a gigabyte is refused instead of expanded")
+    func entityExpansionIsRefused() throws {
+        // .nodeLoadExternalEntitiesNever does nothing about entities defined
+        // inline, and libxml2 applies no expansion limit. Measured against this
+        // parser: this ~513-byte part produced 10,000,000 characters with the
+        // option in place, taking 43 seconds. Eight levels rather than six is a
+        // gigabyte, from a part small enough to sail under the 32 MB ZIP cap —
+        // the amplification is against the compressed size, not the stored one.
+        var subset = "<!ENTITY a0 \"aaaaaaaaaa\">"
+        for i in 1...6 {
+            let prev = String(repeating: "&a\(i - 1);", count: 10)
+            subset += "<!ENTITY a\(i) \"\(prev)\">"
+        }
+        let xml = partWithDoctype(subset, body: "&a6;")
+        let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
+
+        #expect(throws: LinkedInXLSXParser.ParseError.unsafeXML) {
+            try parser.extractSharedStrings(from: zip)
+        }
+    }
+
+    @Test("A part in an encoding a spreadsheet never uses is refused, not scanned")
+    func ebcdicIsRefused() throws {
+        // The evasion that made the byte scan unsound. libxml2 auto-detects
+        // EBCDIC from the first four bytes (4C 6F A7 94 = "<?xm" in cp037), and
+        // in EBCDIC the DOCTYPE token is neither ASCII nor null-padded — so a
+        // scan looking for "<!DOCTYPE" with a null-stripping pass sees neither.
+        // Measured before this fix: a 510-byte cp037 part expanded to ten
+        // million characters straight through the guard.
+        var subset = "<!ENTITY a0 \"aaaaaaaaaa\">"
+        for i in 1...6 {
+            subset += "<!ENTITY a\(i) \"\(String(repeating: "&a\(i - 1);", count: 10))\">"
+        }
+        let xml = partWithDoctype(subset, body: "&a6;")
+        // kCFStringEncodingEBCDIC_CP037, which CFStringEncodingExt.h puts at
+        // 0x0C02 and Swift does not surface as a named case.
+        let cp037 = CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(0x0C02))
+        let ebcdic = try #require(xml.data(using: String.Encoding(rawValue: cp037)))
+
+        #expect(throws: LinkedInXLSXParser.ParseError.unsupportedEncoding) {
+            try LinkedInXLSXParser.parseXML(ebcdic)
+        }
+    }
+
+    @Test("A benign UTF-16 part parses, so the UTF-16 refusal is not refusing all of them")
+    func benignUTF16Parses() throws {
+        // Positive control for doctypeIsFoundInUTF16, which on its own would
+        // pass just as well if UTF-16 were rejected outright.
+        let xml = """
+            <?xml version="1.0" encoding="UTF-16"?>
+            <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+              <si><t>Alpha</t></si><si><t>Beta</t></si>
+            </sst>
+            """
+        var utf16 = Data([0xFF, 0xFE])  // little-endian BOM
+        utf16.append(Data(xml.utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] }))
+
+        let doc = try LinkedInXLSXParser.parseXML(utf16)
+        let items = try doc.nodes(forXPath: "//*[local-name()='si']")
+        #expect(items.count == 2)
+    }
+
+    @Test("A cell whose own text contains the token is not mistaken for a DTD")
+    func cdataContainingTheTokenIsNotRefused() throws {
+        // CDATA is the one place the token can appear unescaped in legitimate
+        // content. Searching the whole part refused this; the prolog is the only
+        // place a DTD can actually be, so that is the only place worth looking.
+        let xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+              <si><t><![CDATA[Blogged about <!DOCTYPE html> today]]></t></si>
+            </sst>
+            """
+        let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
+
+        #expect(try parser.extractSharedStrings(from: zip)
+                == ["Blogged about <!DOCTYPE html> today"])
+    }
+
+    @Test("A DTD hiding behind a comment is still found")
+    func doctypeAfterACommentIsFound() throws {
+        // The prolog walk has to step over comments and processing
+        // instructions rather than stopping at the first one.
+        let xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!-- generated by something -->
+            <?mso-application progid="Excel.Sheet"?>
+            <!DOCTYPE sst [<!ENTITY harmless "x">]>
+            <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+              <si><t>&harmless;</t></si>
+            </sst>
+            """
+        let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
+
+        #expect(throws: LinkedInXLSXParser.ParseError.unsafeXML) {
+            try parser.extractSharedStrings(from: zip)
+        }
+    }
+
+    @Test("A UTF-7 part cannot hide the DOCTYPE token behind an escape")
+    func utf7IsRefused() throws {
+        // The evasion that made sniffing the first bytes insufficient. UTF-7
+        // encodes `<` as itself, so byte 0 passes the sniff — and encodes `!`
+        // as `+ACE-`, so the walk sees `<` followed by `+`, matches none of the
+        // declaration forms, and reads it as the root element. libxml2 honours
+        // the declaration via iconv and parses the DTD.
+        //
+        // Measured before this fix: 436 bytes expanded to ten million
+        // characters. Closed twice over — the declared encoding is checked, and
+        // the byte after `<` must be a NameStartChar.
+        var subset = "<!ENTITY a0 \"aaaaaaaaaa\">"
+        for i in 1...6 {
+            subset += "<!ENTITY a\(i) \"\(String(repeating: "&a\(i - 1);", count: 10))\">"
+        }
+        let xml = """
+            <?xml version="1.0" encoding="UTF-7"?><+ACE-DOCTYPE sst [\(subset)]>\
+            <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">\
+            <si><t>&a6;</t></si></sst>
+            """
+        let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
+
+        #expect(throws: LinkedInXLSXParser.ParseError.unsupportedEncoding) {
+            try parser.extractSharedStrings(from: zip)
+        }
+    }
+
+    @Test("`<` followed by something that cannot start a name is not the document body")
+    func nonNameAfterAngleBracketIsRefused() throws {
+        // Pins the second half of the UTF-7 fix on its own. The declared-
+        // encoding check catches the UTF-7 fixture above, so without this the
+        // NameStartChar rule could be deleted and nothing would notice — and
+        // it is the half that generalises to any encoding that hides a
+        // declaration behind a byte the walk cannot read.
+        let xml = "<+ACE-DOCTYPE sst [<!ENTITY harmless \"x\">]><sst><si><t>&harmless;</t></si></sst>"
+
+        #expect(throws: LinkedInXLSXParser.ParseError.malformedProlog) {
+            try LinkedInXLSXParser.parseXML(Data(xml.utf8))
+        }
+    }
+
+    @Test("Whitespace before the declaration does not skip the encoding check")
+    func whitespaceBeforeDeclarationStillChecksEncoding() throws {
+        // The encoding check was anchored at byte 0, and the encoding sniff
+        // allows a part to open with whitespace — so a single leading space
+        // meant the declaration was never examined and the part fell through to
+        // "no declaration, therefore permitted".
+        //
+        // Nothing exploited it (libxml2 refuses a declaration that is not at the
+        // very start, and a hidden DOCTYPE still trips the NameStartChar rule),
+        // but it is the seam a future encoding evasion would use.
+        let xml = "  <?xml version=\"1.0\" encoding=\"UTF-7\"?><sst><si><t>x</t></si></sst>"
+
+        #expect(throws: LinkedInXLSXParser.ParseError.unsupportedEncoding) {
+            try LinkedInXLSXParser.parseXML(Data(xml.utf8))
+        }
+    }
+
+    @Test("A DOCTYPE padded onto the scan boundary is not read as a root element")
+    func doctypeOnTheScanBoundaryIsRefused() throws {
+        // The prolog scan reads a bounded prefix. Pad the prolog with legal
+        // whitespace so the `<` of `<!DOCTYPE` lands on the last byte of it:
+        // the token test runs off the end, every branch misses, and the
+        // fall-through used to read it as the document body. The padding
+        // deflates to almost nothing, so the whole .xlsx was 413 bytes.
+        let declaration = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+        let padding = String(repeating: " ", count: 64 * 1024 - declaration.utf8.count)
+        let xml = """
+            \(declaration)\(padding)<!DOCTYPE sst [<!ENTITY harmless "x">]>\
+            <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">\
+            <si><t>&harmless;</t></si></sst>
+            """
+        let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
+
+        #expect(throws: LinkedInXLSXParser.ParseError.malformedProlog) {
+            try parser.extractSharedStrings(from: zip)
+        }
+    }
+
+    @Test("A part bigger than the prolog scan still parses")
+    func largePartsAreNotRefusedForBeingLarge() throws {
+        // The positive control for the test above. Refusing at a truncated
+        // buffer edge must not become "refuse anything over 64 KB" — a real
+        // shared-string table is routinely larger than that.
+        let entries = (0..<8000).map { "<si><t>Row \($0) with enough text to pass 64 KB</t></si>" }
+        let xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">\
+            \(entries.joined())</sst>
+            """
+        #expect(xml.utf8.count > 64 * 1024)
+        let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
+
+        let strings = try parser.extractSharedStrings(from: zip)
+        #expect(strings.count == 8000)
+        #expect(strings.first == "Row 0 with enough text to pass 64 KB")
+    }
+
+    @Test("A part opening with a comment or a processing instruction still parses")
+    func benignPrologConstructsStillParse() throws {
+        // The positive control for doctypeAfterACommentIsFound, which asserts
+        // only that something is refused — so deleting the comment branch
+        // entirely, and reporting every comment as a DTD, kept the whole suite
+        // green. A regression that refused every part with a leading comment
+        // would have shipped.
+        let xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!-- generated by something -->
+            <?mso-application progid="Excel.Sheet"?>
+            <sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+              <si><t>Alpha</t></si>
+            </sst>
+            """
+        let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
+        #expect(try parser.extractSharedStrings(from: zip) == ["Alpha"])
+    }
+
+    @Test("A part opening with whitespace instead of a declaration still parses")
+    func leadingWhitespaceIsNotAnUnknownEncoding() throws {
+        // `prolog ::= XMLDecl? Misc*`, so this is legal and libxml2 reads it.
+        // Sniffing byte 0 for `<` refused it as an unknown encoding.
+        let xml = "\n  <sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">"
+            + "<si><t>Alpha</t></si></sst>"
+        let zip = try MiniZIPReader(data: try makeXLSX(["xl/sharedStrings.xml": xml]))
+        #expect(try parser.extractSharedStrings(from: zip) == ["Alpha"])
+    }
+
+    @Test("A UTF-16 part cannot smuggle a DTD past the scan")
+    func doctypeIsFoundInUTF16() throws {
+        // ECMA-376 permits UTF-16, and UTF-16 of ASCII is the same bytes
+        // interleaved with nulls — so a scan that only knows UTF-8 looks for
+        // "<!DOCTYPE" and walks straight past "<\0!\0D\0O\0…".
+        let xml = partWithDoctype("<!ENTITY harmless \"x\">", body: "&harmless;")
+        let utf16 = Data(xml.utf16.flatMap { [UInt8($0 & 0xFF), UInt8($0 >> 8)] })
+
+        #expect(throws: LinkedInXLSXParser.ParseError.unsafeXML) {
+            try LinkedInXLSXParser.parseXML(utf16)
+        }
+    }
 }

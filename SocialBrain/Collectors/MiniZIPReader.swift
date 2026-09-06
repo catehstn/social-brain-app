@@ -142,9 +142,15 @@ struct MiniZIPReader {
     /// claim of up to 4 GiB, and the old code allocated it without question. A
     /// spreadsheet sheet does not approach this; anything that does is either
     /// not the export we expect or is crafted to exhaust memory.
-    /// A LinkedIn analytics sheet is single-digit kilobytes. This is four
-    /// orders of magnitude above the use case and still small enough that the
-    /// libxml2 DOM built from it cannot exhaust a sandboxed app.
+    /// A LinkedIn analytics sheet is single-digit kilobytes, so this is four
+    /// orders of magnitude above the use case.
+    ///
+    /// It is *not* a bound on what the XML parser then allocates, which an
+    /// earlier version of this comment claimed. Entity expansion amplifies
+    /// against the compressed size: ~530 bytes of nested entities expand to a
+    /// gigabyte, so a part far under this cap can still exhaust memory. That is
+    /// handled where it belongs, by refusing a DTD outright in
+    /// `LinkedInXLSXParser.parseXML`.
     static let maximumEntrySize = 32 * 1_048_576  // 32 MB
 
     private func inflateRaw(_ compressed: Data, expectedSize: Int) throws -> Data {
