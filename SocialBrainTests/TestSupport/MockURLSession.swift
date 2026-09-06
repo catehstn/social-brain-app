@@ -43,11 +43,18 @@ struct MockURLSession: URLSessionProtocol, Sendable {
     /// pagination test that over-fetches gets the terminal page again rather
     /// than an error — which is what a real API does.
     ///
-    /// Sequencing is deliberately **per path**, not global. Paginating one
-    /// endpoint is inherently sequential, since page 2's cursor comes from page
-    /// 1, so a per-path cursor is well defined. Collectors fetch *different*
-    /// endpoints concurrently under `async let`, so a single global queue would
-    /// hand out responses in whatever order the tasks happened to start.
+    /// Sequencing is deliberately **per path**, not global: a global queue
+    /// would hand responses to whichever concurrent task happened to start
+    /// first, across unrelated endpoints.
+    ///
+    /// Per-path is well defined only for a path fetched **sequentially**, which
+    /// is what pagination is — page 2's cursor comes from page 1. It is *not*
+    /// well defined for a path fetched concurrently, and two collectors already
+    /// do that: `ButtondownCollector` requests `/v1/subscribers` twice under
+    /// `async let`, and `GoogleSearchConsoleCollector` posts to
+    /// `searchAnalytics/query` three times. Measured at 44 out of 200 trials
+    /// arriving out of order. Giving either a multi-entry queue makes the test
+    /// flaky, not wrong — the same hazard `queryValue` documents below.
     let fixtures: [String: [Response]]
 
     /// Shared by every copy of the struct, so a collector holding its own copy

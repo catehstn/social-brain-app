@@ -107,6 +107,12 @@ struct PromptAssembler {
         if let v = data.intMetric("following_count")  { lines.append("Following: \(formatted(v))") }
         if let v = data.intMetric("statuses_count")   { lines.append("All-time posts: \(formatted(v))") }
         if let v = data.intMetric("recent_posts")     { lines.append("Posts this period: \(v)") }
+        // Rendered, not merely recorded. Without this the count above reads as
+        // the whole period while sitting next to an all-time total many times
+        // larger, which is the contradiction the metric exists to prevent.
+        if let note = data.metrics["posts_truncated"]?.stringValue {
+            lines.append("Note: \(note)")
+        }
         var engagement: [String] = []
         if let v = data.doubleMetric("avg_reblogs")    { engagement.append("\(pct1(v)) boosts") }
         if let v = data.doubleMetric("avg_favourites") { engagement.append("\(pct1(v)) favourites") }

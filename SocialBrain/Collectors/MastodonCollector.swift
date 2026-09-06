@@ -71,7 +71,7 @@ struct MastodonCollector: Collector {
             // a sentence is what it wants — `top_profile_1` sets the same
             // precedent.
             metrics["posts_truncated"] =
-                .string("stopped after \(Self.maximumPages * Self.pageSize) posts; the period holds more")
+                .string("stopped after \(Self.maximumPages * Self.pageSize) posts — the period holds more")
         }
 
         if !statuses.isEmpty {
@@ -155,12 +155,21 @@ struct MastodonCollector: Collector {
             guard page.count == Self.pageSize, let oldest = page.last else {
                 return (filter(collected, since: since), false)
             }
-            // With no `since` there is no boundary to walk to, so one page is
-            // the whole request — matching what "recent posts" means when the
-            // caller did not ask for a window.
-            guard let since else { return (collected, false) }
-            // The page already reaches past the window; nothing older can help.
-            if oldest.createdAt < since { return (filter(collected, since: since), false) }
+            // `nil` is not "no window asked for" — it is the **All time**
+            // button (`RunView` maps `.distantPast` to nil), and the default
+            // for a background refresh. So it walks to the page cap like any
+            // other request; there is simply no boundary to stop early at.
+            //
+            // An earlier version returned after one page here, on the reasoning
+            // that an unbounded request has nothing to walk to. That reported
+            // 40 posts as the complete all-time figure, next to a
+            // `statuses_count` of several thousand from the same response —
+            // the exact undercount this change exists to remove, on the one
+            // path a user actually clicks.
+            if let since, oldest.createdAt < since {
+                // The page already reaches past the window; nothing older helps.
+                return (filter(collected, since: since), false)
+            }
 
             maxID = oldest.id
         }

@@ -142,6 +142,10 @@ struct MastodonCollectorTests {
         let data = try await collector.collect(since: since, credentials: credentials)
         #expect(data.intMetric("recent_posts") == 90)
         #expect(session.requests(path: "/api/v1/accounts/109876543/statuses").count == 3)
+        // Absent, not just present-when-truncated: without this, a bug that
+        // stamps "the period holds more" onto every snapshot — including a
+        // three-post week — ships green.
+        #expect(data.metrics["posts_truncated"] == nil)
     }
 
     @Test("Pages back with max_id, not by asking for the same page again")
@@ -221,15 +225,23 @@ struct MastodonCollectorTests {
         #expect(note.contains("1000"))
     }
 
-    @Test("With no since, one page is the whole request")
-    func noSinceFetchesOnePage() async throws {
-        // "Recent posts" with no window asked for means the most recent page,
-        // which is what this always did. Walking every page for an unbounded
-        // request would turn a routine refresh into 25 round trips.
+    @Test("An All time run walks the pages too")
+    func noSinceStillWalks() async throws {
+        // `since == nil` is not "no window asked for" — RunView maps the
+        // **All time** button to it, and it is the default for a background
+        // refresh. An earlier version of this returned after one page on the
+        // reasoning that an unbounded request has no boundary to walk to, which
+        // reported 40 posts as the complete all-time figure right next to a
+        // statuses_count of 4,100 from the same response.
+        //
+        // Two full pages then a short one: 90 posts, three requests, and no
+        // truncation note because the walk found the end.
         let session = MockURLSession([
             "/api/v1/accounts/verify_credentials": [.init(Self.credentialsJSON)],
             "/api/v1/accounts/109876543/statuses": [
-                .init(Self.statusPage(count: 40, newest: Self.day(2026, 3, 28), idBase: 1000))
+                .init(Self.statusPage(count: 40, newest: Self.day(2026, 3, 28), idBase: 1000)),
+                .init(Self.statusPage(count: 40, newest: Self.day(2026, 2, 16), idBase: 900)),
+                .init(Self.statusPage(count: 10, newest: Self.day(2026, 1, 10), idBase: 800))
             ]
         ])
         let collector = MastodonCollector(session: session)
@@ -237,8 +249,9 @@ struct MastodonCollectorTests {
             since: nil,
             credentials: Credentials(["access_token": "t", "instance_url": "https://mastodon.social"])
         )
-        #expect(session.requests(path: "/api/v1/accounts/109876543/statuses").count == 1)
-        #expect(data.intMetric("recent_posts") == 40)
+        #expect(session.requests(path: "/api/v1/accounts/109876543/statuses").count == 3)
+        #expect(data.intMetric("recent_posts") == 90)
+        #expect(data.metrics["posts_truncated"] == nil)
     }
 
     @Test("Throws missingCredential when access_token is absent")
