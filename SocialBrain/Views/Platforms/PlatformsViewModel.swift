@@ -179,11 +179,30 @@ final class PlatformsViewModel {
             throw ImportError.unsupportedExtension
         }
 
+        let (platform, platformData) = try Self.firstParseThatWorks(candidates)
+        try await saveImport(platformData, for: PlatformInstance(platform: platform))
+    }
+
+    /// Tries each candidate parser in turn and returns the first that succeeds.
+    ///
+    /// A parser that merely fails means "not my format", and the next candidate
+    /// gets a turn. A parser that *refuses* means it recognised the file and
+    /// judged it unsafe — that has to reach the user rather than being
+    /// flattened into `unrecognisedFormat`, which would tell someone whose
+    /// crafted-XML .xlsx was rejected to go and check their export.
+    ///
+    /// Static and taking its candidates as an argument so the distinction can
+    /// be tested without a database behind it.
+    nonisolated static func firstParseThatWorks(
+        _ candidates: [(Platform, () throws -> PlatformData)]
+    ) throws -> (Platform, PlatformData) {
         for (platform, parse) in candidates {
-            if let platformData = try? parse() {
-                let instance = PlatformInstance(platform: platform)
-                try await saveImport(platformData, for: instance)
-                return
+            do {
+                return (platform, try parse())
+            } catch let refusal as LinkedInXLSXParser.ParseError where refusal.isRefusal {
+                throw refusal
+            } catch {
+                continue
             }
         }
         throw ImportError.unrecognisedFormat
@@ -242,7 +261,7 @@ final class PlatformsViewModel {
 
 // MARK: - Import errors
 
-enum ImportError: LocalizedError {
+enum ImportError: LocalizedError, Equatable {
     case cancelled
     case unsupportedPlatform(Platform)
     case unsupportedExtension

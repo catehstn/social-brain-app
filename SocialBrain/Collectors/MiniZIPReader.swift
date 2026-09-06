@@ -147,7 +147,7 @@ struct MiniZIPReader {
     ///
     /// It is *not* a bound on what the XML parser then allocates, which an
     /// earlier version of this comment claimed. Entity expansion amplifies
-    /// against the compressed size: 602 bytes of nested entities expand to a
+    /// against the compressed size: ~530 bytes of nested entities expand to a
     /// gigabyte, so a part far under this cap can still exhaust memory. That is
     /// handled where it belongs, by refusing a DTD outright in
     /// `LinkedInXLSXParser.parseXML`.

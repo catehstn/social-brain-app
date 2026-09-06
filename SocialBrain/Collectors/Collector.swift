@@ -41,8 +41,12 @@ enum CollectorError: LocalizedError, Sendable {
         case 404:      " — the endpoint or property wasn't found. Check the account or site identifier."
         case 429:      " — rate limited. Try again later."
         case 500...599: " — the service is having problems. This is usually temporary."
-        case 400...499: " — the service rejected the request. The details are in Console.app under the SocialBrain subsystem."
-        default:       ""
+        // Anything else, including a 400 and the 1xx/3xx that decodeJSON also
+        // rejects. Deliberately does not promise the response body: it is
+        // logged, but as private data, so it reads as <private> in Console
+        // unless someone has turned private-data logging on. Saying "the
+        // details are in Console" would send the user to a redaction.
+        default: " — the service rejected the request. That is usually a bug in Social Brain rather than something you can fix; please report it."
         }
     }
 
@@ -72,8 +76,7 @@ enum CollectorError: LocalizedError, Sendable {
             // The body is deliberately not shown. An error response from an
             // authenticated API can carry account details, and this string is
             // rendered on the Run screen — the screen most likely to end up in
-            // a screenshot. It goes to the log instead, where the hints point;
-            // see the throw site in decodeJSON.
+            // a screenshot. It goes to the log instead; see decodeJSON.
             "HTTP \(code)\(Self.hint(forStatus: code))"
         case .decodingError(let msg):
             "Failed to decode response: \(msg)"
@@ -115,11 +118,24 @@ func decodeJSON<T: Decodable>(
         let body = String(decoding: data, as: UTF8.self)
         // The body does not go in the user-facing message, but it is the only
         // thing that says *which* field or parameter a 400 objected to, so it
-        // has to survive somewhere. `.private` keeps it out of logs collected
-        // by anyone else — it is an authenticated API's response and can carry
-        // account details — while leaving it readable in Console.app on the
-        // user's own machine, which is what the 4xx hint points them at.
-        collectorLog.error("HTTP \(http.statusCode, privacy: .public) from \(http.url?.path ?? "?", privacy: .public): \(body, privacy: .private)")
+        // has to survive somewhere.
+        //
+        // `.private` means redacted in Console unless someone runs
+        //   sudo log config --subsystem com.catehuston.SocialBrain --mode private_data:on
+        // which is the right default for an authenticated API's response, and
+        // is why no user-facing string promises the body is readable. Note the
+        // trap: under a debugger — including `xcodebuild test` — private data
+        // prints in the clear, so this looks readable while developing and is
+        // not in a shipped build.
+        //
+        // The path is private for the same reason: it carries account and site
+        // identifiers, e.g. /rest/v1.1/sites/12345678/stats. The host is not.
+        collectorLog.error("""
+            HTTP \(http.statusCode, privacy: .public) from \
+            \(http.url?.host() ?? "?", privacy: .public)\
+            \(http.url?.path ?? "", privacy: .private): \
+            \(body, privacy: .private)
+            """)
         throw CollectorError.httpError(statusCode: http.statusCode, body: body)
     }
     do {

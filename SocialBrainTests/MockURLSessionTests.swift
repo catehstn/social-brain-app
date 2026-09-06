@@ -170,10 +170,14 @@ struct MockURLSessionTests {
     }
 
     @Test("No HTTP error is left as a bare status number",
-          arguments: [400, 401, 402, 403, 404, 409, 410, 422, 429, 451, 500, 503])
+          arguments: [100, 302, 400, 401, 402, 403, 404, 409, 410, 422, 429, 451, 500, 503])
     func noStatusIsLeftBare(code: Int) {
         // The generic hint exists so that suppressing the body cannot silently
         // remove the last diagnosable thing about a failure.
+        //
+        // 1xx and 3xx are in here because decodeJSON throws for anything
+        // outside 200..<300, so they are reachable — an earlier version of the
+        // catch-all covered only 4xx and left those two bare.
         let message = CollectorError.httpError(statusCode: code, body: "").localizedDescription
         #expect(message != "HTTP \(code)")
     }

@@ -27,12 +27,29 @@ struct LinkedInXLSXParser {
         case notXLSX
         case noUsableData
         case unsafeXML
+        case unsupportedEncoding
+        case malformedProlog
+
+        /// Whether this is a refusal to parse a file we *did* recognise, as
+        /// opposed to "this is not our format". A refusal has to reach the user
+        /// even when the caller is trying several parsers in turn.
+        var isRefusal: Bool {
+            switch self {
+            case .unsafeXML, .unsupportedEncoding, .malformedProlog: true
+            case .notXLSX, .noUsableData:                            false
+            }
+        }
 
         var errorDescription: String? {
             switch self {
             case .notXLSX:       "The file is not a valid LinkedIn XLSX export."
             case .noUsableData:  "No usable metrics were found in the LinkedIn XLSX file."
-            case .unsafeXML:     "The file contains a document type declaration, which a spreadsheet export never has."
+            case .unsafeXML:
+                "The file contains a document type declaration, which a spreadsheet export never has."
+            case .unsupportedEncoding:
+                "The file's XML is not UTF-8 or UTF-16, which is all a spreadsheet export uses."
+            case .malformedProlog:
+                "The file's XML does not start the way a spreadsheet export does."
             }
         }
     }
@@ -90,25 +107,36 @@ struct LinkedInXLSXParser {
     /// network entity" — so this is a local file read, not an SSRF.
     ///
     /// **Entity expansion.** `.nodeLoadExternalEntitiesNever` does nothing about
-    /// entities defined inline. Ten levels of ten-fold nesting is 602 bytes of
-    /// XML that expands to a gigabyte, and libxml2 applies no limit. The 32 MB
-    /// cap in `MiniZIPReader` does not help: the amplification is against the
-    /// *compressed* size, so a legal file well under the cap can still drive the
-    /// app into multi-GB allocation.
+    /// entities defined inline. Eight levels of ten-fold nesting is a ~530-byte
+    /// part that expands to a gigabyte; ten levels reaches 10^11 characters.
+    /// libxml2 applies no limit. The 32 MB cap in `MiniZIPReader` does not help:
+    /// the amplification is against the *compressed* size, so a legal file well
+    /// under the cap can still drive the app into multi-GB allocation.
     ///
     /// Rejecting the DTD outright closes both, and is stricter than the option
-    /// alone. Nothing a spreadsheet producer writes has one — the check costs a
-    /// substring scan and no legitimate export has ever tripped it. It has to
-    /// happen *before* parsing: by the time `XMLDocument` hands back a document
-    /// whose `.dtd` is non-nil, the expansion has already run.
+    /// alone. Nothing a spreadsheet producer writes has one. It has to happen
+    /// *before* parsing: by the time `XMLDocument` hands back a document whose
+    /// `.dtd` is non-nil, the expansion has already run.
     ///
-    /// The scan covers UTF-16 as well as UTF-8, since ECMA-376 permits it and a
-    /// UTF-8-only scan would miss `<\0!\0D\0O\0…`. A cell whose *text* contains
-    /// "&lt;!DOCTYPE" is escaped in the part and does not trip this.
+    /// The refusal is in two parts, because a byte scan alone is not sound.
+    ///
+    /// First the encoding has to be one we can scan. A previous version looked
+    /// for the ASCII bytes of `<!DOCTYPE`, plus a null-stripping pass for
+    /// UTF-16 — and libxml2 auto-detects **EBCDIC** from the first four bytes,
+    /// where the token is neither ASCII nor null-padded. A 510-byte cp037 part
+    /// expanded to ten million characters straight through the guard. OPC only
+    /// permits UTF-8 and UTF-16, so anything else is refused rather than
+    /// scanned; that closes the whole family instead of one codepage.
+    ///
+    /// Then the prolog is walked rather than the whole part searched. Searching
+    /// everything meant a cell whose *text* legitimately contained the token —
+    /// inside CDATA, where it is not escaped — was refused. A DTD can only
+    /// appear before the root element, so that is the only place worth looking.
     static func parseXML(_ data: Data) throws -> XMLDocument {
-        guard !containsDoctype(data) else { throw ParseError.unsafeXML }
-        // Belt and braces: if the scan above is ever bypassed, external entities
-        // still do not resolve.
+        try rejectUnparseablePart(data)
+        // Belt and braces: if the checks above are ever bypassed, external
+        // entities still do not resolve. That is not redundant — the EBCDIC
+        // evasion above defeated the scan, and this option still held.
         return try XMLDocument(data: data, options: [.nodeLoadExternalEntitiesNever])
     }
 
@@ -116,30 +144,129 @@ struct LinkedInXLSXParser {
     /// never a refused one.
     ///
     /// Which sheets exist varies between exports, so a part that will not load
-    /// is normal and the caller skips it. A part carrying a DTD is not normal —
-    /// no spreadsheet producer writes one — so that refusal propagates rather
-    /// than being flattened into "no usable metrics", which would send someone
-    /// looking for a problem with their export.
+    /// is normal and the caller skips it. A refused part is not normal — no
+    /// spreadsheet producer writes a DTD, or a part in EBCDIC — so that refusal
+    /// propagates rather than being flattened into "no usable metrics", which
+    /// would send someone looking for a problem with their export.
     private func parsePart(_ zip: MiniZIPReader, named name: String) throws -> XMLDocument? {
         guard let xml = try? zip.extractEntry(named: name) else { return nil }
         do {
             return try Self.parseXML(xml)
-        } catch ParseError.unsafeXML {
-            throw ParseError.unsafeXML
+        } catch let error as ParseError {
+            throw error
         } catch {
             return nil
         }
     }
 
-    private static func containsDoctype(_ data: Data) -> Bool {
-        let token = Data("<!DOCTYPE".utf8)
-        if data.range(of: token) != nil { return true }
-        // UTF-16 of ASCII is the same bytes interleaved with nulls, either
-        // endianness. Dropping the nulls reduces both to the UTF-8 case.
-        if data.contains(0x00) {
-            return Data(data.filter { $0 != 0x00 }).range(of: token) != nil
+    // MARK: - Refusing a part before it is parsed
+
+    /// How far into a part the prolog is allowed to run. A real one is well
+    /// under a kilobyte; the allowance is for a producer that writes a long
+    /// comment. Past this the part is refused rather than scanned further,
+    /// because the alternative is letting a DTD hide behind a megabyte of
+    /// comment.
+    private static let prologScanLimit = 64 * 1024
+
+    /// The encodings OPC permits, which are also the ones the prolog scan can
+    /// read. Anything else is refused: see the EBCDIC note on `parseXML`.
+    private enum TextForm {
+        case utf8
+        case utf16LittleEndian
+        case utf16BigEndian
+    }
+
+    private static func rejectUnparseablePart(_ data: Data) throws {
+        guard let prolog = asciiProlog(data) else { throw ParseError.unsupportedEncoding }
+        switch prologVerdict(prolog) {
+        case .clean:            return
+        case .declaresDoctype:  throw ParseError.unsafeXML
+        case .unreadable:       throw ParseError.malformedProlog
         }
-        return false
+    }
+
+    /// The leading bytes of the part, reduced to ASCII, or `nil` if it is not in
+    /// an encoding OPC permits.
+    private static func asciiProlog(_ data: Data) -> [UInt8]? {
+        let bytes = [UInt8](data.prefix(prologScanLimit))
+        guard let (form, offset) = textForm(bytes) else { return nil }
+        let body = bytes[offset...]
+        switch form {
+        case .utf8:
+            return Array(body)
+        case .utf16LittleEndian:
+            // ASCII in UTF-16 is the character byte followed (LE) or preceded
+            // (BE) by a zero. Anything else in the prolog is not ASCII and the
+            // walk below will stop at it, which is the safe direction.
+            return stride(from: body.startIndex, to: body.endIndex - 1, by: 2).map { body[$0] }
+        case .utf16BigEndian:
+            return stride(from: body.startIndex + 1, to: body.endIndex, by: 2).map { body[$0] }
+        }
+    }
+
+    /// Identifies the encoding from the BOM, or from the first character being
+    /// `<` — which every XML document starts with. Returns the byte offset past
+    /// any BOM.
+    private static func textForm(_ b: [UInt8]) -> (TextForm, Int)? {
+        // UTF-32 BOMs are checked first: FF FE also prefixes UTF-32LE, and
+        // treating one as UTF-16 would scan it wrongly rather than refuse it.
+        if b.starts(with: [0xFF, 0xFE, 0x00, 0x00]) { return nil }
+        if b.starts(with: [0x00, 0x00, 0xFE, 0xFF]) { return nil }
+        if b.starts(with: [0xEF, 0xBB, 0xBF])       { return (.utf8, 3) }
+        if b.starts(with: [0xFF, 0xFE])             { return (.utf16LittleEndian, 2) }
+        if b.starts(with: [0xFE, 0xFF])             { return (.utf16BigEndian, 2) }
+        // No BOM. XML must begin with `<`, so its encoding is readable from how
+        // that character is laid out.
+        if b.count >= 2, b[0] == 0x3C, b[1] == 0x00 { return (.utf16LittleEndian, 0) }
+        if b.count >= 2, b[0] == 0x00, b[1] == 0x3C { return (.utf16BigEndian, 0) }
+        if b.first == 0x3C                          { return (.utf8, 0) }
+        return nil
+    }
+
+    private enum PrologVerdict {
+        case clean
+        case declaresDoctype
+        case unreadable
+    }
+
+    /// Walks the prolog — the XML declaration, comments and processing
+    /// instructions before the root element — and stops at the first thing that
+    /// is not one of those.
+    private static func prologVerdict(_ b: [UInt8]) -> PrologVerdict {
+        var i = 0
+        while true {
+            while i < b.count, b[i] == 0x20 || b[i] == 0x09 || b[i] == 0x0D || b[i] == 0x0A {
+                i += 1
+            }
+            guard i < b.count else { return .unreadable }
+            guard b[i] == 0x3C else { return .unreadable }
+
+            if matches(b, at: i, "<!DOCTYPE") { return .declaresDoctype }
+
+            let terminator: String
+            if matches(b, at: i, "<?")        { terminator = "?>" }
+            else if matches(b, at: i, "<!--") { terminator = "-->" }
+            else if matches(b, at: i, "<!")   { return .declaresDoctype }  // some other declaration; not from an export
+            else                              { return .clean }            // root element start tag
+
+            guard let end = find(b, from: i, terminator) else { return .unreadable }
+            i = end
+        }
+    }
+
+    private static func matches(_ b: [UInt8], at i: Int, _ token: String) -> Bool {
+        let t = Array(token.utf8)
+        guard i + t.count <= b.count else { return false }
+        return Array(b[i ..< i + t.count]) == t
+    }
+
+    private static func find(_ b: [UInt8], from: Int, _ token: String) -> Int? {
+        let t = Array(token.utf8)
+        guard t.count <= b.count else { return nil }
+        for i in from ... (b.count - t.count) where Array(b[i ..< i + t.count]) == t {
+            return i + t.count
+        }
+        return nil
     }
 
     // MARK: - Shared strings
