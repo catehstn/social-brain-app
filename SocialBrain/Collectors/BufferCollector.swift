@@ -2,6 +2,21 @@ import Foundation
 
 /// Collects scheduled and sent post analytics from Buffer.
 ///
+/// **This talks to Buffer's v1 REST API, which is retired on 1 February 2027.**
+/// The API says so itself, in a `sunset:` header and in the body:
+/// *"The Buffer legacy REST API is deprecated and will be retired on 1 February
+/// 2027. Please migrate to the GraphQL API before then."*
+///
+/// Only on a request that carries a token, though — a bare unauthenticated call
+/// is answered by OAuth middleware with a plain 401 and none of those headers.
+/// Anyone re-checking this with a plain `curl` will conclude the note is wrong.
+///
+/// Migration is tracked in #117. The migration guide maps *endpoints*, not
+/// fields: it never mentions `sent_at` or `due_at`, and its GraphQL examples
+/// simply use `sentAt` and `dueAt`. The correspondence is the obvious inference
+/// and not something the guide states — worth knowing before planning against
+/// it. Worth knowing before investing in this file at all.
+///
 /// Required credentials key:
 /// - `"api_key"` – Buffer access token
 ///   (create at https://buffer.com/developers/apps or via the Buffer Developer dashboard)
@@ -131,16 +146,32 @@ struct BufferCollector: Collector {
         }
     }
 
+    /// Counts pending posts across every profile.
+    ///
+    /// Errors propagate, matching `fetchSentUpdates` — the two used to disagree,
+    /// and this was the one that lied. Both the request and the decode were
+    /// wrapped in `try?`, so any failure produced 0.
+    ///
+    /// Zero is the problem. It is not an obviously-wrong value the user will
+    /// question; it is a plausible answer that means "nothing queued", so the
+    /// metric read as working while reporting nothing. #115 found it had been
+    /// doing exactly that for every collection ever run: `Update.sentAt` was
+    /// required and pending posts carry no `sent_at`, so the decode threw every
+    /// time. Fixing that field left the swallow in place, ready to do the same
+    /// for the next field Buffer stops sending.
+    ///
+    /// One unreachable profile now fails the whole Buffer collection. That is
+    /// the same bargain `fetchSentUpdates` already makes, and a loud failure the
+    /// user can act on beats a silent number they cannot.
     private func fetchScheduledCounts(profiles: [ProfileInfo], token: String) async throws -> Int {
         var total = 0
         for profile in profiles {
             let url = Self.apiBase
                 .appendingPathComponent("profiles/\(profile.id)/updates/pending.json")
             let req = authorizedRequest(url: url, token: token)
-            if let (data, response) = try? await session.data(for: req),
-               let envelope = try? decodeJSON(UpdatesEnvelope.self, from: data, response: response) {
-                total += envelope.total ?? envelope.updates.count
-            }
+            let (data, response) = try await session.data(for: req)
+            let envelope = try decodeJSON(UpdatesEnvelope.self, from: data, response: response)
+            total += envelope.total ?? envelope.updates.count
         }
         return total
     }

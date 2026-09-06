@@ -77,6 +77,48 @@ struct BufferCollectorTests {
         #expect(data.metrics["scheduled_updates"] == .int(6))
     }
 
+    @Test("A failing pending request is an error, not a zero")
+    func pendingFailurePropagates() async throws {
+        // Both the request and the decode were wrapped in try?, so any failure
+        // produced 0 — and 0 is a plausible answer meaning "nothing queued",
+        // so the metric read as working while reporting nothing. #115 found it
+        // had been doing exactly that for every collection ever run.
+        let session = MockURLSession([
+            "/1/profiles.json": (Self.profilesJSON, 200),
+            "/1/profiles/p1/updates/sent.json": (Self.sentP1JSON, 200),
+            "/1/profiles/p2/updates/sent.json": (Self.sentP2JSON, 200),
+            "/1/profiles/p1/updates/pending.json": ("{\"error\":\"gone\"}", 500),
+            "/1/profiles/p2/updates/pending.json": (Self.pendingJSON, 200)
+        ])
+
+        // CollectorError, not `any Error`: with `any Error` a typo in the fixture
+        // path passes too, because MockURLSessionError.noFixture also satisfies
+        // it — so a broken mock would read as a working test.
+        let error = await #expect(throws: CollectorError.self) {
+            try await BufferCollector(session: session).collect(since: nil, credentials: credentials)
+        }
+        #expect(error?.localizedDescription.contains("HTTP 500") == true)
+    }
+
+    @Test("A pending response the decoder cannot read is an error, not a zero")
+    func pendingDecodeFailurePropagates() async throws {
+        // The other half of the same swallow. A 200 carrying a shape the
+        // decoder rejects is exactly what the required sent_at produced, and is
+        // what the next field Buffer stops sending will produce.
+        let session = MockURLSession([
+            "/1/profiles.json": (Self.profilesJSON, 200),
+            "/1/profiles/p1/updates/sent.json": (Self.sentP1JSON, 200),
+            "/1/profiles/p2/updates/sent.json": (Self.sentP2JSON, 200),
+            "/1/profiles/p1/updates/pending.json": ("{\"unexpected\":true}", 200),
+            "/1/profiles/p2/updates/pending.json": (Self.pendingJSON, 200)
+        ])
+
+        let error = await #expect(throws: CollectorError.self) {
+            try await BufferCollector(session: session).collect(since: nil, credentials: credentials)
+        }
+        #expect(error?.localizedDescription.contains("Failed to decode") == true)
+    }
+
     @Test("Names the top profiles by sent count, most first")
     func namesTopProfiles() async throws {
         // The profiles send different counts on purpose. With both on two the
