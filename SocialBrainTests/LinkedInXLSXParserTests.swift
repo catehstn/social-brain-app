@@ -333,6 +333,88 @@ struct LinkedInXLSXParserTests {
         #expect(result.metrics["total_engagements"] == .int(42))
     }
 
+    @Test("Header detection reads inline-string headers too")
+    func inlineStringHeaderIsDetected() throws {
+        // The header row decides which column gets summed, and it required a
+        // shared string — so a header row written as *inline* strings, one of
+        // the two shapes this parser exists to support, fell back to the
+        // hard-coded "C" and summed whichever metric happened to sit there.
+        //
+        // Engagements is in D here and Clicks in C, so getting this wrong
+        // reports the clicks as engagements.
+        let sheet = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <worksheet xmlns="\(Self.spreadsheetNS)"><sheetData>
+              <row r="1">
+                <c r="A1" t="inlineStr"><is><t>Date</t></is></c>
+                <c r="C1" t="inlineStr"><is><t>Clicks</t></is></c>
+                <c r="D1" t="inlineStr"><is><t>Engagements</t></is></c>
+              </row>
+              <row r="2"><c r="C2"><v>1000</v></c><c r="D2"><v>7</v></c></row>
+              <row r="3"><c r="C3"><v>2000</v></c><c r="D3"><v>9</v></c></row>
+            </sheetData></worksheet>
+            """
+        let data = try makeXLSX(["xl/worksheets/sheet2.xml": sheet])
+        let result = try parser.parse(data: data)
+        #expect(result.metrics["total_engagements"] == .int(16))
+    }
+
+    @Test("A formatted number in a text cell is refused, not silently truncated",
+          arguments: ["4.200", "4,200", "4 200", "4.2", "1e3", "٤٢٠٠"])
+    func formattedTextMetricsAreRefused(raw: String) throws {
+        // A numeric <v> is unambiguous — the producer committed to a value. Text
+        // is not: a European export writing "4.200" for four thousand two
+        // hundred parses as 4.2 and records 4, which is silently wrong where the
+        // old code failed loudly. There is no way to tell that from "4.200"
+        // meaning four-point-two without knowing the locale, so it is refused.
+        let strings = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <sst xmlns="\(Self.spreadsheetNS)">
+              <si><t>Impressions</t></si><si><t>Members reached</t></si>
+              <si><t>\(raw)</t></si>
+            </sst>
+            """
+        let data = try makeXLSX([
+            "xl/sharedStrings.xml": strings,
+            "xl/worksheets/sheet1.xml": discoverySheet(
+                b2: "<c r=\"B2\" t=\"s\"><v>2</v></c>",
+                b3: "<c r=\"B3\"><v>1750</v></c>")
+        ])
+        let result = try parser.parse(data: data)
+
+        #expect(result.metrics["total_impressions"] == nil, "\(raw) should not be read as a count")
+        #expect(result.metrics["members_reached"] == .int(1750))
+    }
+
+    @Test("A decimal in a numeric cell is still accepted")
+    func numericCellsKeepTheirLooserParsing() throws {
+        // The strictness is for *text* only. A numeric <v> keeps the behaviour
+        // it always had, so this must not become collateral damage.
+        let data = try makeXLSX([
+            "xl/sharedStrings.xml": Self.discoveryStrings,
+            "xl/worksheets/sheet1.xml": discoverySheet(
+                b2: "<c r=\"B2\"><v>4200.0</v></c>",
+                b3: "<c r=\"B3\" t=\"n\"><v>1750.6</v></c>")
+        ])
+        let result = try parser.parse(data: data)
+        #expect(result.metrics["total_impressions"] == .int(4200))
+        #expect(result.metrics["members_reached"] == .int(1750))
+    }
+
+    @Test("A phonetic hint in an inline string is not part of the number")
+    func inlineStringPhoneticHintsAreExcluded() throws {
+        // Japanese workbooks carry <rPh> pronunciation guides that have their
+        // own <t>. Concatenating them turns 42 into 4200.
+        let data = try makeXLSX([
+            "xl/sharedStrings.xml": Self.discoveryStrings,
+            "xl/worksheets/sheet1.xml": discoverySheet(
+                b2: "<c r=\"B2\" t=\"inlineStr\"><is><t>42</t><rPh><t>00</t></rPh></is></c>",
+                b3: "<c r=\"B3\"><v>1750</v></c>")
+        ])
+        let result = try parser.parse(data: data)
+        #expect(result.metrics["total_impressions"] == .int(42))
+    }
+
     // MARK: - Untrusted XML
 
     /// A shared-strings part wrapping whatever DTD internal subset is given.

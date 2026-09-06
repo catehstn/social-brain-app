@@ -498,7 +498,41 @@ struct LinkedInXLSXParser {
         guard let nodes = try? doc.nodes(forXPath:
                   "//*[local-name()='c'][@r='\(ref)']"),
               let cell = nodes.first as? XMLElement else { return nil }
-        return cellText(cell, sharedStrings: sharedStrings).flatMap(Self.safeInt)
+        return cellNumber(cell, sharedStrings: sharedStrings)
+    }
+
+    /// A cell's value as a whole number, or `nil` if it does not hold one.
+    ///
+    /// Text cells are parsed **more strictly** than numeric ones, and that
+    /// asymmetry is deliberate. A numeric `<v>` is unambiguous — the producer
+    /// already committed to a value. Text is not: a European export writing
+    /// `4.200` for four thousand two hundred parses as `4.2` and records **4**,
+    /// which is silently wrong where the old code failed loudly. Same for
+    /// `4,200` and `4 200`, and there is no way to tell `4.200` meaning 4200
+    /// from `4.200` meaning four-point-two without knowing the locale.
+    ///
+    /// So a text cell must be a bare integer or it is refused. Nothing is lost:
+    /// these metrics are counts, and every caller wants an `Int`, so a decimal
+    /// was being truncated anyway — this only makes the truncation loud.
+    private func cellNumber(_ cell: XMLElement, sharedStrings: [String]) -> Int? {
+        switch cell.attribute(forName: "t")?.stringValue {
+        case "s", "inlineStr":
+            return cellText(cell, sharedStrings: sharedStrings).flatMap(Self.strictInt)
+        default:
+            return cellText(cell, sharedStrings: sharedStrings).flatMap(Self.safeInt)
+        }
+    }
+
+    /// A bare integer, with optional sign and surrounding whitespace, or `nil`.
+    ///
+    /// `Int(_:)` returns nil on overflow rather than trapping, so a huge value
+    /// is refused rather than crashing — the same hazard `safeInt` exists for.
+    static func strictInt(_ raw: String) -> Int? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        var digits = Substring(trimmed)
+        if digits.first == "+" || digits.first == "-" { digits = digits.dropFirst() }
+        guard !digits.isEmpty, digits.allSatisfy({ $0.isASCII && $0.isNumber }) else { return nil }
+        return Int(trimmed)
     }
 
     /// The text a cell holds, whatever shape it is stored in.
@@ -535,8 +569,7 @@ struct LinkedInXLSXParser {
             // table: an inline string is the same content model.
             let texts = (try? cell.nodes(forXPath:
                 ".//*[local-name()='t'][not(ancestor::*[local-name()='rPh'])]")) ?? []
-            let joined = texts.compactMap(\.stringValue).joined()
-            return joined.isEmpty ? nil : joined
+            return texts.compactMap(\.stringValue).joined()
 
         default:
             return firstChild(cell, named: "v")
@@ -569,13 +602,14 @@ struct LinkedInXLSXParser {
         guard let cells = try? doc.nodes(forXPath:
                   "//*[local-name()='row'][@r='1']/*[local-name()='c']") else { return nil }
         for cell in cells {
+            // Through the shared resolver, not a hand-rolled `t="s"` branch.
+            // Requiring a shared string here meant a header row written as
+            // *inline* strings — one of the two shapes this parser exists to
+            // support — defeated column detection, fell back to the hard-coded
+            // "C", and summed whichever metric happened to sit there.
             guard let el  = cell as? XMLElement,
                   let ref = el.attribute(forName: "r")?.stringValue,
-                  el.attribute(forName: "t")?.stringValue == "s",
-                  let vNodes = try? el.nodes(forXPath: "*[local-name()='v']"),
-                  let idxStr = vNodes.first?.stringValue,
-                  let idx    = Int(idxStr),
-                  let label  = sharedStrings[safe: idx],
+                  let label = cellText(el, sharedStrings: sharedStrings),
                   label.lowercased().contains("engagement") else { continue }
             return String(ref.prefix(while: { $0.isLetter })).uppercased()
         }
@@ -595,8 +629,7 @@ struct LinkedInXLSXParser {
             guard cellCol == col.uppercased() else { continue }
             let rowStr = String(ref.drop(while: { $0.isLetter }))
             guard let row = Int(rowStr), row >= startRow else { continue }
-            guard let value = cellText(el, sharedStrings: sharedStrings)
-                    .flatMap(Self.safeInt) else { continue }
+            guard let value = cellNumber(el, sharedStrings: sharedStrings) else { continue }
             // Overflow-safe: two 9e14 cells would otherwise trap on +=.
             let (sum, overflowed) = total.addingReportingOverflow(value)
             guard !overflowed else { continue }
