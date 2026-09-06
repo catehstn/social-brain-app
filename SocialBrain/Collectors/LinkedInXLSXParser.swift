@@ -71,22 +71,22 @@ struct LinkedInXLSXParser {
 
         // -- DISCOVERY (sheet1) --
         if let doc = try parsePart(zip, named: "xl/worksheets/sheet1.xml") {
-            if let v = numericCell(doc, ref: "B2") { metrics["total_impressions"] = .int(v) }
-            if let v = numericCell(doc, ref: "B3") { metrics["members_reached"]   = .int(v) }
+            if let v = numericCell(doc, ref: "B2", sharedStrings: sharedStrings) { metrics["total_impressions"] = .int(v) }
+            if let v = numericCell(doc, ref: "B3", sharedStrings: sharedStrings) { metrics["members_reached"]   = .int(v) }
         }
 
         // -- ENGAGEMENT (sheet2): sum Engagements column from row 2 onward --
         if let doc = try parsePart(zip, named: "xl/worksheets/sheet2.xml") {
             // Detect which column holds Engagements (typically "C") from the header row.
             let engCol = engagementsColumn(in: doc, sharedStrings: sharedStrings) ?? "C"
-            let total  = sumColumn(in: doc, col: engCol, startRow: 2)
+            let total  = sumColumn(in: doc, col: engCol, startRow: 2, sharedStrings: sharedStrings)
             if total > 0 { metrics["total_engagements"] = .int(total) }
         }
 
         // -- FOLLOWERS (sheet4) --
         if let doc = try parsePart(zip, named: "xl/worksheets/sheet4.xml") {
-            if let v = numericCell(doc, ref: "B1") { metrics["total_followers"] = .int(v) }
-            let newF = sumColumn(in: doc, col: "B", startRow: 4)
+            if let v = numericCell(doc, ref: "B1", sharedStrings: sharedStrings) { metrics["total_followers"] = .int(v) }
+            let newF = sumColumn(in: doc, col: "B", startRow: 4, sharedStrings: sharedStrings)
             if newF > 0 { metrics["new_followers"] = .int(newF) }
         }
 
@@ -492,15 +492,61 @@ struct LinkedInXLSXParser {
     // MARK: - Cell lookup
 
     /// Returns the integer value of a specific cell (e.g. "B2"), or nil if absent or non-numeric.
-    private func numericCell(_ doc: XMLDocument, ref: String) -> Int? {
+    private func numericCell(
+        _ doc: XMLDocument, ref: String, sharedStrings: [String]
+    ) -> Int? {
         guard let nodes = try? doc.nodes(forXPath:
                   "//*[local-name()='c'][@r='\(ref)']"),
               let cell = nodes.first as? XMLElement else { return nil }
-        // Skip string-typed cells.
-        guard cell.attribute(forName: "t")?.stringValue != "s" else { return nil }
-        guard let vNodes = try? cell.nodes(forXPath: "*[local-name()='v']"),
-              let raw = vNodes.first?.stringValue else { return nil }
-        return Self.safeInt(raw)
+        return cellText(cell, sharedStrings: sharedStrings).flatMap(Self.safeInt)
+    }
+
+    /// The text a cell holds, whatever shape it is stored in.
+    ///
+    /// A cell's `t` attribute decides where its value lives, and reading `<v>`
+    /// blindly is wrong for two of the shapes ECMA-376 defines:
+    ///
+    /// - `t="s"` — `<v>` is an **index into the shared-string table**, not the
+    ///   value. Reading it as the value records a table offset as the metric.
+    ///   That is why the previous code skipped these cells rather than reading
+    ///   them, and skipping was the right call versus reading the index.
+    /// - `t="inlineStr"` — there is no `<v>` at all; the text is in `<is><t>`,
+    ///   split into `<r>` runs if any part is styled. Reading `<v>` finds
+    ///   nothing and the cell disappears.
+    /// - everything else — `n` (the default), `str` for a formula result, `b`,
+    ///   `d`, `e` — keeps its value in `<v>`. An error cell's `#N/A` simply
+    ///   fails to parse as a number, which is the right answer anyway.
+    ///
+    /// Skipping `t="s"` avoided recording nonsense but meant a metric LinkedIn
+    /// chose to write as a string was silently unreadable, and the import failed
+    /// with no usable data (#53, #55). Resolving keeps the safety and handles
+    /// the shape.
+    private func cellText(_ cell: XMLElement, sharedStrings: [String]) -> String? {
+        switch cell.attribute(forName: "t")?.stringValue {
+        case "s":
+            guard let raw = firstChild(cell, named: "v"),
+                  let index = Int(raw.trimmingCharacters(in: .whitespaces)),
+                  sharedStrings.indices.contains(index)
+            else { return nil }
+            return sharedStrings[index]
+
+        case "inlineStr":
+            // Same run-concatenation and phonetic-hint rule as the shared-string
+            // table: an inline string is the same content model.
+            let texts = (try? cell.nodes(forXPath:
+                ".//*[local-name()='t'][not(ancestor::*[local-name()='rPh'])]")) ?? []
+            let joined = texts.compactMap(\.stringValue).joined()
+            return joined.isEmpty ? nil : joined
+
+        default:
+            return firstChild(cell, named: "v")
+        }
+    }
+
+    private func firstChild(_ cell: XMLElement, named name: String) -> String? {
+        guard let nodes = try? cell.nodes(forXPath: "*[local-name()='\(name)']")
+        else { return nil }
+        return nodes.first?.stringValue
     }
 
     /// Converts a spreadsheet cell to an `Int`, refusing values that would trap.
@@ -537,7 +583,9 @@ struct LinkedInXLSXParser {
     }
 
     /// Sums all numeric values in `col` (e.g. "B") for rows >= `startRow`.
-    private func sumColumn(in doc: XMLDocument, col: String, startRow: Int) -> Int {
+    private func sumColumn(
+        in doc: XMLDocument, col: String, startRow: Int, sharedStrings: [String]
+    ) -> Int {
         guard let cells = try? doc.nodes(forXPath: "//*[local-name()='c']") else { return 0 }
         var total = 0
         for cell in cells {
@@ -547,11 +595,8 @@ struct LinkedInXLSXParser {
             guard cellCol == col.uppercased() else { continue }
             let rowStr = String(ref.drop(while: { $0.isLetter }))
             guard let row = Int(rowStr), row >= startRow else { continue }
-            // Skip string-typed cells.
-            guard el.attribute(forName: "t")?.stringValue != "s" else { continue }
-            guard let vNodes = try? el.nodes(forXPath: "*[local-name()='v']"),
-                  let raw    = vNodes.first?.stringValue,
-                  let value  = Self.safeInt(raw) else { continue }
+            guard let value = cellText(el, sharedStrings: sharedStrings)
+                    .flatMap(Self.safeInt) else { continue }
             // Overflow-safe: two 9e14 cells would otherwise trap on +=.
             let (sum, overflowed) = total.addingReportingOverflow(value)
             guard !overflowed else { continue }

@@ -197,6 +197,142 @@ struct LinkedInXLSXParserTests {
         _ = try? parser.parse(data: data)
     }
 
+    // MARK: - Cell types
+
+    /// A DISCOVERY sheet with whatever B2/B3 cells are given.
+    private func discoverySheet(b2: String, b3: String) -> String {
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <worksheet xmlns="\(Self.spreadsheetNS)"><sheetData>
+          <row r="2"><c r="A2" t="s"><v>0</v></c>\(b2)</row>
+          <row r="3"><c r="A3" t="s"><v>1</v></c>\(b3)</row>
+        </sheetData></worksheet>
+        """
+    }
+
+    private static let discoveryStrings = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <sst xmlns="\(Self.spreadsheetNS)">
+          <si><t>Impressions</t></si><si><t>Members reached</t></si>
+          <si><t>4200</t></si><si><t>1750</t></si>
+        </sst>
+        """
+
+    @Test("A metric stored as a shared string is read, not skipped")
+    func sharedStringMetricIsResolved() throws {
+        // #53/#55. `t="s"` means <v> is an *index* into the shared-string
+        // table, so reading it as the value records a table offset as the
+        // metric. The parser skipped these cells to avoid that — correct
+        // against reading the index, but it meant a metric LinkedIn chose to
+        // write as a string was silently unreadable and the import failed with
+        // no usable data.
+        //
+        // Index 2 is "4200" and index 3 is "1750", so a parser reading the raw
+        // <v> would record 2 and 3.
+        let data = try makeXLSX([
+            "xl/sharedStrings.xml": Self.discoveryStrings,
+            "xl/worksheets/sheet1.xml": discoverySheet(
+                b2: "<c r=\"B2\" t=\"s\"><v>2</v></c>",
+                b3: "<c r=\"B3\" t=\"s\"><v>3</v></c>")
+        ])
+        let result = try parser.parse(data: data)
+
+        #expect(result.metrics["total_impressions"] == .int(4200))
+        #expect(result.metrics["members_reached"] == .int(1750))
+    }
+
+    @Test("A metric stored as an inline string is read")
+    func inlineStringMetricIsResolved() throws {
+        // t="inlineStr" has no <v> at all — the text is in <is><t>, split into
+        // runs if any part is styled. Reading <v> finds nothing and the cell
+        // disappears entirely.
+        let data = try makeXLSX([
+            "xl/sharedStrings.xml": Self.discoveryStrings,
+            "xl/worksheets/sheet1.xml": discoverySheet(
+                b2: "<c r=\"B2\" t=\"inlineStr\"><is><t>4200</t></is></c>",
+                b3: "<c r=\"B3\" t=\"inlineStr\"><is><r><t>17</t></r><r><t>50</t></r></is></c>")
+        ])
+        let result = try parser.parse(data: data)
+
+        #expect(result.metrics["total_impressions"] == .int(4200))
+        // Runs concatenated, same as the shared-string table does.
+        #expect(result.metrics["members_reached"] == .int(1750))
+    }
+
+    @Test("A shared-string index is never recorded as the metric")
+    func sharedStringIndexIsNotTheValue() throws {
+        // The safety the old skip provided, kept. Index 0 is "Impressions" —
+        // a label, not a number — so the cell yields nothing rather than 0.
+        let data = try makeXLSX([
+            "xl/sharedStrings.xml": Self.discoveryStrings,
+            "xl/worksheets/sheet1.xml": discoverySheet(
+                b2: "<c r=\"B2\" t=\"s\"><v>0</v></c>",
+                b3: "<c r=\"B3\" t=\"n\"><v>1750</v></c>")
+        ])
+        let result = try parser.parse(data: data)
+
+        #expect(result.metrics["total_impressions"] == nil)
+        #expect(result.metrics["members_reached"] == .int(1750))
+    }
+
+    @Test("A shared-string index pointing outside the table yields nothing")
+    func outOfRangeSharedStringIndex() throws {
+        let data = try makeXLSX([
+            "xl/sharedStrings.xml": Self.discoveryStrings,
+            "xl/worksheets/sheet1.xml": discoverySheet(
+                b2: "<c r=\"B2\" t=\"s\"><v>99</v></c>",
+                b3: "<c r=\"B3\" t=\"n\"><v>1750</v></c>")
+        ])
+        let result = try parser.parse(data: data)
+        #expect(result.metrics["total_impressions"] == nil)
+        #expect(result.metrics["members_reached"] == .int(1750))
+    }
+
+    @Test("An error cell is not read as a number")
+    func errorCellYieldsNothing() throws {
+        // t="e" puts #N/A in <v>. It has never parsed as a number, and must not
+        // start now that <v> is read for every non-string type.
+        let data = try makeXLSX([
+            "xl/sharedStrings.xml": Self.discoveryStrings,
+            "xl/worksheets/sheet1.xml": discoverySheet(
+                b2: "<c r=\"B2\" t=\"e\"><v>#N/A</v></c>",
+                b3: "<c r=\"B3\"><v>1750</v></c>")
+        ])
+        let result = try parser.parse(data: data)
+        #expect(result.metrics["total_impressions"] == nil)
+        #expect(result.metrics["members_reached"] == .int(1750))
+    }
+
+    @Test("A summed column adds string-typed cells too")
+    func summedColumnResolvesSharedStrings() throws {
+        // sumColumn skipped t="s" for the same reason and with the same
+        // consequence: a whole column written as strings summed to zero, and
+        // zero is a plausible-looking answer.
+        let strings = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <sst xmlns="\(Self.spreadsheetNS)">
+              <si><t>Date</t></si><si><t>Impressions</t></si><si><t>Engagements</t></si>
+              <si><t>10</t></si><si><t>20</t></si><si><t>12</t></si>
+            </sst>
+            """
+        let sheet = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <worksheet xmlns="\(Self.spreadsheetNS)"><sheetData>
+              <row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c>
+                         <c r="C1" t="s"><v>2</v></c></row>
+              <row r="2"><c r="C2" t="s"><v>3</v></c></row>
+              <row r="3"><c r="C3" t="s"><v>4</v></c></row>
+              <row r="4"><c r="C4" t="s"><v>5</v></c></row>
+            </sheetData></worksheet>
+            """
+        let data = try makeXLSX([
+            "xl/sharedStrings.xml": strings,
+            "xl/worksheets/sheet2.xml": sheet
+        ])
+        let result = try parser.parse(data: data)
+        #expect(result.metrics["total_engagements"] == .int(42))
+    }
+
     // MARK: - Untrusted XML
 
     /// A shared-strings part wrapping whatever DTD internal subset is given.
