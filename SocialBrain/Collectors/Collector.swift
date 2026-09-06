@@ -86,8 +86,12 @@ enum CollectorError: LocalizedError, Sendable {
     }
 }
 
-/// Where collector failures go. The subsystem name is what the 4xx hint tells
-/// the user to filter Console.app by, so the two have to stay in step.
+/// Where collector failures go.
+///
+/// Nothing user-facing points at this — the response body is logged as private
+/// data, so it is redacted for anyone who has not deliberately turned that off,
+/// and a hint promising otherwise would be pointing at `<private>`. It is here
+/// for whoever is debugging a collector, not for the person using the app.
 let collectorLog = Logger(subsystem: "com.catehuston.SocialBrain", category: "collector")
 
 // MARK: - Shared HTTP helpers
@@ -120,13 +124,17 @@ func decodeJSON<T: Decodable>(
         // thing that says *which* field or parameter a 400 objected to, so it
         // has to survive somewhere.
         //
-        // `.private` means redacted in Console unless someone runs
-        //   sudo log config --subsystem com.catehuston.SocialBrain --mode private_data:on
-        // which is the right default for an authenticated API's response, and
-        // is why no user-facing string promises the body is readable. Note the
-        // trap: under a debugger — including `xcodebuild test` — private data
-        // prints in the clear, so this looks readable while developing and is
-        // not in a shipped build.
+        // `.private` is the right default for an authenticated API's response,
+        // and is why no user-facing string promises the body is readable:
+        // Console shows it as <private>. Unredacting it needs an
+        // `Enable-Private-Data` configuration profile installed — not a `log
+        // config` flag; `private_data` is not among the modes `log help config`
+        // lists on macOS 26.
+        //
+        // Note the trap that produced the wrong hint text in the first place:
+        // under a debugger — including `xcodebuild test` — private data prints
+        // in the clear. It looks readable while developing and is not in a
+        // shipped build.
         //
         // The path is private for the same reason: it carries account and site
         // identifiers, e.g. /rest/v1.1/sites/12345678/stats. The host is not.

@@ -177,51 +177,94 @@ struct LinkedInXLSXParser {
     }
 
     private static func rejectUnparseablePart(_ data: Data) throws {
-        guard let prolog = asciiProlog(data) else { throw ParseError.unsupportedEncoding }
-        switch prologVerdict(prolog) {
+        guard let (prolog, truncated) = asciiProlog(data) else {
+            throw ParseError.unsupportedEncoding
+        }
+        guard declaredEncodingIsPermitted(prolog) else { throw ParseError.unsupportedEncoding }
+        switch prologVerdict(prolog, truncated: truncated) {
         case .clean:            return
         case .declaresDoctype:  throw ParseError.unsafeXML
         case .unreadable:       throw ParseError.malformedProlog
         }
     }
 
-    /// The leading bytes of the part, reduced to ASCII, or `nil` if it is not in
-    /// an encoding OPC permits.
-    private static func asciiProlog(_ data: Data) -> [UInt8]? {
+    /// The leading bytes of the part reduced to ASCII, and whether the part
+    /// continued past what was read. `nil` if it is not in an encoding OPC
+    /// permits.
+    private static func asciiProlog(_ data: Data) -> (bytes: [UInt8], truncated: Bool)? {
         let bytes = [UInt8](data.prefix(prologScanLimit))
+        let truncated = data.count > prologScanLimit
         guard let (form, offset) = textForm(bytes) else { return nil }
         let body = bytes[offset...]
         switch form {
         case .utf8:
-            return Array(body)
+            return (Array(body), truncated)
         case .utf16LittleEndian:
             // ASCII in UTF-16 is the character byte followed (LE) or preceded
-            // (BE) by a zero. Anything else in the prolog is not ASCII and the
-            // walk below will stop at it, which is the safe direction.
-            return stride(from: body.startIndex, to: body.endIndex - 1, by: 2).map { body[$0] }
+            // (BE) by a zero. Anything else in the prolog is not ASCII, and the
+            // walk stops at it — the safe direction.
+            return (stride(from: body.startIndex, to: body.endIndex - 1, by: 2).map { body[$0] }, truncated)
         case .utf16BigEndian:
-            return stride(from: body.startIndex + 1, to: body.endIndex, by: 2).map { body[$0] }
+            return (stride(from: body.startIndex + 1, to: body.endIndex, by: 2).map { body[$0] }, truncated)
         }
     }
 
     /// Identifies the encoding from the BOM, or from the first character being
-    /// `<` — which every XML document starts with. Returns the byte offset past
-    /// any BOM.
+    /// `<`. Returns the byte offset past any BOM.
     private static func textForm(_ b: [UInt8]) -> (TextForm, Int)? {
-        // UTF-32 BOMs are checked first: FF FE also prefixes UTF-32LE, and
-        // treating one as UTF-16 would scan it wrongly rather than refuse it.
+        // UTF-32 BOMs first: FF FE also prefixes UTF-32LE, and reading one as
+        // UTF-16 would scan it wrongly rather than refuse it.
         if b.starts(with: [0xFF, 0xFE, 0x00, 0x00]) { return nil }
         if b.starts(with: [0x00, 0x00, 0xFE, 0xFF]) { return nil }
         if b.starts(with: [0xEF, 0xBB, 0xBF])       { return (.utf8, 3) }
         if b.starts(with: [0xFF, 0xFE])             { return (.utf16LittleEndian, 2) }
         if b.starts(with: [0xFE, 0xFF])             { return (.utf16BigEndian, 2) }
-        // No BOM. XML must begin with `<`, so its encoding is readable from how
+        // No BOM. XML must begin with `<`, so the encoding is readable from how
         // that character is laid out.
         if b.count >= 2, b[0] == 0x3C, b[1] == 0x00 { return (.utf16LittleEndian, 0) }
         if b.count >= 2, b[0] == 0x00, b[1] == 0x3C { return (.utf16BigEndian, 0) }
-        if b.first == 0x3C                          { return (.utf8, 0) }
+        // `prolog ::= XMLDecl? Misc*`, so a part may legally open with
+        // whitespace and no declaration. Only handled for UTF-8: the
+        // equivalent in UTF-16 would have to be disambiguated before the
+        // encoding is known, and no producer writes it.
+        var i = 0
+        while i < b.count, isSpace(b[i]) { i += 1 }
+        if i < b.count, b[i] == 0x3C { return (.utf8, 0) }
         return nil
     }
+
+    /// Refuses a part whose XML declaration names an encoding OPC does not
+    /// permit.
+    ///
+    /// Sniffing the first bytes is not enough on its own. UTF-7 encodes `<` as
+    /// itself, so it passes the sniff — and then encodes `!` as `+ACE-`, which
+    /// hides the DOCTYPE token from a walk that assumes the rest of the prolog
+    /// is ASCII. A 436-byte UTF-7 part expanded to ten million characters
+    /// through the sniff alone. libxml2 honours the declaration via iconv, so
+    /// the declaration has to be honoured here too.
+    private static func declaredEncodingIsPermitted(_ b: [UInt8]) -> Bool {
+        guard matches(b, at: 0, "<?xml"), let declEnd = find(b, from: 0, "?>") else {
+            // No declaration. The sniff already established UTF-8 or UTF-16,
+            // which is what a part without one has to be.
+            return true
+        }
+        let declaration = String(decoding: b[0 ..< declEnd], as: UTF8.self).lowercased()
+        guard let keyword = declaration.range(of: "encoding") else { return true }
+
+        let after = declaration[keyword.upperBound...]
+        guard let openIndex = after.firstIndex(where: { $0 == "\"" || $0 == "'" }) else { return false }
+        let quote = after[openIndex]
+        let valueStart = after.index(after: openIndex)
+        guard let closeIndex = after[valueStart...].firstIndex(of: quote) else { return false }
+
+        return permittedEncodings.contains(String(after[valueStart ..< closeIndex]))
+    }
+
+    /// What ECMA-376 permits for a part, plus the spellings libxml2 accepts for
+    /// them. Anything else is refused rather than scanned.
+    private static let permittedEncodings: Set<String> = [
+        "utf-8", "utf8", "utf-16", "utf16", "utf-16le", "utf-16be"
+    ]
 
     private enum PrologVerdict {
         case clean
@@ -232,12 +275,27 @@ struct LinkedInXLSXParser {
     /// Walks the prolog — the XML declaration, comments and processing
     /// instructions before the root element — and stops at the first thing that
     /// is not one of those.
-    private static func prologVerdict(_ b: [UInt8]) -> PrologVerdict {
+    ///
+    /// - Parameter truncated: whether the part continued past `b`. If it did,
+    ///   a decision taken near the end of the buffer may be an artefact of
+    ///   where the buffer stopped rather than of what the part says, so the
+    ///   walk refuses instead. This is what the boundary-padding attack needed
+    ///   — 65 KB of whitespace, which deflates to nothing, putting the `<` of
+    ///   `<!DOCTYPE` on the last readable byte so every token test ran off the
+    ///   end and the fall-through read it as a root element.
+    ///
+    ///   Belt and braces rather than load-bearing: the `NameStartChar` rule
+    ///   below independently refuses that case, because `!` cannot start a
+    ///   name. Removing this changes no test. Kept because "the buffer ended
+    ///   mid-decision" and "the decision was reached" are different states, and
+    ///   conflating them is how the two previous versions of this guard were
+    ///   evaded.
+    private static func prologVerdict(_ b: [UInt8], truncated: Bool) -> PrologVerdict {
         var i = 0
         while true {
-            while i < b.count, b[i] == 0x20 || b[i] == 0x09 || b[i] == 0x0D || b[i] == 0x0A {
-                i += 1
-            }
+            while i < b.count, isSpace(b[i]) { i += 1 }
+            // Longest token tested below is "<!DOCTYPE", nine bytes.
+            if truncated, i + 9 > b.count { return .unreadable }
             guard i < b.count else { return .unreadable }
             guard b[i] == 0x3C else { return .unreadable }
 
@@ -246,12 +304,31 @@ struct LinkedInXLSXParser {
             let terminator: String
             if matches(b, at: i, "<?")        { terminator = "?>" }
             else if matches(b, at: i, "<!--") { terminator = "-->" }
-            else if matches(b, at: i, "<!")   { return .declaresDoctype }  // some other declaration; not from an export
-            else                              { return .clean }            // root element start tag
+            else if matches(b, at: i, "<!")   { return .unreadable }
+            else {
+                // A root element start tag, and nothing else. The byte after
+                // `<` must be an XML NameStartChar — this is what closes UTF-7
+                // and anything else that hides a declaration behind a byte the
+                // walk cannot read, rather than assuming "not a declaration"
+                // means "the document body".
+                guard i + 1 < b.count, isNameStart(b[i + 1]) else { return .unreadable }
+                return .clean
+            }
 
             guard let end = find(b, from: i, terminator) else { return .unreadable }
             i = end
         }
+    }
+
+    private static func isSpace(_ c: UInt8) -> Bool {
+        c == 0x20 || c == 0x09 || c == 0x0D || c == 0x0A
+    }
+
+    /// XML `NameStartChar`, restricted to what can appear in a single byte.
+    /// Anything above ASCII is permitted: the multi-byte ranges are all names.
+    private static func isNameStart(_ c: UInt8) -> Bool {
+        (c >= 0x41 && c <= 0x5A) || (c >= 0x61 && c <= 0x7A)
+            || c == 0x5F || c == 0x3A || c > 0x7F
     }
 
     private static func matches(_ b: [UInt8], at i: Int, _ token: String) -> Bool {
