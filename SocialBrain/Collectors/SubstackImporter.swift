@@ -113,7 +113,27 @@ struct SubstackImporter {
         if !clickRates.isEmpty {
             metrics["avg_click_rate"] = .double(clickRates.reduce(0, +) / Double(clickRates.count))
         }
-        return PlatformData(platform: .substack, metrics: metrics)
+        // periodEnd, same as the current format. This path computed
+        // publishedRows and then dropped it on the floor, so a legacy import was
+        // stamped with the import clock and filed as today — the staleness the
+        // periodEnd work exists to prevent.
+        //
+        // The dead binding did produce "initialization of immutable value
+        // 'publishedRows' was never used" — verified with swiftc on a reduction
+        // of the same construct. So the compiler said so all along and nobody
+        // read it; there is no warning configuration to go and fix.
+        //
+        // The column is "Date" per the header this parser detects on. That name
+        // comes from this file's own doc comment rather than an observed export,
+        // which is exactly how the CTR (%) mistake happened — so it is used as a
+        // lookup that returns nil when absent, never as an assumption. Where the
+        // column is missing or unparseable, periodEnd stays nil and behaviour is
+        // unchanged.
+        return PlatformData(
+            platform: .substack,
+            periodEnd: ExportDates.latest(in: publishedRows, column: col("date")),
+            metrics: metrics
+        )
     }
 
     // MARK: - CSV helpers

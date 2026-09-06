@@ -107,6 +107,47 @@ struct SubstackImporterTests {
         #expect(abs(rate - 0.45) < 0.001)
     }
 
+    @Test("A legacy import is dated from the export, not from the import clock")
+    func legacyFormatSetsPeriodEnd() throws {
+        // This path computed publishedRows and never used it, so periodEnd was
+        // nil and the snapshot fell back to collectedAt. Importing a 2024
+        // export today filed it as today — which is the staleness the periodEnd
+        // work exists to prevent, and it puts the whole series at the wrong
+        // point on the Dashboard axis.
+        let csv = """
+        Subject,Date,Recipients,Opens,Open rate
+        "A","2024-03-01","400","160","40.0%"
+        "B","2024-05-14","420","210","50.0%"
+        """
+        let data = try #require(csv.data(using: .utf8))
+        let result = try importer.parse(data: data)
+
+        let periodEnd = try #require(result.periodEnd, "legacy import produced no periodEnd")
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let parts = calendar.dateComponents([.year, .month, .day], from: periodEnd)
+        // The latest row, not the earliest: an export describes the state at
+        // the end of the period it covers.
+        #expect(parts.year == 2024)
+        #expect(parts.month == 5)
+        #expect(parts.day == 14)
+    }
+
+    @Test("A legacy export with no usable date still imports")
+    func legacyFormatToleratesAMissingDate() throws {
+        // The column name comes from this parser's own doc comment, not from an
+        // observed file. So its absence has to be survivable rather than fatal —
+        // periodEnd stays nil and the import behaves as it did before.
+        let csv = """
+        Subject,Recipients,Opens,Open rate
+        "A","400","160","40.0%"
+        """
+        let data = try #require(csv.data(using: .utf8))
+        let result = try importer.parse(data: data)
+        #expect(result.periodEnd == nil)
+        #expect(result.intMetric("posts_published") == 1)
+    }
+
     // MARK: - Error cases
 
     @Test("Throws on empty file")
