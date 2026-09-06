@@ -138,6 +138,106 @@ struct MockURLSessionTests {
         }
     }
 
+    // MARK: - Sequencing and headers
+
+    @Test("A path can return a different response per call")
+    func responsesAreSequencedPerPath() async throws {
+        // Pagination was untestable without this: one response per path forever
+        // meant a collector that fetches page 1 and stops looked identical to
+        // one that walks every page (#73, #103).
+        let session = MockURLSession([
+            "/pages": [.init("one"), .init("two"), .init("three")]
+        ])
+        let url = try #require(URL(string: "https://example.com/pages"))
+
+        var bodies: [String] = []
+        for _ in 0..<3 {
+            let (data, _) = try await session.data(for: URLRequest(url: url))
+            bodies.append(String(decoding: data, as: UTF8.self))
+        }
+        #expect(bodies == ["one", "two", "three"])
+    }
+
+    @Test("An exhausted queue repeats its last response")
+    func exhaustedQueueRepeatsTheLast() async throws {
+        // What a real paginated API does at the end, and what keeps every
+        // single-response fixture in this suite behaving as it always did.
+        let session = MockURLSession(["/pages": [.init("one"), .init("last")]])
+        let url = try #require(URL(string: "https://example.com/pages"))
+
+        var bodies: [String] = []
+        for _ in 0..<4 {
+            let (data, _) = try await session.data(for: URLRequest(url: url))
+            bodies.append(String(decoding: data, as: UTF8.self))
+        }
+        #expect(bodies == ["one", "last", "last", "last"])
+    }
+
+    @Test("Each path has its own cursor")
+    func cursorsAreIndependentPerPath() async throws {
+        // Deliberately not one global queue. Collectors fetch different
+        // endpoints concurrently under `async let`, so a global cursor would
+        // hand out responses in whatever order the tasks happened to start.
+        let session = MockURLSession([
+            "/a": [.init("a1"), .init("a2")],
+            "/b": [.init("b1"), .init("b2")]
+        ])
+        func get(_ path: String) async throws -> String {
+            let url = try #require(URL(string: "https://example.com\(path)"))
+            let (data, _) = try await session.data(for: URLRequest(url: url))
+            return String(decoding: data, as: UTF8.self)
+        }
+
+        // Interleaved on purpose: /b's first call must not consume /a's cursor.
+        #expect(try await get("/a") == "a1")
+        #expect(try await get("/b") == "b1")
+        #expect(try await get("/a") == "a2")
+        #expect(try await get("/b") == "b2")
+    }
+
+    @Test("A copy of the session shares the cursor")
+    func cursorIsSharedAcrossCopies() async throws {
+        // MockURLSession is a struct and collectors hold their own copy, so
+        // without a shared reference every copy would start again at page one —
+        // the same reason recording lives behind the Recorder.
+        let session = MockURLSession(["/pages": [.init("one"), .init("two")]])
+        let copy = session
+        let url = try #require(URL(string: "https://example.com/pages"))
+
+        let (first, _) = try await session.data(for: URLRequest(url: url))
+        let (second, _) = try await copy.data(for: URLRequest(url: url))
+        #expect(String(decoding: first, as: UTF8.self) == "one")
+        #expect(String(decoding: second, as: UTF8.self) == "two")
+    }
+
+    @Test("A response can carry its own headers")
+    func responsesCarryHeaders() async throws {
+        // Mastodon paginates by Link header, so its pagination was untestable
+        // even in principle while Content-Type was hard-coded as the only one.
+        let link = "<https://example.com/pages?max_id=7>; rel=\"next\""
+        let session = MockURLSession(["/pages": [.init("[]", headers: ["Link": link])]])
+        let url = try #require(URL(string: "https://example.com/pages"))
+
+        let (_, response) = try await session.data(for: URLRequest(url: url))
+        let http = try #require(response as? HTTPURLResponse)
+        #expect(http.value(forHTTPHeaderField: "Link") == link)
+        // The default is still there for every fixture that does not set one.
+        #expect(http.value(forHTTPHeaderField: "Content-Type") == "application/json")
+    }
+
+    @Test("A per-response status still applies")
+    func perResponseStatus() async throws {
+        let session = MockURLSession([
+            "/pages": [.init("ok"), .init("gone", status: 500)]
+        ])
+        let url = try #require(URL(string: "https://example.com/pages"))
+
+        let (_, first) = try await session.data(for: URLRequest(url: url))
+        let (_, second) = try await session.data(for: URLRequest(url: url))
+        #expect((first as? HTTPURLResponse)?.statusCode == 200)
+        #expect((second as? HTTPURLResponse)?.statusCode == 500)
+    }
+
     @Test("An HTTP error does not put the response body in its message")
     func httpErrorDoesNotEchoTheBody() {
         // The message is rendered on the Run screen, which is the screen most

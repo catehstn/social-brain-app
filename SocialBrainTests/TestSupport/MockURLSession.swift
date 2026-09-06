@@ -13,21 +13,58 @@ import Foundation
 /// see it.
 struct MockURLSession: URLSessionProtocol, Sendable {
 
-    let fixtures: [String: (Data, Int)]
+    /// One canned response.
+    struct Response: Sendable {
+        let data: Data
+        let status: Int
+        /// Merged over the default `Content-Type: application/json`.
+        let headers: [String: String]
+
+        init(_ data: Data, status: Int = 200, headers: [String: String] = [:]) {
+            self.data = data
+            self.status = status
+            self.headers = headers
+        }
+
+        init(_ body: String, status: Int = 200, headers: [String: String] = [:]) {
+            self.init(Data(body.utf8), status: status, headers: headers)
+        }
+    }
+
+    /// Responses per path, consumed in order.
+    ///
+    /// A queue rather than a single response, because pagination cannot be
+    /// tested without one: "first call returns page 1, second returns page 2"
+    /// was inexpressible, so a collector that fetches one page and stops looked
+    /// identical to one that walks every page (#73, #103).
+    ///
+    /// Once a path's queue is exhausted the **last** entry repeats. That keeps
+    /// every single-response fixture behaving as it always did, and it means a
+    /// pagination test that over-fetches gets the terminal page again rather
+    /// than an error — which is what a real API does.
+    ///
+    /// Sequencing is deliberately **per path**, not global. Paginating one
+    /// endpoint is inherently sequential, since page 2's cursor comes from page
+    /// 1, so a per-path cursor is well defined. Collectors fetch *different*
+    /// endpoints concurrently under `async let`, so a single global queue would
+    /// hand out responses in whatever order the tasks happened to start.
+    let fixtures: [String: [Response]]
 
     /// Shared by every copy of the struct, so a collector holding its own copy
     /// still records into the instance the test is holding.
     private let recorder = Recorder()
 
-    init(_ fixtures: [String: (Data, Int)]) {
+    init(_ fixtures: [String: [Response]]) {
         self.fixtures = fixtures
+    }
+
+    init(_ fixtures: [String: (Data, Int)]) {
+        self.fixtures = fixtures.mapValues { [Response($0.0, status: $0.1)] }
     }
 
     /// Convenience init that accepts string bodies.
     init(_ fixtures: [String: (String, Int)]) {
-        self.fixtures = fixtures.mapValues { (body, status) in
-            (Data(body.utf8), status)
-        }
+        self.fixtures = fixtures.mapValues { [Response($0.0, status: $0.1)] }
     }
 
     func data(for request: URLRequest) async throws -> (Data, URLResponse) {
@@ -41,7 +78,7 @@ struct MockURLSession: URLSessionProtocol, Sendable {
         // as `sites/https://example.com/` — indistinguishable from the broken
         // form this suite exists to catch (#68).
         let path = Self.encodedPath(of: url)
-        guard let (data, status) = fixtures[path] else {
+        guard let queue = fixtures[path], !queue.isEmpty else {
             // Naming the path and the known fixtures turns "unsupportedURL" —
             // which tells you nothing — into an actionable failure.
             throw MockURLSessionError.noFixture(
@@ -50,13 +87,14 @@ struct MockURLSession: URLSessionProtocol, Sendable {
                 known: fixtures.keys.sorted()
             )
         }
+        let canned = queue[recorder.nextIndex(for: path, count: queue.count)]
         let response = HTTPURLResponse(
             url: url,
-            statusCode: status,
+            statusCode: canned.status,
             httpVersion: "HTTP/1.1",
-            headerFields: ["Content-Type": "application/json"]
+            headerFields: ["Content-Type": "application/json"].merging(canned.headers) { _, new in new }
         )!
-        return (data, response)
+        return (canned.data, response)
     }
 
     // MARK: - Recorded requests
@@ -143,10 +181,27 @@ struct MockURLSession: URLSessionProtocol, Sendable {
         private let lock = NSLock()
         private var storage: [URLRequest] = []
 
+        private var cursors: [String: Int] = [:]
+
         var requests: [URLRequest] { lock.withLock { storage } }
 
         func record(_ request: URLRequest) {
             lock.withLock { storage.append(request) }
+        }
+
+        /// The index of the next response for `path`, clamped to the last entry
+        /// once the queue is exhausted.
+        ///
+        /// Lives here because `data(for:)` is non-mutating — the session is a
+        /// struct that collectors copy, so the cursor has to be behind the same
+        /// shared reference the recording already uses, or each copy would
+        /// start again at page one.
+        func nextIndex(for path: String, count: Int) -> Int {
+            lock.withLock {
+                let index = cursors[path, default: 0]
+                cursors[path] = index + 1
+                return min(index, count - 1)
+            }
         }
     }
 }
