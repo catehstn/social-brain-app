@@ -67,8 +67,11 @@ struct ButtondownCollector: Collector {
     // MARK: - Private
 
     private func fetchSubscriberCount(apiKey: String) async throws -> Int {
-        var url = baseURL.appendingPathComponent("subscribers")
-        url.append(queryItems: [URLQueryItem(name: "count", value: "1")])
+        // No page-size parameter: Buttondown's reference lists `page` and no
+        // `count`, so the `count=1` this used to send was never a request
+        // parameter at all. The total is read off the envelope, which carries it
+        // regardless of how many rows come back.
+        let url = baseURL.appendingPathComponent("subscribers")
         var req = URLRequest(url: url)
         req.setTokenAuth(apiKey)
         let (data, response) = try await session.data(for: req)
@@ -76,13 +79,26 @@ struct ButtondownCollector: Collector {
         return decoded.count
     }
 
+    /// Counts subscribers added since `since`.
+    ///
+    /// The filter is `date__start`, which Buttondown documents as *"only return
+    /// subscribers created on or after the given date"*.
+    ///
+    /// It used to send `creation_date__gte`, which **does not exist** — the
+    /// name appears nowhere in Buttondown's OpenAPI document, and `/subscribers`
+    /// has no `creation_date__*` family at all. An unrecognised query parameter
+    /// is ignored rather than rejected by default in Django REST Framework, so
+    /// the filtered request was very likely the same request as the unfiltered
+    /// one, and this returned the *total* subscriber count for every collection
+    /// ever run. See #142 — the consequence is unconfirmed without a live key,
+    /// but the parameter name is wrong either way.
     private func fetchNewSubscriberCount(apiKey: String, since: Date?) async throws -> Int {
-        var items: [URLQueryItem] = [URLQueryItem(name: "count", value: "1")]
+        var items: [URLQueryItem] = []
         if let since {
-            items.append(URLQueryItem(name: "creation_date__gte", value: iso8601Date(since)))
+            items.append(URLQueryItem(name: "date__start", value: iso8601Date(since)))
         }
         var url = baseURL.appendingPathComponent("subscribers")
-        url.append(queryItems: items)
+        if !items.isEmpty { url.append(queryItems: items) }
         var req = URLRequest(url: url)
         req.setTokenAuth(apiKey)
         let (data, response) = try await session.data(for: req)
@@ -96,10 +112,24 @@ struct ButtondownCollector: Collector {
         var clickRates: [Double] = []
     }
 
+    /// Reads open and click rates over emails published since `since`.
+    ///
+    /// `publish_date__start` — *"only return emails published after the given
+    /// date"*. Note "after", where the subscriber filter says "on or after";
+    /// that asymmetry is Buttondown's, not a mistake here.
+    ///
+    /// It used to send `publish_date__gte`, which does not exist (#142). With
+    /// the filter dropped these averages did **not** cover every email ever
+    /// sent, which an earlier version of this comment claimed — they covered
+    /// the *oldest page*. `/emails` defaults to `ordering=creation_date`,
+    /// ascending, and this method reads page one only. So the newsletter
+    /// analytics described the beginning of the archive rather than the
+    /// requested window, which is a stranger failure than averaging everything
+    /// and worth naming precisely.
     private func fetchEmailStats(apiKey: String, since: Date?) async throws -> EmailStatsAccumulator {
         var items: [URLQueryItem] = []
         if let since {
-            items.append(URLQueryItem(name: "publish_date__gte", value: iso8601Date(since)))
+            items.append(URLQueryItem(name: "publish_date__start", value: iso8601Date(since)))
         }
         var url = baseURL.appendingPathComponent("emails")
         if !items.isEmpty { url.append(queryItems: items) }
