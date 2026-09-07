@@ -89,6 +89,171 @@ struct MastodonCollectorTests {
         #expect(data.intMetric("recent_posts") == 1)
     }
 
+    // MARK: - Pagination
+
+    /// `count` statuses, newest first, one day apart working back from
+    /// `newest`. Dates are computed rather than formatted by hand so a page
+    /// longer than a month does not produce "2026-03--11".
+    private static func statusPage(count: Int, newest: Date, idBase: Int) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let items = (0..<count).map { offset -> String in
+            let date = newest.addingTimeInterval(-Double(offset) * 86_400)
+            return """
+            {"id":"\(idBase - offset)","created_at":"\(formatter.string(from: date))",\
+            "reblogs_count":1,"favourites_count":1,"replies_count":1}
+            """
+        }
+        return "[\(items.joined(separator: ","))]"
+    }
+
+    private static func day(_ year: Int, _ month: Int, _ day: Int) -> Date {
+        var c = DateComponents()
+        c.year = year; c.month = month; c.day = day
+        c.timeZone = TimeZone(secondsFromGMT: 0)
+        return Calendar(identifier: .gregorian).date(from: c)!
+    }
+
+    @Test("Walks past the first page to reach the since boundary")
+    func paginatesUntilSince() async throws {
+        // The bug: one page of 40 was fetched and filtered, while the doc
+        // comment claimed 200. Any window holding more than 40 posts came back
+        // undercounted — and quietly, which is the harm: a smaller number is
+        // indistinguishable from a quieter week.
+        //
+        // Two full pages then a short one. All 90 posts fall inside the window,
+        // so all 90 must be counted.
+        let session = MockURLSession([
+            "/api/v1/accounts/verify_credentials": [.init(Self.credentialsJSON)],
+            "/api/v1/accounts/109876543/statuses": [
+                .init(Self.statusPage(count: 40, newest: Self.day(2026, 3, 28), idBase: 1000)),
+                .init(Self.statusPage(count: 40, newest: Self.day(2026, 2, 16), idBase: 900)),
+                .init(Self.statusPage(count: 10, newest: Self.day(2026, 1, 10), idBase: 800))
+            ]
+        ])
+        let collector = MastodonCollector(session: session)
+        let credentials = Credentials([
+            "access_token": "t", "instance_url": "https://mastodon.social"
+        ])
+        var components = DateComponents()
+        components.year = 2026; components.month = 1; components.day = 1
+        let since = Calendar.current.date(from: components)!
+
+        let data = try await collector.collect(since: since, credentials: credentials)
+        #expect(data.intMetric("recent_posts") == 90)
+        #expect(session.requests(path: "/api/v1/accounts/109876543/statuses").count == 3)
+        // Absent, not just present-when-truncated: without this, a bug that
+        // stamps "the period holds more" onto every snapshot — including a
+        // three-post week — ships green.
+        #expect(data.metrics["posts_truncated"] == nil)
+    }
+
+    @Test("Pages back with max_id, not by asking for the same page again")
+    func paginatesByMaxID() async throws {
+        let session = MockURLSession([
+            "/api/v1/accounts/verify_credentials": [.init(Self.credentialsJSON)],
+            "/api/v1/accounts/109876543/statuses": [
+                .init(Self.statusPage(count: 40, newest: Self.day(2026, 3, 28), idBase: 1000)),
+                .init(Self.statusPage(count: 5, newest: Self.day(2026, 2, 16), idBase: 900))
+            ]
+        ])
+        let collector = MastodonCollector(session: session)
+        var components = DateComponents()
+        components.year = 2026; components.month = 1; components.day = 1
+        _ = try await collector.collect(
+            since: Calendar.current.date(from: components)!,
+            credentials: Credentials(["access_token": "t", "instance_url": "https://mastodon.social"])
+        )
+
+        // The first request carries no cursor; the second asks for statuses
+        // older than the oldest of page one (1000 - 39 = 961).
+        let maxIDs = session.queryValues("max_id", path: "/api/v1/accounts/109876543/statuses")
+        #expect(maxIDs == ["961"])
+    }
+
+    @Test("Stops as soon as a page reaches past the window")
+    func stopsAtTheBoundary() async throws {
+        // Statuses come back newest-first, so once a page ends older than
+        // `since` there is nothing older worth asking for. Fetching anyway
+        // would be correct but wasteful, and on a long-lived account it is the
+        // difference between two requests and twenty-five.
+        let session = MockURLSession([
+            "/api/v1/accounts/verify_credentials": [.init(Self.credentialsJSON)],
+            "/api/v1/accounts/109876543/statuses": [
+                .init(Self.statusPage(count: 40, newest: Self.day(2026, 3, 28), idBase: 1000)),
+                .init(Self.statusPage(count: 40, newest: Self.day(2026, 2, 16), idBase: 900))
+            ]
+        ])
+        let collector = MastodonCollector(session: session)
+        // Page one spans 2026-03-28 back to 2026-02-17, so it already crosses
+        // this boundary.
+        var components = DateComponents()
+        components.year = 2026; components.month = 3; components.day = 20
+        let since = Calendar.current.date(from: components)!
+
+        let data = try await collector.collect(
+            since: since,
+            credentials: Credentials(["access_token": "t", "instance_url": "https://mastodon.social"])
+        )
+        #expect(session.requests(path: "/api/v1/accounts/109876543/statuses").count == 1)
+        #expect(data.intMetric("recent_posts") == 9)
+    }
+
+    @Test("Hitting the page cap is reported, not hidden")
+    func truncationIsReported() async throws {
+        // The cap has to exist — an all-time run on a prolific account would
+        // otherwise walk forever. What must not happen is presenting the capped
+        // count as if it were the whole period.
+        let session = MockURLSession([
+            "/api/v1/accounts/verify_credentials": [.init(Self.credentialsJSON)],
+            // Always a full page, so the walk never finds an end.
+            "/api/v1/accounts/109876543/statuses": [
+                .init(Self.statusPage(count: 40, newest: Self.day(2026, 3, 28), idBase: 1000))
+            ]
+        ])
+        let collector = MastodonCollector(session: session)
+        var components = DateComponents()
+        components.year = 2020; components.month = 1; components.day = 1
+        let data = try await collector.collect(
+            since: Calendar.current.date(from: components)!,
+            credentials: Credentials(["access_token": "t", "instance_url": "https://mastodon.social"])
+        )
+
+        #expect(session.requests(path: "/api/v1/accounts/109876543/statuses").count
+                == MastodonCollector.maximumPages)
+        let note = try #require(data.metrics["posts_truncated"]?.stringValue)
+        #expect(note.contains("1000"))
+    }
+
+    @Test("An All time run walks the pages too")
+    func noSinceStillWalks() async throws {
+        // `since == nil` is not "no window asked for" — RunView maps the
+        // **All time** button to it, and it is the default for a background
+        // refresh. An earlier version of this returned after one page on the
+        // reasoning that an unbounded request has no boundary to walk to, which
+        // reported 40 posts as the complete all-time figure right next to a
+        // statuses_count of 4,100 from the same response.
+        //
+        // Two full pages then a short one: 90 posts, three requests, and no
+        // truncation note because the walk found the end.
+        let session = MockURLSession([
+            "/api/v1/accounts/verify_credentials": [.init(Self.credentialsJSON)],
+            "/api/v1/accounts/109876543/statuses": [
+                .init(Self.statusPage(count: 40, newest: Self.day(2026, 3, 28), idBase: 1000)),
+                .init(Self.statusPage(count: 40, newest: Self.day(2026, 2, 16), idBase: 900)),
+                .init(Self.statusPage(count: 10, newest: Self.day(2026, 1, 10), idBase: 800))
+            ]
+        ])
+        let collector = MastodonCollector(session: session)
+        let data = try await collector.collect(
+            since: nil,
+            credentials: Credentials(["access_token": "t", "instance_url": "https://mastodon.social"])
+        )
+        #expect(session.requests(path: "/api/v1/accounts/109876543/statuses").count == 3)
+        #expect(data.intMetric("recent_posts") == 90)
+        #expect(data.metrics["posts_truncated"] == nil)
+    }
+
     @Test("Throws missingCredential when access_token is absent")
     func missingToken() async throws {
         let collector = MastodonCollector()

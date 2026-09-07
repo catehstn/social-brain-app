@@ -64,6 +64,28 @@ struct PromptAssemblerTests {
         #expect(prompt.contains("Followers: 2,500"))
         #expect(prompt.contains("Posts this period: 12"))
         #expect(prompt.contains("37.5 favourites"))
+        // No note when the walk completed.
+        #expect(!prompt.contains("Note:"))
+    }
+
+    @Test("A truncated post count says so in the prompt")
+    func mastodonTruncationIsRendered() throws {
+        // The whole point of recording posts_truncated is that the prompt says
+        // it. Without this line the count sits next to an all-time total many
+        // times larger and reads as the complete period — which is the
+        // contradiction the metric exists to prevent, and which a metric
+        // written to the database and read by nothing does not prevent at all.
+        let data = PlatformData(
+            platform: .mastodon,
+            metrics: [
+                "statuses_count":   .int(4100),
+                "recent_posts":     .int(1000),
+                "posts_truncated":  .string("stopped after 1000 posts — the period holds more")
+            ]
+        )
+        let prompt = assembler.assemble(makeInput(snapshots: try snaps(data)))
+        #expect(prompt.contains("Posts this period: 1000"))
+        #expect(prompt.contains("Note: stopped after 1000 posts"))
     }
 
     @Test("Buttondown section formats open rate as percentage")
