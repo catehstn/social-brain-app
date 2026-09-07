@@ -118,9 +118,14 @@ struct ButtondownCollector: Collector {
     /// date"*. Note "after", where the subscriber filter says "on or after";
     /// that asymmetry is Buttondown's, not a mistake here.
     ///
-    /// It used to send `publish_date__gte`, which does not exist (#142), so
-    /// these averages were probably computed over every email ever sent rather
-    /// than the requested window.
+    /// It used to send `publish_date__gte`, which does not exist (#142). With
+    /// the filter dropped these averages did **not** cover every email ever
+    /// sent, which an earlier version of this comment claimed — they covered
+    /// the *oldest page*. `/emails` defaults to `ordering=creation_date`,
+    /// ascending, and this method reads page one only. So the newsletter
+    /// analytics described the beginning of the archive rather than the
+    /// requested window, which is a stranger failure than averaging everything
+    /// and worth naming precisely.
     private func fetchEmailStats(apiKey: String, since: Date?) async throws -> EmailStatsAccumulator {
         var items: [URLQueryItem] = []
         if let since {

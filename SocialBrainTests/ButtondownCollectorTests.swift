@@ -222,11 +222,23 @@ struct ButtondownCollectorTests {
             credentials: Credentials(["api_key": "k"])
         )
 
-        let documented: Set<String> = ["date__start", "publish_date__start", "page"]
+        // Per path, not one global set. `date__start` is documented on
+        // /subscribers and *not* on /emails, and vice versa for
+        // publish_date__start — so a single allowlist would accept either
+        // parameter on either endpoint. Probed: sending date__start to /emails
+        // passed a global check.
+        let documented: [String: Set<String>] = [
+            "/v1/subscribers": ["date__start", "page"],
+            "/v1/emails":      ["publish_date__start", "page"]
+        ]
+        // Guards the loop: an empty requestedURLs would satisfy every assertion
+        // inside it.
+        #expect(session.requestedURLs.count == 3)
         for url in session.requestedURLs {
+            let allowed = try #require(documented[url.path], "unexpected path \(url.path)")
             let names = URLComponents(url: url, resolvingAgainstBaseURL: false)?
                 .queryItems?.map(\.name) ?? []
-            #expect(Set(names).isSubset(of: documented), "undocumented parameter in \(url)")
+            #expect(Set(names).isSubset(of: allowed), "undocumented parameter in \(url)")
         }
     }
 
