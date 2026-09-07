@@ -46,7 +46,8 @@ struct JetpackCollector: Collector {
         async let summary = fetchSummary(siteID: siteID, token: token)
         async let visits  = fetchVisits(siteID: siteID, token: token, since: start, to: end)
 
-        let (sum, vis) = try await (summary, visits)
+        let (sum, visitResult) = try await (summary, visits)
+        let vis = visitResult.totals
 
         var metrics: [String: MetricValue] = [
             "followers_blog":    .int(sum.followersBlog),
@@ -58,6 +59,14 @@ struct JetpackCollector: Collector {
         }
         metrics["total_views"]    = .int(vis.views)
         metrics["total_visitors"] = .int(vis.visitors)
+
+        // The views and visitors above cover what was asked for, not what the
+        // caller asked for, whenever those differ. Silently capping a year-long
+        // request at 90 days makes a busy year look like a quiet quarter.
+        if visitResult.daysCovered < visitResult.daysRequested {
+            metrics["views_window"] = .string(
+                "views and visitors cover the last \(visitResult.daysCovered) days, not the \(visitResult.daysRequested) requested")
+        }
 
         return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)
     }
@@ -74,18 +83,37 @@ struct JetpackCollector: Collector {
         return decoded.stats
     }
 
-    private func fetchVisits(siteID: String, token: String, since: Date, to: Date) async throws -> VisitTotals {
-        let days = max(1, Int(to.timeIntervalSince(since) / 86400))
+    /// The largest `quantity` this collector asks for, in days.
+    ///
+    /// Whether this is the API's limit or a choice made here is **unverified** —
+    /// `stats/visits` requires authentication, so it cannot be probed without a
+    /// real site token, and the published reference does not state a maximum.
+    /// It has been in the code since the collector was written with no note
+    /// saying which.
+    ///
+    /// So the cap stays, and the *silence* goes: a request for a longer period
+    /// now says the numbers cover 90 days rather than presenting them as the
+    /// whole window. That is right either way, which is why it does not wait on
+    /// the answer. #75 covers checking collectors against live APIs; if 90 turns
+    /// out to be ours rather than theirs, this becomes a page walk over `date`
+    /// offsets.
+    static let maximumDays = 90
+
+    private func fetchVisits(
+        siteID: String, token: String, since: Date, to: Date
+    ) async throws -> (totals: VisitTotals, daysCovered: Int, daysRequested: Int) {
+        let requested = max(1, Int(to.timeIntervalSince(since) / 86400))
+        let covered = min(requested, Self.maximumDays)
         var url = Self.apiBase
             .appendingPathComponent("rest/v1.1/sites/\(siteID)/stats/visits")
         url.append(queryItems: [
             URLQueryItem(name: "unit",     value: "day"),
-            URLQueryItem(name: "quantity", value: "\(min(days, 90))")
+            URLQueryItem(name: "quantity", value: "\(covered)")
         ])
         var req = URLRequest(url: url)
         req.setBearerToken(token)
         let (data, response) = try await session.data(for: req)
-        return try parseVisits(data: data, response: response)
+        return (try parseVisits(data: data, response: response), covered, requested)
     }
 
     /// Parses the visits response which uses a tabular `{ fields: [...], data: [[...]] }` shape.

@@ -89,6 +89,40 @@ struct JetpackCollectorTests {
 
     // MARK: - Error cases
 
+    // MARK: - The 90-day cap
+
+    private static let visitsPath = "/rest/v1.1/sites/\(siteID)/stats/visits"
+
+    @Test("A window longer than the cap says so instead of looking complete")
+    func longWindowReportsTheCap() async throws {
+        // quantity is capped at 90 days. Whether that is the API's limit or a
+        // choice made here is unverified — stats/visits needs authentication, so
+        // it cannot be probed without a real site token — but the silence is
+        // wrong either way: capping a year-long request at 90 days makes a busy
+        // year look like a quiet quarter.
+        let mock = session
+        let since = Calendar.current.date(byAdding: .day, value: -365, to: Date())!
+        let data = try await JetpackCollector(session: mock)
+            .collect(since: since, credentials: credentials)
+
+        #expect(mock.queryValue("quantity", path: Self.visitsPath) == "90")
+        let note = try #require(data.stringMetric("views_window"))
+        #expect(note.contains("90"))
+        #expect(note.contains("365"))
+    }
+
+    @Test("A window inside the cap is not annotated")
+    func shortWindowIsNotAnnotated() async throws {
+        // The other half: a note on every run would pass just as green.
+        let mock = session
+        let since = Calendar.current.date(byAdding: .day, value: -14, to: Date())!
+        let data = try await JetpackCollector(session: mock)
+            .collect(since: since, credentials: credentials)
+
+        #expect(mock.queryValue("quantity", path: Self.visitsPath) == "14")
+        #expect(data.metrics["views_window"] == nil)
+    }
+
     @Test("Throws missingCredential when access_token is absent")
     func missingToken() async throws {
         let creds = Credentials(["site_code": Self.siteID])

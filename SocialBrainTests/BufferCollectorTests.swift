@@ -119,6 +119,78 @@ struct BufferCollectorTests {
         #expect(error?.localizedDescription.contains("Failed to decode") == true)
     }
 
+    // MARK: - The collection cap
+
+    private static func sentPage(_ count: Int) -> String {
+        let items = (0..<count).map { i in
+            """
+            {"id":"s\(i)","sent_at":1767225600,"statistics":{"clicks":1,"reach":1,"likes":1}}
+            """
+        }
+        return "{\"updates\":[\(items.joined(separator: ","))]}"
+    }
+
+    @Test("A full page of sent posts is reported as a cap, not a count")
+    func fullPageIsReported() async throws {
+        // One page of 100 is fetched and its length reported, so a busy month
+        // comes back as exactly 100 posts — a number that looks like data and is
+        // actually a page size. Not paginated, because this API is retired on
+        // 1 February 2027 and its replacement is a different protocol; what the
+        // undercount needs is to stop being silent.
+        let session = MockURLSession([
+            "/1/profiles.json": (Self.profilesJSON, 200),
+            "/1/profiles/p1/updates/sent.json": (Self.sentPage(100), 200),
+            "/1/profiles/p2/updates/sent.json": (Self.sentPage(3), 200),
+            "/1/profiles/p1/updates/pending.json": (Self.pendingJSON, 200),
+            "/1/profiles/p2/updates/pending.json": (Self.pendingJSON, 200)
+        ])
+        let data = try await BufferCollector(session: session)
+            .collect(since: nil, credentials: credentials)
+
+        #expect(data.metrics["sent_updates"] == .int(103))
+        let note = try #require(data.stringMetric("posts_sampled"))
+        #expect(note.contains("100"))
+    }
+
+    @Test("A short page is not reported as a cap")
+    func shortPagesAreNotReported() async throws {
+        // The other half. Without this, a note stamped onto every run — including
+        // a three-post month — would pass just as green.
+        let session = MockURLSession([
+            "/1/profiles.json": (Self.profilesJSON, 200),
+            "/1/profiles/p1/updates/sent.json": (Self.sentPage(4), 200),
+            "/1/profiles/p2/updates/sent.json": (Self.sentPage(3), 200),
+            "/1/profiles/p1/updates/pending.json": (Self.pendingJSON, 200),
+            "/1/profiles/p2/updates/pending.json": (Self.pendingJSON, 200)
+        ])
+        let data = try await BufferCollector(session: session)
+            .collect(since: nil, credentials: credentials)
+
+        #expect(data.metrics["sent_updates"] == .int(7))
+        #expect(data.metrics["posts_sampled"] == nil)
+    }
+
+    @Test("The cap is judged before the since filter, not after")
+    func capIsJudgedOnTheRawPage() async throws {
+        // A full page whose posts mostly fall outside the window still means
+        // the API had more to give. Judging after filtering would call that a
+        // short page and report a filtered handful as complete.
+        let session = MockURLSession([
+            "/1/profiles.json": (Self.profilesJSON, 200),
+            "/1/profiles/p1/updates/sent.json": (Self.sentPage(100), 200),
+            "/1/profiles/p2/updates/sent.json": (Self.sentPage(1), 200),
+            "/1/profiles/p1/updates/pending.json": (Self.pendingJSON, 200),
+            "/1/profiles/p2/updates/pending.json": (Self.pendingJSON, 200)
+        ])
+        // Every fixture post is sent_at 2026-01-01; this window excludes them all.
+        let since = Date(timeIntervalSince1970: 1_800_000_000)
+        let data = try await BufferCollector(session: session)
+            .collect(since: since, credentials: credentials)
+
+        #expect(data.metrics["sent_updates"] == .int(0))
+        #expect(data.stringMetric("posts_sampled") != nil)
+    }
+
     @Test("Names the top profiles by sent count, most first")
     func namesTopProfiles() async throws {
         // The profiles send different counts on purpose. With both on two the
