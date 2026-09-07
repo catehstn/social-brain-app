@@ -50,6 +50,13 @@ struct ButtondownCollector: Collector {
             "new_subscribers":  .int(new),
             "emails_sent":      .int(stats.count)
         ]
+
+        // The count above is the API's total; these rates are not, when the
+        // window holds more emails than the walk fetched.
+        if stats.truncated {
+            metrics["emails_sampled"] = .string(
+                "open and click rates cover the most recent \(Self.maximumEmailPages) pages of \(stats.count) emails")
+        }
         // Each average guards its own divisor. Previously both were gated on
         // openRates while avgClick divided by clickRates.count, so an email with
         // an open rate and no click rate produced 0/0 = NaN — which JSONEncoder
@@ -107,9 +114,12 @@ struct ButtondownCollector: Collector {
     }
 
     private struct EmailStatsAccumulator {
+        /// The API's total, not the number fetched.
         var count: Int = 0
         var openRates: [Double] = []
         var clickRates: [Double] = []
+        /// Whether the rates below cover fewer emails than `count`.
+        var truncated: Bool = false
     }
 
     /// Reads open and click rates over emails published since `since`.
@@ -126,35 +136,62 @@ struct ButtondownCollector: Collector {
     /// analytics described the beginning of the archive rather than the
     /// requested window, which is a stranger failure than averaging everything
     /// and worth naming precisely.
-    private func fetchEmailStats(apiKey: String, since: Date?) async throws -> EmailStatsAccumulator {
-        var items: [URLQueryItem] = []
-        if let since {
-            items.append(URLQueryItem(name: "publish_date__start", value: iso8601Date(since)))
-        }
-        var url = baseURL.appendingPathComponent("emails")
-        if !items.isEmpty { url.append(queryItems: items) }
-        var req = URLRequest(url: url)
-        req.setTokenAuth(apiKey)
-        let (data, response) = try await session.data(for: req)
+    /// How many pages of emails `collect` will walk.
+    ///
+    /// A window is a handful of newsletters for most people, so this is reached
+    /// only on an all-time run against a long archive.
+    static let maximumEmailPages = 20
 
+    private func fetchEmailStats(apiKey: String, since: Date?) async throws -> EmailStatsAccumulator {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        let decoded: PagedResponse<ButtondownEmail> = try decodeJSON(
-            PagedResponse.self, from: data, response: response, decoder: decoder
-        )
 
         var acc = EmailStatsAccumulator()
-        acc.count = decoded.results.count
-        for email in decoded.results {
-            if let stats = email.emailStats {
-                if let openRate = stats.openRate {
-                    acc.openRates.append(openRate)
-                }
-                if let clickRate = stats.clickRate {
-                    acc.clickRates.append(clickRate)
+        var fetched = 0
+
+        for page in 1 ... Self.maximumEmailPages {
+            var items = [
+                URLQueryItem(name: "page", value: "\(page)"),
+                // Newest first. The default is `creation_date` **ascending**, so
+                // a read that stops early used to describe the beginning of the
+                // archive — the opposite of what a reader wants. With this, a
+                // truncated read still covers the most recent newsletters.
+                URLQueryItem(name: "ordering", value: "-publish_date")
+            ]
+            if let since {
+                items.append(URLQueryItem(name: "publish_date__start", value: iso8601Date(since)))
+            }
+            var url = baseURL.appendingPathComponent("emails")
+            url.append(queryItems: items)
+            var req = URLRequest(url: url)
+            req.setTokenAuth(apiKey)
+
+            let (data, response) = try await session.data(for: req)
+            let decoded: PagedResponse<ButtondownEmail> = try decodeJSON(
+                PagedResponse.self, from: data, response: response, decoder: decoder
+            )
+
+            // The envelope's own total, which Buttondown documents as "the total
+            // number of results across all pages". This used to report
+            // `results.count` — the page — so a busy window came back as exactly
+            // one page size, the shape #73 removed from five other collectors.
+            acc.count = decoded.count
+            fetched += decoded.results.count
+
+            for email in decoded.results {
+                if let stats = email.emailStats {
+                    if let openRate = stats.openRate { acc.openRates.append(openRate) }
+                    if let clickRate = stats.clickRate { acc.clickRates.append(clickRate) }
                 }
             }
+
+            // `next` is the URL of the following page, absent on the last one.
+            // Used as a signal rather than followed: building the next request
+            // here keeps the walk from trusting a URL the response supplied.
+            guard decoded.next != nil else { return acc }
         }
+
+        acc.truncated = fetched < acc.count
         return acc
     }
 }
@@ -162,8 +199,12 @@ struct ButtondownCollector: Collector {
 // MARK: - Response models
 
 private struct PagedResponse<T: Decodable>: Decodable {
+    /// The total across all pages, not the size of this one.
     let count: Int
     let results: [T]
+    /// The URL of the next page, absent on the last. Decoded as the end signal;
+    /// never requested directly.
+    let next: String?
 }
 
 private struct EmptyObject: Decodable {}
