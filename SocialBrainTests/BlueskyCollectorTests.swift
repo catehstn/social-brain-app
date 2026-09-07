@@ -218,6 +218,10 @@ struct BlueskyCollectorTests {
         // Against a Mar 1 boundary the raw date says "already past it, stop";
         // the filtered date says "still inside, keep going" and costs a request
         // for a page that cannot contain anything in the window.
+        // Ten posts (Mar 28 back to Mar 19) then forty reposts (Mar 18 back to
+        // Feb 7). The oldest surviving *post* is Mar 19, which is still inside
+        // a Mar 1 window — so the walk continues, and the second page is what
+        // decides.
         let (collector, session) = makeCollector([
             .init(Self.feedPage(posts: 10, reposts: 40, newest: Self.day(2026, 3, 28), cursor: "c1")),
             .init(Self.feedPage(posts: 50, newest: Self.day(2026, 2, 6), cursor: "c2"))
@@ -225,8 +229,60 @@ struct BlueskyCollectorTests {
         let data = try await collector.collect(
             since: Self.day(2026, 3, 1), credentials: paginationCredentials
         )
-        #expect(session.requests(path: Self.feedPath).count == 1)
+        #expect(session.requests(path: Self.feedPath).count == 2)
         #expect(data.intMetric("recent_posts") == 10)
+    }
+
+    @Test("A repost of an old post does not end the walk early")
+    func repostOfAnOldPostDoesNotStopTheWalk() async throws {
+        // The feed is ordered by each item's sort key, which for a repost is the
+        // *repost* time — not `post.indexedAt`. Verified against
+        // public.api.bsky.app: 5 of 100 items were out of descending
+        // post.indexedAt order and every one was a repost, while the same items
+        // filtered to non-reposts were strictly descending, 73 of 73.
+        //
+        // So a single repost of an ancient post in the last slot makes the page
+        // look as though it reached 2024. Reading the raw last item stops the
+        // walk there and reports 49 posts where the truth is 79 — silently, with
+        // no truncation note, which is the exact undercount this exists to fix.
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let ancient = formatter.string(from: Self.day(2024, 1, 5))
+
+        // 49 in-window posts, then one repost pointing at a 2024 post.
+        var page1 = Self.feedPage(posts: 49, newest: Self.day(2026, 3, 28), cursor: "c1")
+        page1 = page1.replacingOccurrences(
+            of: "],\"cursor\"",
+            with: """
+            ,{"post":{"indexed_at":"\(ancient)","like_count":1,"repost_count":1,"reply_count":1},\
+            "reason":{"by":"someone"}}],"cursor"
+            """)
+
+        let (collector, session) = makeCollector([
+            .init(page1),
+            .init(Self.feedPage(posts: 30, newest: Self.day(2026, 2, 7), cursor: nil))
+        ])
+        // Wide enough that every real post is inside it. The 2024 repost is the
+        // only thing that looks out of window, and it is the thing that must
+        // not decide.
+        let data = try await collector.collect(
+            since: Self.day(2026, 1, 1), credentials: paginationCredentials
+        )
+        #expect(session.requests(path: Self.feedPath).count == 2)
+        #expect(data.intMetric("recent_posts") == 79)
+    }
+
+    @Test("An empty page with a cursor does not end the walk")
+    func emptyPageWithCursorContinues() async throws {
+        let (collector, session) = makeCollector([
+            .init(Self.feedPage(posts: 0, newest: Self.day(2026, 3, 28), cursor: "c1")),
+            .init(Self.feedPage(posts: 5, newest: Self.day(2026, 3, 20), cursor: nil))
+        ])
+        let data = try await collector.collect(
+            since: Self.day(2026, 1, 1), credentials: paginationCredentials
+        )
+        #expect(session.requests(path: Self.feedPath).count == 2)
+        #expect(data.intMetric("recent_posts") == 5)
     }
 
     @Test("Hitting the page cap is reported, not hidden")

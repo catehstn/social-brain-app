@@ -8,7 +8,11 @@ import Foundation
 /// - `"site_code"` – domain to search for (e.g. `"example.com"`)
 ///
 /// Metrics returned:
-/// - `mention_count`      – stories/comments linking to the domain in the period
+/// - `mention_count`      – stories linking to the domain in the period. The
+///                          API's own total, so it stays exact even when the
+///                          stories behind it exceed what can be paged. Not
+///                          comments: they carry no `url`, so they cannot match
+///                          under `restrictSearchableAttributes=url`.
 /// - `total_points`       – sum of points across matched stories
 /// - `total_comments`     – sum of comment counts across matched stories
 /// - `top_story_1..3`     – top stories by points (as `"title (N pts)"` strings)

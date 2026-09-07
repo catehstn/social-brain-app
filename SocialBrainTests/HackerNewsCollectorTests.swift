@@ -83,12 +83,17 @@ struct HackerNewsCollectorTests {
 
     @Test("An empty result set yields zeros rather than absent metrics")
     func handlesNoMentions() async throws {
-        let collector = HackerNewsCollector(session: makeSession(#"{"hits":[],"nbHits":0,"nbPages":0}"#))
+        // Verified live: a zero-hit query answers {"hits":[],"nbHits":0,"nbPages":0}.
+        let session = makeSession(#"{"hits":[],"nbHits":0,"nbPages":0}"#)
+        let collector = HackerNewsCollector(session: session)
         let data = try await collector.collect(since: nil, credentials: credentials)
 
         #expect(data.metrics["mention_count"] == .int(0))
         #expect(data.metrics["total_points"] == .int(0))
         #expect(data.metrics["top_story_1"] == nil)
+        // nbPages of 0 has to terminate the loop, not run it to the cap. The
+        // metrics above are the same either way, so without this nothing pins it.
+        #expect(session.requests(path: "/api/v1/search").count == 1)
     }
 
     // MARK: - The request

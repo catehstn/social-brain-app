@@ -117,10 +117,23 @@ struct BlueskyCollector: Collector {
     /// routine rather than final. Bluesky omits `cursor` when there is nothing
     /// further, which is the only reliable end signal.
     ///
-    /// The boundary check reads the raw feed item rather than the filtered
-    /// result, for the same reason: a page consisting entirely of reposts has
-    /// no filtered post to compare against, but still tells us how far back the
-    /// walk has reached.
+    /// The boundary check reads the oldest **non-repost** item, because the feed
+    /// is not ordered by `post.indexedAt` at all — it is ordered by each item's
+    /// sort key, which for a repost is the *repost* time. Measured against
+    /// `public.api.bsky.app`: of 100 items from one account, 5 were out of
+    /// descending `post.indexedAt` order, and every one of those was a repost
+    /// carrying a `reason.indexedAt` weeks later than the post it points at.
+    /// The same 100 items filtered to non-reposts were strictly descending, 73
+    /// of 73.
+    ///
+    /// So a single repost of an old post landing in the last slot would stop the
+    /// walk early — the exact undercount this exists to fix, and silently, with
+    /// no truncation note. An earlier version of this read the raw last item on
+    /// the reasoning that it showed how far back the page reached. It does not.
+    ///
+    /// The failure modes invert the right way: a page with no surviving post
+    /// yields `nil` and the walk *continues*, costing at most one extra request,
+    /// rather than stopping short.
     private func fetchFeed(
         did: String, token: String, since: Date?
     ) async throws -> (posts: [PostMetrics], truncated: Bool) {
@@ -161,7 +174,9 @@ struct BlueskyCollector: Collector {
                 return (filter(collected, since: since), false)
             }
             // Reached past the window; nothing older can be in it.
-            if let since, let oldest = page.feed.last?.post.indexedAt, oldest < since {
+            if let since,
+               let oldest = page.feed.last(where: { $0.reason == nil })?.post.indexedAt,
+               oldest < since {
                 return (filter(collected, since: since), false)
             }
             cursor = next
@@ -198,7 +213,9 @@ private struct FeedResponse: Decodable {
 
 private struct FeedItem: Decodable {
     let post: Post
-    let reason: AnyCodable?  // non-nil means it's a repost/quote
+    /// Non-nil for a repost or a pinned post. A *quote* post has no `reason` —
+    /// it is an ordinary post that embeds another.
+    let reason: AnyCodable?
 
     struct Post: Decodable {
         let indexedAt: Date
