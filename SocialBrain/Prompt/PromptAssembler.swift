@@ -222,6 +222,7 @@ struct PromptAssembler {
         if let v = data.intMetric("total_visitors")  { lines.append("Visitors: \(formatted(v))") }
         if let v = data.intMetric("total_likes")     { lines.append("Likes: \(formatted(v))") }
         if let v = data.intMetric("total_comments")  { lines.append("Comments: \(formatted(v))") }
+        if let note = data.stringMetric("views_window") { lines.append("Note: \(note)") }
         return lines
     }
 
@@ -269,6 +270,7 @@ struct PromptAssembler {
         if let v = data.intMetric("total_clicks")      { lines.append("Total clicks: \(formatted(v))") }
         if let v = data.intMetric("total_reach")       { lines.append("Total reach: \(formatted(v))") }
         if let v = data.intMetric("total_likes")       { lines.append("Total likes: \(formatted(v))") }
+        if let note = data.stringMetric("posts_sampled") { lines.append("Note: \(note)") }
         for i in 1...3 {
             if let p = data.stringMetric("top_profile_\(i)") { lines.append("Top profile \(i): \(p)") }
         }

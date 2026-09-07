@@ -2,7 +2,10 @@ import Foundation
 
 /// Collects scheduled and sent post analytics from Buffer.
 ///
-/// **This talks to Buffer's v1 REST API, which is retired on 1 February 2027.**
+/// **This talks to Buffer's v1 REST API, which is retired on 1 February 2027 —
+/// with brownouts on 11 November and 9 December 2026**, short scheduled
+/// interruptions where legacy requests error out. Those are the dates this file
+/// breaks first, and they are much nearer than the sunset.
 /// The API says so itself, in a `sunset:` header and in the body:
 /// *"The Buffer legacy REST API is deprecated and will be retired on 1 February
 /// 2027. Please migrate to the GraphQL API before then."*
@@ -60,20 +63,20 @@ struct BufferCollector: Collector {
 
         // Fetch sent updates for each profile concurrently.
         let sentPerProfile = try await withThrowingTaskGroup(
-            of: (profile: ProfileInfo, updates: [Update]).self
+            of: (profile: ProfileInfo, updates: [Update], pageWasFull: Bool).self
         ) { group in
             for profile in profiles {
                 group.addTask {
-                    let updates = try await self.fetchSentUpdates(
+                    let page = try await self.fetchSentUpdates(
                         profileID: profile.id,
                         token: token,
                         since: since
                     )
-                    return (profile, updates)
+                    return (profile, page.updates, page.pageWasFull)
                 }
             }
-            var results: [(ProfileInfo, [Update])] = []
-            for try await pair in group { results.append((pair.profile, pair.updates)) }
+            var results: [(ProfileInfo, [Update], Bool)] = []
+            for try await item in group { results.append((item.profile, item.updates, item.pageWasFull)) }
             return results
         }
 
@@ -84,7 +87,13 @@ struct BufferCollector: Collector {
         var totalLikes     = 0
         var profileCounts: [(name: String, count: Int)] = []
 
-        for (profile, updates) in sentPerProfile {
+        // If any profile filled its page, the numbers below cover a page rather
+        // than a period — and saying so is the whole point: a count that is
+        // really a page size looks exactly like a quiet month.
+        var anyPageWasFull = false
+
+        for (profile, updates, pageWasFull) in sentPerProfile {
+            if pageWasFull { anyPageWasFull = true }
             totalSent   += updates.count
             totalClicks += updates.compactMap(\.statistics?.clicks).reduce(0, +)
             totalReach  += updates.compactMap(\.statistics?.reach).reduce(0, +)
@@ -105,6 +114,11 @@ struct BufferCollector: Collector {
             "total_likes":       .int(totalLikes)
         ]
 
+        if anyPageWasFull {
+            metrics["posts_sampled"] = .string(
+                "at least one profile returned a full page of \(Self.pageSize) sent posts — the period may hold more")
+        }
+
         for (i, (name, count)) in profileCounts
                 .sorted(by: { $0.count > $1.count })
                 .prefix(3)
@@ -124,26 +138,56 @@ struct BufferCollector: Collector {
         return try decodeJSON([ProfileInfo].self, from: data, response: response)
     }
 
+    /// Buffer's own maximum for `count` on this endpoint.
+    private static let pageSize = 100
+
+    /// Fetches one page of sent updates, and reports whether the page was full.
+    ///
+    /// Deliberately **not** paginated, unlike Mastodon, Bluesky and Hacker News
+    /// in #73 — a choice, not a limitation. Buffer documents a `page` parameter
+    /// on this endpoint and #138 already landed a page-number walk for Hacker
+    /// News, so the pattern exists. The reason to skip it is that this file is
+    /// dying: the legacy REST API is retired on **1 February 2027**, with
+    /// **brownouts on 11 November and 9 December 2026** when legacy requests
+    /// error out outright, and the replacement is a different protocol. A page
+    /// walk written here gets written twice.
+    ///
+    /// What the undercount actually needs is to stop being *silent*, and that
+    /// survives the migration as a requirement even though this code will not.
+    ///
+    /// A full page is the signal, not the envelope's `total`. Buffer's own
+    /// reference shows `total` in an example response and never defines it —
+    /// there is no response-parameters table on that page — so what it counts is
+    /// a guess. A page that comes back at exactly `count` might have more behind
+    /// it; a short one certainly does not, and that needs no documentation to
+    /// be true.
+    ///
+    /// (`fetchScheduledCounts` does use `total`, for pending posts. That is not
+    /// a contradiction so much as a different bet: there, being wrong means a
+    /// queue count is off; here it would mean silently mislabelling every narrow
+    /// window.)
     private func fetchSentUpdates(
         profileID: String,
         token: String,
         since: Date?
-    ) async throws -> [Update] {
+    ) async throws -> (updates: [Update], pageWasFull: Bool) {
         var url = Self.apiBase
             .appendingPathComponent("profiles/\(profileID)/updates/sent.json")
-        url.append(queryItems: [URLQueryItem(name: "count", value: "100")])
+        url.append(queryItems: [URLQueryItem(name: "count", value: "\(Self.pageSize)")])
         let req = authorizedRequest(url: url, token: token)
         let (data, response) = try await session.data(for: req)
         let envelope = try decodeJSON(UpdatesEnvelope.self, from: data, response: response)
         let updates = envelope.updates
 
-        guard let since else { return updates }
+        let pageWasFull = updates.count >= Self.pageSize
+        guard let since else { return (updates, pageWasFull) }
         // A sent post without a sent_at cannot be placed in the window, so it is
         // excluded rather than silently counted as in-period.
-        return updates.filter { update in
+        let filtered = updates.filter { update in
             guard let sentAt = update.sentAt else { return false }
             return sentAt >= since
         }
+        return (filtered, pageWasFull)
     }
 
     /// Counts pending posts across every profile.
