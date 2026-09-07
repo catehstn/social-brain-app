@@ -124,6 +124,13 @@ struct CalendlyCollectorTests {
         #expect(sent.contains("T"))
         #expect(sent.hasSuffix("Z"), "not UTC: \(sent)")
 
+        // And the exact instant. The checks above all hold for a value shifted
+        // twelve hours inside the same day, which is a different window.
+        // Parsed back rather than compared as text, so this pins *when* without
+        // pinning *how it is written*.
+        let parsed = try #require(ISO8601DateFormatter().date(from: sent))
+        #expect(parsed == since)
+
         // Deliberately the prefix and shape rather than the whole string.
         // Calendly's reference is JavaScript-rendered and could not be read
         // here, so the exact serialisation it wants is unverified — pinning it

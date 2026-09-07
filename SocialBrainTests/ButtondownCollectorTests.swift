@@ -80,6 +80,12 @@ struct ButtondownCollectorTests {
             #expect(values.allSatisfy { $0 == "Token test-key" },
                     "wrong Authorization on \(path): \(values)")
         }
+        // Both /v1/subscribers requests, not just whichever `async let` won.
+        // allSatisfy over a one-element array is true, so authenticating one of
+        // the two and dropping the other passed everything above — the exact
+        // partial-auth gap this suite pins for Mastodon and Bluesky, missed on
+        // the one collector that actually requests a path twice.
+        #expect(session.headerValues("Authorization", path: "/v1/subscribers").count == 2)
         for url in session.requestedURLs {
             #expect(!url.absoluteString.contains("%25"), "double-encoded: \(url)")
         }

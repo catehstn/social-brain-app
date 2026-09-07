@@ -137,6 +137,21 @@ struct BlueskyCollectorTests {
         }
         #expect(session.headerValues("Authorization",
                                      path: "/xrpc/com.atproto.server.createSession").isEmpty)
+
+        // The app password goes in the request body and must not appear in any
+        // URL. The header check above would not notice `?password=…`, and a URL
+        // is the one place a credential gets written to logs, proxies and
+        // history — which is #124's whole argument about Buffer.
+        for url in session.requestedURLs {
+            #expect(!url.absoluteString.contains("app-pass"), "secret in URL: \(url)")
+        }
+
+        // Scoped to this account. The counterpart to Calendly's `user` pin:
+        // dropping it asks Bluesky for a different feed, and the metrics would
+        // look entirely plausible.
+        let actors = session.queryValues("actor", path: Self.feedPath)
+        #expect(actors.count == 2)
+        #expect(actors.allSatisfy { $0 == "did:plc:abc123" })
         // Every page of the walk, not just the first.
         #expect(session.headerValues("Authorization", path: Self.feedPath).count == 2)
         for url in session.requestedURLs {
