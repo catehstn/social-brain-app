@@ -88,12 +88,10 @@ struct JetpackCollector: Collector {
     ///
     /// Whether this is the API's limit or a choice made here is **unverified**.
     /// `stats/visits` requires authentication, so it cannot be probed without a
-    /// real site token; the v1.1 reference page does not exist and the archived
-    /// v1 one lists `unit`, `quantity` and `date` with no stated maximum. There
-    /// is third-party report of `quantity=365` returning 365 rows, which leans
-    /// towards 90 being ours rather than theirs — but leaning is not knowing,
-    /// and it has been in the code since the collector was written with no note
-    /// saying which.
+    /// real site token; the v1.1 reference page does not exist, and the v1 one
+    /// documents `unit`, `quantity` ("number of units to return, Default: 30")
+    /// and `date` with **no stated maximum**. It has been in the code since the
+    /// collector was written with no note saying which.
     ///
     /// So the cap stays, and the *silence* goes: a request for a longer period
     /// now says the numbers cover 90 days rather than presenting them as the
