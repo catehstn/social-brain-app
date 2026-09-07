@@ -119,6 +119,17 @@ struct CalendlyCollectorTests {
 
         let sent = try #require(session.queryValue("min_start_time", path: "/scheduled_events"))
         #expect(sent.hasPrefix("2026-03-14"))
+        // A date-time, not a date: the parameter is min_start_*time*, and
+        // sending a bare day would be a different request.
+        #expect(sent.contains("T"))
+        #expect(sent.hasSuffix("Z"), "not UTC: \(sent)")
+
+        // Deliberately the prefix and shape rather than the whole string.
+        // Calendly's reference is JavaScript-rendered and could not be read
+        // here, so the exact serialisation it wants is unverified — pinning it
+        // character for character would cement a guess, which is how the
+        // fictional `CTR (%)` header in #107 survived. What is asserted is what
+        // can be justified: the right instant, as a UTC date-time.
     }
 
     @Test("No since means no min_start_time at all")
