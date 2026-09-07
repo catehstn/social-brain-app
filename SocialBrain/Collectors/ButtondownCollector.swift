@@ -55,7 +55,7 @@ struct ButtondownCollector: Collector {
         // window holds more emails than the walk fetched.
         if stats.truncated {
             metrics["emails_sampled"] = .string(
-                "open and click rates cover the most recent \(Self.maximumEmailPages) pages of \(stats.count) emails")
+                "open and click rates cover the most recent \(stats.fetched) of \(stats.count) emails")
         }
         // Each average guards its own divisor. Previously both were gated on
         // openRates while avgClick divided by clickRates.count, so an email with
@@ -120,7 +120,16 @@ struct ButtondownCollector: Collector {
         var clickRates: [Double] = []
         /// Whether the rates below cover fewer emails than `count`.
         var truncated: Bool = false
+        /// How many emails the rates actually cover. Only meaningful when
+        /// `truncated`.
+        var fetched: Int = 0
     }
+
+    /// How many pages of emails `collect` will walk.
+    ///
+    /// A window is a handful of newsletters for most people, so this is reached
+    /// only on an all-time run against a long archive.
+    static let maximumEmailPages = 20
 
     /// Reads open and click rates over emails published since `since`.
     ///
@@ -136,12 +145,6 @@ struct ButtondownCollector: Collector {
     /// analytics described the beginning of the archive rather than the
     /// requested window, which is a stranger failure than averaging everything
     /// and worth naming precisely.
-    /// How many pages of emails `collect` will walk.
-    ///
-    /// A window is a handful of newsletters for most people, so this is reached
-    /// only on an all-time run against a long archive.
-    static let maximumEmailPages = 20
-
     private func fetchEmailStats(apiKey: String, since: Date?) async throws -> EmailStatsAccumulator {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -185,13 +188,27 @@ struct ButtondownCollector: Collector {
                 }
             }
 
-            // `next` is the URL of the following page, absent on the last one.
-            // Used as a signal rather than followed: building the next request
-            // here keeps the walk from trusting a URL the response supplied.
+            // An empty page ends the walk whatever `next` says. Without this a
+            // server that keeps offering a next page while returning nothing
+            // burns every remaining request and then reports a truncation note
+            // over zero emails.
+            guard !decoded.results.isEmpty else { return acc }
+
+            // `next` is the URL of the following page — null or absent on the
+            // last one; the schema models it as nullable rather than omitted,
+            // and `String?` handles both. Used as a signal rather than
+            // followed, so the walk never fetches a URL the response supplied.
             guard decoded.next != nil else { return acc }
         }
 
-        acc.truncated = fetched < acc.count
+        // Reaching here means page 20 still offered a next page, so more emails
+        // exist by definition. Deliberately not `fetched < acc.count`: that
+        // re-derives the answer from a total this suite elsewhere asserts is not
+        // trustworthy (see `nextIsTheEndSignal`), and if the total can be wrong
+        // in one direction it can be wrong in the other — leaving a genuinely
+        // truncated read reporting nothing.
+        acc.truncated = true
+        acc.fetched = fetched
         return acc
     }
 }

@@ -281,6 +281,42 @@ struct ButtondownCollectorTests {
         #expect(data.intMetric("emails_sent") == 99)
     }
 
+    @Test("The date filter is sent on every page, not just the first")
+    func filterIsSentOnEveryPage() async throws {
+        // #142 was a filter silently dropped, so a filter dropped on pages 2+
+        // is the same bug wearing a smaller hat — and every existing `since`
+        // test uses a single-page fixture, so nothing caught it. Probed:
+        // `if let since, page == 1` left the whole suite green.
+        let session = paginatingSession([
+            .init(Self.emailPage(count: 3, rows: 2, next: "…?page=2", openRate: 0.4)),
+            .init(Self.emailPage(count: 3, rows: 1, next: nil, openRate: 0.4))
+        ])
+        _ = try await makePaginatingCollector(session).collect(
+            since: Date(timeIntervalSince1970: 1_767_225_600),
+            credentials: Credentials(["api_key": "k"])
+        )
+
+        #expect(session.requests(path: "/v1/emails").count == 2)
+        #expect(session.queryValues("publish_date__start", path: "/v1/emails")
+                == ["2026-01-01", "2026-01-01"])
+    }
+
+    @Test("An empty page ends the walk whatever next says")
+    func emptyPageEndsTheWalk() async throws {
+        // A server offering a next page while returning nothing would otherwise
+        // burn every remaining request and then report a truncation note over
+        // no emails at all.
+        let session = paginatingSession([
+            .init(Self.emailPage(count: 9, rows: 2, next: "…?page=2", openRate: 0.4)),
+            .init(Self.emailPage(count: 9, rows: 0, next: "…?page=3", openRate: 0.4))
+        ])
+        let data = try await makePaginatingCollector(session)
+            .collect(since: nil, credentials: Credentials(["api_key": "k"]))
+
+        #expect(session.requests(path: "/v1/emails").count == 2)
+        #expect(data.metrics["emails_sampled"] == nil)
+    }
+
     @Test("Hitting the page cap is reported, not hidden")
     func emailTruncationIsReported() async throws {
         let session = paginatingSession([
@@ -292,6 +328,10 @@ struct ButtondownCollectorTests {
         #expect(session.requests(path: "/v1/emails").count == ButtondownCollector.maximumEmailPages)
         let note = try #require(data.stringMetric("emails_sampled"))
         #expect(note.contains("500"))
+        // Emails, not pages. "the most recent 20 pages" is uninterpretable
+        // without knowing the page size, and /emails documents no page-size
+        // parameter at all — so the reader could not work it out.
+        #expect(note.contains("40"), "should name emails covered, not pages: \(note)")
     }
 
     @Test("Only documented query parameters are sent")
