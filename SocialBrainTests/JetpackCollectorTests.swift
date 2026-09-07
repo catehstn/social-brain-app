@@ -91,6 +91,37 @@ struct JetpackCollectorTests {
 
     private static let visitsPath = "/rest/v1.1/sites/\(siteID)/stats/visits"
 
+    // MARK: - What goes on the wire
+
+    @Test("Every request carries the token as a Bearer header")
+    func requestsAreAuthenticated() async throws {
+        // Both endpoints need it. A collector that authenticated one and not the
+        // other would pass a first-request check, and the unauthenticated half
+        // would come back as an error the user reads as a broken token.
+        let mock = session
+        _ = try await JetpackCollector(session: mock).collect(since: nil, credentials: credentials)
+
+        let paths = Set(mock.requestedURLs.map(\.path))
+        #expect(paths.count == 2)
+        for path in paths {
+            #expect(mock.headerValues("Authorization", path: path) == ["Bearer test-token"],
+                    "missing or wrong Authorization on \(path)")
+        }
+    }
+
+    @Test("No request is double-encoded")
+    func urlsAreNotDoubleEncoded() async throws {
+        // The site ID goes into the path. #68 is what this guards: Google Search
+        // Console encoded its site URL twice and every request hit a property
+        // that could not exist, while the result-level tests stayed green.
+        let mock = session
+        _ = try await JetpackCollector(session: mock).collect(since: nil, credentials: credentials)
+
+        for url in mock.requestedURLs {
+            #expect(!url.absoluteString.contains("%25"), "double-encoded: \(url)")
+        }
+    }
+
     // MARK: - The 90-day cap
 
     @Test("A window longer than the cap says so instead of looking complete")

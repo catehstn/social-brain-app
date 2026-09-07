@@ -52,6 +52,39 @@ struct ButtondownCollectorTests {
 
     // MARK: - Tests
 
+    // MARK: - What goes on the wire
+
+    @Test("Every request carries the key as a Token header")
+    func requestsAreAuthenticated() async throws {
+        // Buttondown uses `Token`, not `Bearer` — a distinction no result-level
+        // test can see, and one that a shared helper could silently change for
+        // every collector at once.
+        //
+        // headerValues, not headerValue: /v1/subscribers is requested twice
+        // concurrently under `async let`, so "the first" is nondeterministic.
+        let session = MockURLSession([
+            "/v1/subscribers": (Self.subscribersJSON, 200),
+            "/v1/emails":      (Self.emailsJSON, 200)
+        ])
+        let collector = ButtondownCollector(
+            session: session,
+            baseURL: URL(string: "https://api.buttondown.email/v1")!
+        )
+        _ = try await collector.collect(since: nil, credentials: Credentials(["api_key": "test-key"]))
+
+        let paths = Set(session.requestedURLs.map(\.path))
+        #expect(paths == ["/v1/subscribers", "/v1/emails"])
+        for path in paths {
+            let values = session.headerValues("Authorization", path: path)
+            #expect(!values.isEmpty, "no Authorization on \(path)")
+            #expect(values.allSatisfy { $0 == "Token test-key" },
+                    "wrong Authorization on \(path): \(values)")
+        }
+        for url in session.requestedURLs {
+            #expect(!url.absoluteString.contains("%25"), "double-encoded: \(url)")
+        }
+    }
+
     @Test("Parses subscriber count and email stats correctly")
     func collectBasicMetrics() async throws {
         let session = MockURLSession([

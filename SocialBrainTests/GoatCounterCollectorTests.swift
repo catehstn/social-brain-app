@@ -24,6 +24,34 @@ struct GoatCounterCollectorTests {
     }
     """
 
+    // MARK: - What goes on the wire
+
+    @Test("Every request carries the token as a Bearer header")
+    func requestsAreAuthenticated() async throws {
+        // Both endpoints need it. A collector that authenticated one and not the
+        // other would pass a first-request check, and the unauthenticated half
+        // would surface as an error the user reads as a broken key.
+        let session = MockURLSession([
+            "/api/v0/stats/total": (Self.totalsJSON, 200),
+            "/api/v0/stats/hits":  (Self.hitsJSON,   200)
+        ])
+        _ = try await GoatCounterCollector(session: session).collect(
+            since: nil,
+            credentials: Credentials(["api_key": "test-token", "site_code": "mysite"])
+        )
+
+        let paths = Set(session.requestedURLs.map(\.path))
+        #expect(paths == ["/api/v0/stats/total", "/api/v0/stats/hits"])
+        for path in paths {
+            #expect(session.headerValues("Authorization", path: path) == ["Bearer test-token"],
+                    "missing or wrong Authorization on \(path)")
+        }
+        // #68: a percent sign means something was encoded twice.
+        for url in session.requestedURLs {
+            #expect(!url.absoluteString.contains("%25"), "double-encoded: \(url)")
+        }
+    }
+
     @Test("Parses total pageviews, unique visitors, and top pages")
     func collectMetrics() async throws {
         let session = MockURLSession([
