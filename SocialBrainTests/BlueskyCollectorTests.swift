@@ -113,6 +113,147 @@ struct BlueskyCollectorTests {
         #expect(data.intMetric("recent_posts") == 1)
     }
 
+    // MARK: - Pagination
+
+    private static let feedPath = "/xrpc/app.bsky.feed.getAuthorFeed"
+
+    private static func day(_ year: Int, _ month: Int, _ day: Int) -> Date {
+        var c = DateComponents()
+        c.year = year; c.month = month; c.day = day
+        c.timeZone = TimeZone(secondsFromGMT: 0)
+        return Calendar(identifier: .gregorian).date(from: c)!
+    }
+
+    /// A feed page: `posts` real posts then `reposts` reposts, newest first,
+    /// one day apart from `newest`. `cursor` nil means "no more feed".
+    private static func feedPage(
+        posts: Int, reposts: Int = 0, newest: Date, cursor: String?
+    ) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let items = (0 ..< (posts + reposts)).map { offset -> String in
+            let date = newest.addingTimeInterval(-Double(offset) * 86_400)
+            let reason = offset < posts ? "null" : "{\"by\":\"someone\"}"
+            return """
+            {"post":{"indexed_at":"\(formatter.string(from: date))",\
+            "like_count":1,"repost_count":1,"reply_count":1},"reason":\(reason)}
+            """
+        }
+        let cursorField = cursor.map { ",\"cursor\":\"\($0)\"" } ?? ""
+        return "{\"feed\":[\(items.joined(separator: ","))]\(cursorField)}"
+    }
+
+    private func makeCollector(_ feed: [MockURLSession.Response]) -> (BlueskyCollector, MockURLSession) {
+        let session = MockURLSession([
+            "/xrpc/com.atproto.server.createSession": [.init(Self.sessionJSON)],
+            "/xrpc/app.bsky.actor.getProfile":        [.init(Self.profileJSON)],
+            Self.feedPath: feed
+        ])
+        return (BlueskyCollector(session: session, baseURL: URL(string: "https://bsky.social")!), session)
+    }
+
+    private let paginationCredentials = Credentials([
+        "username": "alice.bsky.social", "password": "app-pass"
+    ])
+
+    @Test("Follows the cursor past the first page")
+    func followsTheCursor() async throws {
+        // One page of 50 was fetched and filtered, so any window holding more
+        // than 50 posts came back undercounted — and quietly, which is the harm.
+        let (collector, session) = makeCollector([
+            .init(Self.feedPage(posts: 50, newest: Self.day(2026, 3, 28), cursor: "c1")),
+            .init(Self.feedPage(posts: 50, newest: Self.day(2026, 2, 6), cursor: "c2")),
+            .init(Self.feedPage(posts: 10, newest: Self.day(2026, 1, 10), cursor: nil))
+        ])
+        // Wide enough that no page crosses it — the walk ends because the
+        // cursor runs out, which is the property under test.
+        let data = try await collector.collect(
+            since: Self.day(2025, 1, 1), credentials: paginationCredentials
+        )
+        #expect(data.intMetric("recent_posts") == 110)
+        #expect(session.requests(path: Self.feedPath).count == 3)
+        #expect(data.metrics["posts_truncated"] == nil)
+    }
+
+    @Test("A full page of reposts is not mistaken for the end of the feed")
+    func repostOnlyPageDoesNotStopTheWalk() async throws {
+        // The difference that matters versus Mastodon. Reposts are filtered
+        // *client-side*, so a full page can yield no posts at all — a page that
+        // looks short, or even empty, is routine rather than final. Only the
+        // absent cursor means the feed is exhausted.
+        // Deliberately a *short* page of pure reposts. atproto does not promise
+        // a full page while more exists, so page length says nothing — and with
+        // reposts dropped client-side this page yields zero posts while the feed
+        // continues. Only the absent cursor ends the walk.
+        let (collector, session) = makeCollector([
+            .init(Self.feedPage(posts: 0, reposts: 20, newest: Self.day(2026, 3, 28), cursor: "c1")),
+            .init(Self.feedPage(posts: 7, newest: Self.day(2026, 3, 5), cursor: nil))
+        ])
+        let data = try await collector.collect(
+            since: Self.day(2026, 1, 1), credentials: paginationCredentials
+        )
+        #expect(session.requests(path: Self.feedPath).count == 2)
+        #expect(data.intMetric("recent_posts") == 7)
+    }
+
+    @Test("Sends the cursor it was given, not the same page again")
+    func sendsTheCursor() async throws {
+        let (collector, session) = makeCollector([
+            .init(Self.feedPage(posts: 50, newest: Self.day(2026, 3, 28), cursor: "cursor-one")),
+            .init(Self.feedPage(posts: 3, newest: Self.day(2026, 2, 6), cursor: nil))
+        ])
+        _ = try await collector.collect(
+            since: Self.day(2026, 1, 1), credentials: paginationCredentials
+        )
+        #expect(session.queryValues("cursor", path: Self.feedPath) == ["cursor-one"])
+    }
+
+    @Test("Stops once a page reaches past the window")
+    func stopsAtTheBoundary() async throws {
+        // The boundary reads the *raw* feed item, not the filtered result, and
+        // this fixture is built so the two disagree: ten posts (Mar 28 back to
+        // Mar 19) followed by forty reposts (Mar 18 back to Feb 7). The newest
+        // surviving post is Mar 19, but the page actually reached Feb 7.
+        //
+        // Against a Mar 1 boundary the raw date says "already past it, stop";
+        // the filtered date says "still inside, keep going" and costs a request
+        // for a page that cannot contain anything in the window.
+        let (collector, session) = makeCollector([
+            .init(Self.feedPage(posts: 10, reposts: 40, newest: Self.day(2026, 3, 28), cursor: "c1")),
+            .init(Self.feedPage(posts: 50, newest: Self.day(2026, 2, 6), cursor: "c2"))
+        ])
+        let data = try await collector.collect(
+            since: Self.day(2026, 3, 1), credentials: paginationCredentials
+        )
+        #expect(session.requests(path: Self.feedPath).count == 1)
+        #expect(data.intMetric("recent_posts") == 10)
+    }
+
+    @Test("Hitting the page cap is reported, not hidden")
+    func truncationIsReported() async throws {
+        let (collector, session) = makeCollector([
+            .init(Self.feedPage(posts: 50, newest: Self.day(2026, 3, 28), cursor: "endless"))
+        ])
+        let data = try await collector.collect(
+            since: Self.day(2020, 1, 1), credentials: paginationCredentials
+        )
+        #expect(session.requests(path: Self.feedPath).count == BlueskyCollector.maximumPages)
+        let note = try #require(data.metrics["posts_truncated"]?.stringValue)
+        #expect(note.contains("1000"))
+    }
+
+    @Test("An All time run walks the pages too")
+    func noSinceStillWalks() async throws {
+        // `since == nil` is the All time button, not "no window asked for".
+        let (collector, session) = makeCollector([
+            .init(Self.feedPage(posts: 50, newest: Self.day(2026, 3, 28), cursor: "c1")),
+            .init(Self.feedPage(posts: 4, newest: Self.day(2026, 2, 6), cursor: nil))
+        ])
+        let data = try await collector.collect(since: nil, credentials: paginationCredentials)
+        #expect(session.requests(path: Self.feedPath).count == 2)
+        #expect(data.intMetric("recent_posts") == 54)
+    }
+
     @Test("Throws missingCredential when username is absent")
     func missingUsername() async throws {
         let collector = BlueskyCollector()

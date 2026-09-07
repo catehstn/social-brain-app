@@ -129,6 +129,9 @@ struct PromptAssembler {
         if let v = data.intMetric("follows_count")   { lines.append("Following: \(formatted(v))") }
         if let v = data.intMetric("posts_count")     { lines.append("All-time posts: \(formatted(v))") }
         if let v = data.intMetric("recent_posts")    { lines.append("Posts this period: \(v)") }
+        if let note = data.metrics["posts_truncated"]?.stringValue {
+            lines.append("Note: \(note)")
+        }
         var engagement: [String] = []
         if let v = data.doubleMetric("avg_likes")    { engagement.append("\(pct1(v)) likes") }
         if let v = data.doubleMetric("avg_reposts")  { engagement.append("\(pct1(v)) reposts") }
