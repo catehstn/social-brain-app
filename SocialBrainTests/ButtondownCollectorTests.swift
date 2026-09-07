@@ -147,7 +147,7 @@ struct ButtondownCollectorTests {
             try await collector.collect(since: nil, credentials: credentials)
         }
     }
-    @Test("since is sent as a __gte filter on both endpoints")
+    @Test("since is sent as a documented date filter on both endpoints")
     func sinceIsSentInTheQuery() async throws {
         // Path matching alone cannot see this: the collector could omit `since`
         // entirely, or send it on the wrong parameter, and every existing
@@ -170,8 +170,16 @@ struct ButtondownCollectorTests {
         // parameter name with a wrong or misformatted date is the more likely bug,
         // and a presence check passes straight through it.
         #expect(session.requests(path: "/v1/subscribers").count == 2)
-        #expect(session.queryValues("creation_date__gte", path: "/v1/subscribers") == ["2026-01-01"])
-        #expect(session.queryValues("publish_date__gte", path: "/v1/emails") == ["2026-01-01"])
+        // The names Buttondown actually documents. These assertions used to pin
+        // creation_date__gte and publish_date__gte, which appear nowhere in its
+        // OpenAPI document — so the suite was holding a bug in place rather than
+        // catching it (#142).
+        #expect(session.queryValues("date__start", path: "/v1/subscribers") == ["2026-01-01"])
+        #expect(session.queryValues("publish_date__start", path: "/v1/emails") == ["2026-01-01"])
+
+        // And the old names are gone, not merely joined by the new ones.
+        #expect(session.queryValues("creation_date__gte", path: "/v1/subscribers").isEmpty)
+        #expect(session.queryValues("publish_date__gte", path: "/v1/emails").isEmpty)
     }
 
     @Test("No since means no date filter is sent")
@@ -187,8 +195,39 @@ struct ButtondownCollectorTests {
 
         _ = try await collector.collect(since: nil, credentials: Credentials(["api_key": "k"]))
 
-        #expect(session.queryValues("creation_date__gte", path: "/v1/subscribers").isEmpty)
-        #expect(session.queryValues("publish_date__gte", path: "/v1/emails").isEmpty)
+        #expect(session.queryValues("date__start", path: "/v1/subscribers").isEmpty)
+        #expect(session.queryValues("publish_date__start", path: "/v1/emails").isEmpty)
+    }
+
+    @Test("Only documented query parameters are sent")
+    func onlyDocumentedParametersAreSent() async throws {
+        // The generalisation of #142. Buttondown's reference lists `page` and no
+        // page-size parameter, so the `count=1` this collector used to send on
+        // both subscriber requests was never a parameter — it was ignored, and
+        // the total was read off the response envelope regardless.
+        //
+        // An unrecognised parameter is not harmless when it is a *filter*: it is
+        // silently dropped, and the request comes back unfiltered while looking
+        // like it was filtered. That is the whole of #142.
+        let session = MockURLSession([
+            "/v1/subscribers": (Self.subscribersJSON, 200),
+            "/v1/emails":      (Self.emailsJSON, 200)
+        ])
+        let collector = ButtondownCollector(
+            session: session,
+            baseURL: URL(string: "https://api.buttondown.email/v1")!
+        )
+        _ = try await collector.collect(
+            since: Date(timeIntervalSince1970: 1_767_225_600),
+            credentials: Credentials(["api_key": "k"])
+        )
+
+        let documented: Set<String> = ["date__start", "publish_date__start", "page"]
+        for url in session.requestedURLs {
+            let names = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.map(\.name) ?? []
+            #expect(Set(names).isSubset(of: documented), "undocumented parameter in \(url)")
+        }
     }
 
     @Test("An email with an open rate but no click rate does not produce NaN")
