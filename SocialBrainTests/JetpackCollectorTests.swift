@@ -91,6 +91,54 @@ struct JetpackCollectorTests {
 
     private static let visitsPath = "/rest/v1.1/sites/\(siteID)/stats/visits"
 
+    // MARK: - What goes on the wire
+
+    @Test("Every request carries the token as a Bearer header")
+    func requestsAreAuthenticated() async throws {
+        // Both endpoints need it. A collector that authenticated one and not the
+        // other would pass a first-request check, and the unauthenticated half
+        // would come back as an error the user reads as a broken token.
+        let mock = session
+        _ = try await JetpackCollector(session: mock).collect(since: nil, credentials: credentials)
+
+        let paths = Set(mock.requestedURLs.map(\.path))
+        #expect(paths.count == 2)
+        for path in paths {
+            #expect(mock.headerValues("Authorization", path: path) == ["Bearer test-token"],
+                    "missing or wrong Authorization on \(path)")
+        }
+    }
+
+    @Test("A site ID needing escapes reaches the path encoded exactly once")
+    func siteIDIsEncodedOnce() async throws {
+        // A WordPress.com site can be addressed by domain as well as numeric ID,
+        // and a domain needs no escaping — so a `%25` check against `12345678`
+        // guards nothing at all, which is what the first version of this test
+        // did. Give it something to encode.
+        //
+        // #68 is the shape: Google Search Console encoded its site URL twice, so
+        // every request asked for `sites/https%253A%2F%2F…` — a property that
+        // cannot exist — while the result-level tests stayed green.
+        let siteID = "my site.example.com"
+        let mock = MockURLSession([
+            "/rest/v1.1/sites/my%20site.example.com/stats":        (Self.statsJSON, 200),
+            "/rest/v1.1/sites/my%20site.example.com/stats/visits": (Self.visitsJSON, 200)
+        ])
+        _ = try await JetpackCollector(session: mock).collect(
+            since: nil,
+            credentials: Credentials(["access_token": "test-token", "site_code": siteID])
+        )
+
+        // Reaching the fixtures at all is half the assertion — MockURLSession
+        // matches on percentEncodedPath, so a double-encoded request throws
+        // noFixture rather than matching.
+        #expect(mock.requestedURLs.count == 2)
+        for url in mock.requestedURLs {
+            #expect(url.absoluteString.contains("my%20site.example.com"))
+            #expect(!url.absoluteString.contains("%2520"), "double-encoded: \(url)")
+        }
+    }
+
     // MARK: - The 90-day cap
 
     @Test("A window longer than the cap says so instead of looking complete")

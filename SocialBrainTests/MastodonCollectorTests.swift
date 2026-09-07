@@ -89,6 +89,42 @@ struct MastodonCollectorTests {
         #expect(data.intMetric("recent_posts") == 1)
     }
 
+    // MARK: - What goes on the wire
+
+    @Test("Every request carries the token as a Bearer header")
+    func requestsAreAuthenticated() async throws {
+        // Both endpoints need it, and every page of the walk needs it — a
+        // collector that authenticated the first request and dropped it on the
+        // rest would pass a first-request check and then 401 on page two, which
+        // the user reads as an expired token.
+        let session = MockURLSession([
+            "/api/v1/accounts/verify_credentials": [.init(Self.credentialsJSON)],
+            "/api/v1/accounts/109876543/statuses": [
+                .init(Self.statusPage(count: 40, newest: Self.day(2026, 3, 28), idBase: 1000)),
+                .init(Self.statusPage(count: 2, newest: Self.day(2026, 2, 16), idBase: 900))
+            ]
+        ])
+        _ = try await MastodonCollector(session: session).collect(
+            since: Self.day(2026, 1, 1),
+            credentials: Credentials(["access_token": "t", "instance_url": "https://mastodon.social"])
+        )
+
+        let paths = Set(session.requestedURLs.map(\.path))
+        #expect(paths.count == 2)
+        for path in paths {
+            let values = session.headerValues("Authorization", path: path)
+            #expect(!values.isEmpty, "no Authorization on \(path)")
+            #expect(values.allSatisfy { $0 == "Bearer t" }, "wrong Authorization on \(path)")
+        }
+        // Two pages were walked, so the header is pinned on the second request
+        // as well as the first.
+        #expect(session.headerValues("Authorization",
+                                     path: "/api/v1/accounts/109876543/statuses").count == 2)
+        for url in session.requestedURLs {
+            #expect(!url.absoluteString.contains("%25"), "double-encoded: \(url)")
+        }
+    }
+
     // MARK: - Pagination
 
     /// `count` statuses, newest first, one day apart working back from

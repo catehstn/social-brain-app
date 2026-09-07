@@ -113,6 +113,52 @@ struct BlueskyCollectorTests {
         #expect(data.intMetric("recent_posts") == 1)
     }
 
+    // MARK: - What goes on the wire
+
+    @Test("The feed request carries the session token; the login request does not")
+    func requestsAreAuthenticated() async throws {
+        // createSession is the request that *obtains* the token, so it must not
+        // carry one — asserting "every request is authenticated" would be wrong
+        // here, and asserting only the happy paths would miss a collector that
+        // leaked the app password into the login header.
+        let (collector, session) = makeCollector([
+            .init(Self.feedPage(posts: 50, newest: Self.day(2026, 3, 28), cursor: "c1")),
+            .init(Self.feedPage(posts: 2, newest: Self.day(2026, 2, 6), cursor: nil))
+        ])
+        _ = try await collector.collect(
+            since: Self.day(2026, 1, 1), credentials: paginationCredentials
+        )
+
+        // sessionJSON's access_jwt.
+        for path in ["/xrpc/app.bsky.actor.getProfile", Self.feedPath] {
+            let values = session.headerValues("Authorization", path: path)
+            #expect(!values.isEmpty, "no Authorization on \(path)")
+            #expect(values.allSatisfy { $0 == "Bearer eyJtest" }, "wrong Authorization on \(path)")
+        }
+        #expect(session.headerValues("Authorization",
+                                     path: "/xrpc/com.atproto.server.createSession").isEmpty)
+
+        // The app password goes in the request body and must not appear in any
+        // URL. The header check above would not notice `?password=…`, and a URL
+        // is the one place a credential gets written to logs, proxies and
+        // history — which is #124's whole argument about Buffer.
+        for url in session.requestedURLs {
+            #expect(!url.absoluteString.contains("app-pass"), "secret in URL: \(url)")
+        }
+
+        // Scoped to this account. The counterpart to Calendly's `user` pin:
+        // dropping it asks Bluesky for a different feed, and the metrics would
+        // look entirely plausible.
+        let actors = session.queryValues("actor", path: Self.feedPath)
+        #expect(actors.count == 2)
+        #expect(actors.allSatisfy { $0 == "did:plc:abc123" })
+        // Every page of the walk, not just the first.
+        #expect(session.headerValues("Authorization", path: Self.feedPath).count == 2)
+        for url in session.requestedURLs {
+            #expect(!url.absoluteString.contains("%25"), "double-encoded: \(url)")
+        }
+    }
+
     // MARK: - Pagination
 
     private static let feedPath = "/xrpc/app.bsky.feed.getAuthorFeed"
