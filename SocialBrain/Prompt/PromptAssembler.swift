@@ -110,9 +110,7 @@ struct PromptAssembler {
         // Rendered, not merely recorded. Without this the count above reads as
         // the whole period while sitting next to an all-time total many times
         // larger, which is the contradiction the metric exists to prevent.
-        if let note = data.metrics["posts_truncated"]?.stringValue {
-            lines.append("Note: \(note)")
-        }
+        if let note = data.stringMetric("posts_truncated") { lines.append("Note: \(note)") }
         var engagement: [String] = []
         if let v = data.doubleMetric("avg_reblogs")    { engagement.append("\(pct1(v)) boosts") }
         if let v = data.doubleMetric("avg_favourites") { engagement.append("\(pct1(v)) favourites") }
@@ -129,6 +127,7 @@ struct PromptAssembler {
         if let v = data.intMetric("follows_count")   { lines.append("Following: \(formatted(v))") }
         if let v = data.intMetric("posts_count")     { lines.append("All-time posts: \(formatted(v))") }
         if let v = data.intMetric("recent_posts")    { lines.append("Posts this period: \(v)") }
+        if let note = data.stringMetric("posts_truncated") { lines.append("Note: \(note)") }
         var engagement: [String] = []
         if let v = data.doubleMetric("avg_likes")    { engagement.append("\(pct1(v)) likes") }
         if let v = data.doubleMetric("avg_reposts")  { engagement.append("\(pct1(v)) reposts") }
@@ -281,6 +280,7 @@ struct PromptAssembler {
         if let v = data.intMetric("mention_count")  { lines.append("Mentions: \(v)") }
         if let v = data.intMetric("total_points")   { lines.append("Total points: \(v)") }
         if let v = data.intMetric("total_comments") { lines.append("Total comments: \(v)") }
+        if let note = data.stringMetric("mentions_sampled") { lines.append("Note: \(note)") }
         for i in 1...3 {
             if let s = data.stringMetric("top_story_\(i)") { lines.append("Top story \(i): \(s)") }
         }

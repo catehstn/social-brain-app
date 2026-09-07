@@ -43,7 +43,9 @@ struct BlueskyCollector: Collector {
 
         let session = try await createSession(handle: handle, appPassword: appPassword)
         let profile = try await fetchProfile(did: session.did, token: session.accessJwt)
-        let feed    = try await fetchFeed(did: session.did, token: session.accessJwt, since: since)
+        let (feed, truncated) = try await fetchFeed(
+            did: session.did, token: session.accessJwt, since: since
+        )
 
         var metrics: [String: MetricValue] = [
             "followers_count": .int(profile.followersCount),
@@ -51,6 +53,11 @@ struct BlueskyCollector: Collector {
             "posts_count":     .int(profile.postsCount),
             "recent_posts":    .int(feed.count)
         ]
+
+        if truncated {
+            metrics["posts_truncated"] =
+                .string("stopped after \(Self.maximumPages * Self.pageSize) posts — the period holds more")
+        }
 
         if !feed.isEmpty {
             let n           = Double(feed.count)
@@ -93,31 +100,91 @@ struct BlueskyCollector: Collector {
         return try decodeJSON(ProfileView.self, from: data, response: response, decoder: decoder)
     }
 
-    private func fetchFeed(did: String, token: String, since: Date?) async throws -> [PostMetrics] {
-        var url = baseURL.appendingPathComponent("xrpc/app.bsky.feed.getAuthorFeed")
-        url.append(queryItems: [
-            URLQueryItem(name: "actor",  value: did),
-            URLQueryItem(name: "limit",  value: "50"),
-            URLQueryItem(name: "filter", value: "posts_no_replies")
-        ])
-        var req = URLRequest(url: url)
-        req.setBearerToken(token)
-        let (data, response) = try await session.data(for: req)
+    private static let pageSize = 50
+
+    /// How many pages `collect` will walk before stopping.
+    static let maximumPages = 20
+
+    /// Fetches the author feed, following the cursor until it passes `since`.
+    ///
+    /// This used to fetch one page of 50 and filter it, so any window holding
+    /// more than 50 posts came back undercounted — quietly, which is the harm:
+    /// a smaller number reads as a quieter week.
+    ///
+    /// **Continuation is the cursor, not the page length**, and that difference
+    /// is load-bearing here. Reposts are filtered out *client-side* below, so a
+    /// full page of 50 can yield far fewer posts — a page that looks short is
+    /// routine rather than final. Bluesky omits `cursor` when there is nothing
+    /// further, which is the only reliable end signal.
+    ///
+    /// The boundary check reads the oldest **non-repost** item, because the feed
+    /// is not ordered by `post.indexedAt` at all — it is ordered by each item's
+    /// sort key, which for a repost is the *repost* time. Measured against
+    /// `public.api.bsky.app`: of 100 items from one account, 5 were out of
+    /// descending `post.indexedAt` order, and every one of those was a repost
+    /// carrying a `reason.indexedAt` weeks later than the post it points at.
+    /// The same 100 items filtered to non-reposts were strictly descending, 73
+    /// of 73.
+    ///
+    /// So a single repost of an old post landing in the last slot would stop the
+    /// walk early — the exact undercount this exists to fix, and silently, with
+    /// no truncation note. An earlier version of this read the raw last item on
+    /// the reasoning that it showed how far back the page reached. It does not.
+    ///
+    /// The failure modes invert the right way: a page with no surviving post
+    /// yields `nil` and the walk *continues*, costing at most one extra request,
+    /// rather than stopping short.
+    private func fetchFeed(
+        did: String, token: String, since: Date?
+    ) async throws -> (posts: [PostMetrics], truncated: Bool) {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         decoder.dateDecodingStrategy = .iso8601Flexible
-        let feed = try decodeJSON(FeedResponse.self, from: data, response: response, decoder: decoder)
 
-        let posts = feed.feed.compactMap { item -> PostMetrics? in
-            guard item.reason == nil else { return nil }  // skip reposts
-            return PostMetrics(
-                indexedAt:   item.post.indexedAt,
-                likeCount:   item.post.likeCount ?? 0,
-                repostCount: item.post.repostCount ?? 0,
-                replyCount:  item.post.replyCount ?? 0
-            )
+        var collected: [PostMetrics] = []
+        var cursor: String?
+
+        for _ in 0 ..< Self.maximumPages {
+            var url = baseURL.appendingPathComponent("xrpc/app.bsky.feed.getAuthorFeed")
+            var items = [
+                URLQueryItem(name: "actor",  value: did),
+                URLQueryItem(name: "limit",  value: "\(Self.pageSize)"),
+                URLQueryItem(name: "filter", value: "posts_no_replies")
+            ]
+            if let cursor { items.append(URLQueryItem(name: "cursor", value: cursor)) }
+            url.append(queryItems: items)
+
+            var req = URLRequest(url: url)
+            req.setBearerToken(token)
+            let (data, response) = try await session.data(for: req)
+            let page = try decodeJSON(FeedResponse.self, from: data, response: response, decoder: decoder)
+
+            collected.append(contentsOf: page.feed.compactMap { item -> PostMetrics? in
+                guard item.reason == nil else { return nil }  // skip reposts
+                return PostMetrics(
+                    indexedAt:   item.post.indexedAt,
+                    likeCount:   item.post.likeCount ?? 0,
+                    repostCount: item.post.repostCount ?? 0,
+                    replyCount:  item.post.replyCount ?? 0
+                )
+            })
+
+            // No cursor means no more feed, whatever the page length was.
+            guard let next = page.cursor, !next.isEmpty else {
+                return (filter(collected, since: since), false)
+            }
+            // Reached past the window; nothing older can be in it.
+            if let since,
+               let oldest = page.feed.last(where: { $0.reason == nil })?.post.indexedAt,
+               oldest < since {
+                return (filter(collected, since: since), false)
+            }
+            cursor = next
         }
+        return (filter(collected, since: since), true)
+    }
 
+    private func filter(_ posts: [PostMetrics], since: Date?) -> [PostMetrics] {
         guard let since else { return posts }
         return posts.filter { $0.indexedAt >= since }
     }
@@ -138,11 +205,17 @@ private struct ProfileView: Decodable {
 
 private struct FeedResponse: Decodable {
     let feed: [FeedItem]
+    /// Absent when there is nothing further. The only reliable end signal here,
+    /// since reposts are filtered client-side and a full page can yield few
+    /// posts.
+    let cursor: String?
 }
 
 private struct FeedItem: Decodable {
     let post: Post
-    let reason: AnyCodable?  // non-nil means it's a repost/quote
+    /// Non-nil for a repost or a pinned post. A *quote* post has no `reason` —
+    /// it is an ordinary post that embeds another.
+    let reason: AnyCodable?
 
     struct Post: Decodable {
         let indexedAt: Date
