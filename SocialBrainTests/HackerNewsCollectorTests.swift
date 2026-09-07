@@ -19,7 +19,7 @@ struct HackerNewsCollectorTests {
            "points":75,"num_comments":12},
           {"objectID":"4","title":"No points yet","url":"https://example.com/d",
            "points":0,"num_comments":0}
-        ]}
+        ],"nbHits":4,"nbPages":1}
         """
 
     private func makeSession(_ body: String = searchJSON, status: Int = 200) -> MockURLSession {
@@ -59,7 +59,7 @@ struct HackerNewsCollectorTests {
             {"hits":[
               {"objectID":"1","title":"Real","url":"https://example.com/a","points":10,"num_comments":1},
               {"objectID":"2","title":"Nothing yet","url":"https://example.com/b","points":0,"num_comments":0}
-            ]}
+            ],"nbHits":2,"nbPages":1}
             """
         let data = try await HackerNewsCollector(session: makeSession(json))
             .collect(since: nil, credentials: credentials)
@@ -74,7 +74,7 @@ struct HackerNewsCollectorTests {
         // no `url` and so can never match under restrictSearchableAttributes=url.
         // Verified against the live API: 32 of 32 hits were stories with a url
         // and no story_title. This covers the reachable case instead.
-        let json = #"{"hits":[{"objectID":"9","url":"https://example.com/x","points":5,"num_comments":0}]}"#
+        let json = #"{"hits":[{"objectID":"9","url":"https://example.com/x","points":5,"num_comments":0}],"nbHits":1,"nbPages":1}"#
         let data = try await HackerNewsCollector(session: makeSession(json))
             .collect(since: nil, credentials: credentials)
 
@@ -83,7 +83,7 @@ struct HackerNewsCollectorTests {
 
     @Test("An empty result set yields zeros rather than absent metrics")
     func handlesNoMentions() async throws {
-        let collector = HackerNewsCollector(session: makeSession(#"{"hits":[]}"#))
+        let collector = HackerNewsCollector(session: makeSession(#"{"hits":[],"nbHits":0,"nbPages":0}"#))
         let data = try await collector.collect(since: nil, credentials: credentials)
 
         #expect(data.metrics["mention_count"] == .int(0))
@@ -92,6 +92,84 @@ struct HackerNewsCollectorTests {
     }
 
     // MARK: - The request
+
+    // MARK: - Pagination
+
+    private static func hnPage(hits: Int, nbHits: Int, nbPages: Int, idBase: Int) -> String {
+        let items = (0..<hits).map { i in
+            """
+            {"objectID":"\(idBase + i)","title":"Story \(idBase + i)",\
+            "url":"https://example.com/\(idBase + i)","points":2,"num_comments":1}
+            """
+        }
+        return "{\"hits\":[\(items.joined(separator: ","))],\"nbHits\":\(nbHits),\"nbPages\":\(nbPages)}"
+    }
+
+    @Test("Walks every page the API will serve")
+    func walksEveryPage() async throws {
+        // One page of 100 was fetched and hits.count reported, so any busy
+        // period came back as exactly 100 mentions.
+        let session = MockURLSession([
+            "/api/v1/search": [
+                .init(Self.hnPage(hits: 100, nbHits: 250, nbPages: 3, idBase: 0)),
+                .init(Self.hnPage(hits: 100, nbHits: 250, nbPages: 3, idBase: 100)),
+                .init(Self.hnPage(hits: 50, nbHits: 250, nbPages: 3, idBase: 200))
+            ]
+        ])
+        let data = try await HackerNewsCollector(session: session)
+            .collect(since: nil, credentials: credentials)
+
+        #expect(session.requests(path: "/api/v1/search").count == 3)
+        #expect(data.intMetric("mention_count") == 250)
+        #expect(data.intMetric("total_points") == 500)   // 250 hits x 2
+        #expect(data.metrics["mentions_sampled"] == nil)
+    }
+
+    @Test("Asks for each page in turn")
+    func sendsThePageNumber() async throws {
+        let session = MockURLSession([
+            "/api/v1/search": [
+                .init(Self.hnPage(hits: 100, nbHits: 150, nbPages: 2, idBase: 0)),
+                .init(Self.hnPage(hits: 50, nbHits: 150, nbPages: 2, idBase: 100))
+            ]
+        ])
+        _ = try await HackerNewsCollector(session: session)
+            .collect(since: nil, credentials: credentials)
+        #expect(session.queryValues("page", path: "/api/v1/search") == ["0", "1"])
+    }
+
+    @Test("The mention count is the API's total, not what was fetched")
+    func countIsExactEvenWhenCapped() async throws {
+        // The part that makes this better than the other collectors. Algolia
+        // returns nbHits — the true number of matches, honouring the date
+        // filter — so the headline count is right even when the hits behind it
+        // cannot all be paged. Verified live: a one-year window reports
+        // nbHits 369,830 with nbPages capped at 10.
+        let session = MockURLSession([
+            "/api/v1/search": [
+                .init(Self.hnPage(hits: 100, nbHits: 369_830, nbPages: 10, idBase: 0))
+            ]
+        ])
+        let data = try await HackerNewsCollector(session: session)
+            .collect(since: nil, credentials: credentials)
+
+        #expect(session.requests(path: "/api/v1/search").count == 10)
+        #expect(data.intMetric("mention_count") == 369_830)
+        // The sums cannot be exact, and say so rather than looking complete.
+        let note = try #require(data.stringMetric("mentions_sampled"))
+        #expect(note.contains("1000"))
+        #expect(note.contains("369830"))
+    }
+
+    @Test("Stops at the last page rather than asking for one that isn't there")
+    func stopsAtLastPage() async throws {
+        let session = MockURLSession([
+            "/api/v1/search": [.init(Self.hnPage(hits: 4, nbHits: 4, nbPages: 1, idBase: 0))]
+        ])
+        _ = try await HackerNewsCollector(session: session)
+            .collect(since: nil, credentials: credentials)
+        #expect(session.requests(path: "/api/v1/search").count == 1)
+    }
 
     @Test("Searches for the configured domain, restricted to URL attributes")
     func requestsTheRightSearch() async throws {

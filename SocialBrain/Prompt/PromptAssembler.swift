@@ -284,6 +284,7 @@ struct PromptAssembler {
         if let v = data.intMetric("mention_count")  { lines.append("Mentions: \(v)") }
         if let v = data.intMetric("total_points")   { lines.append("Total points: \(v)") }
         if let v = data.intMetric("total_comments") { lines.append("Total comments: \(v)") }
+        if let note = data.stringMetric("mentions_sampled") { lines.append("Note: \(note)") }
         for i in 1...3 {
             if let s = data.stringMetric("top_story_\(i)") { lines.append("Top story \(i): \(s)") }
         }
