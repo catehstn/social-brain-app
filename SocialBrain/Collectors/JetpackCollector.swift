@@ -60,9 +60,10 @@ struct JetpackCollector: Collector {
         metrics["total_views"]    = .int(vis.views)
         metrics["total_visitors"] = .int(vis.visitors)
 
-        // The views and visitors above cover what was asked for, not what the
-        // caller asked for, whenever those differ. Silently capping a year-long
-        // request at 90 days makes a busy year look like a quiet quarter.
+        // The views and visitors above cover what was asked of the API, which is
+        // not what the caller asked for whenever the cap bites. Silently capping
+        // a year-long request at 90 days makes a busy year look like a quiet
+        // quarter.
         if visitResult.daysCovered < visitResult.daysRequested {
             metrics["views_window"] = .string(
                 "views and visitors cover the last \(visitResult.daysCovered) days, not the \(visitResult.daysRequested) requested")
@@ -85,10 +86,13 @@ struct JetpackCollector: Collector {
 
     /// The largest `quantity` this collector asks for, in days.
     ///
-    /// Whether this is the API's limit or a choice made here is **unverified** —
+    /// Whether this is the API's limit or a choice made here is **unverified**.
     /// `stats/visits` requires authentication, so it cannot be probed without a
-    /// real site token, and the published reference does not state a maximum.
-    /// It has been in the code since the collector was written with no note
+    /// real site token; the v1.1 reference page does not exist and the archived
+    /// v1 one lists `unit`, `quantity` and `date` with no stated maximum. There
+    /// is third-party report of `quantity=365` returning 365 rows, which leans
+    /// towards 90 being ours rather than theirs — but leaning is not knowing,
+    /// and it has been in the code since the collector was written with no note
     /// saying which.
     ///
     /// So the cap stays, and the *silence* goes: a request for a longer period
@@ -99,10 +103,28 @@ struct JetpackCollector: Collector {
     /// offsets.
     static let maximumDays = 90
 
+    /// How many days a window covers.
+    ///
+    /// Calendar days, not elapsed seconds divided by 86,400. A spring-forward
+    /// inside the window makes the interval an hour short, and integer division
+    /// then turns a 30-day request into 29 — an off-by-one that appears twice a
+    /// year, in one hemisphere at a time, and lands in the note's own wording.
+    ///
+    /// Extracted, and taking its calendar, so it can be tested at all: the
+    /// caller reads `Date()` for the end of the window, and the transition that
+    /// matters is the *user's* — a test cannot drive either from outside
+    /// otherwise. CI runs in UTC, which has no transitions at all.
+    static func daysRequested(
+        from since: Date, to: Date, calendar: Calendar = .current
+    ) -> Int {
+        let days = calendar.dateComponents([.day], from: since, to: to).day ?? 0
+        return max(1, days)
+    }
+
     private func fetchVisits(
         siteID: String, token: String, since: Date, to: Date
     ) async throws -> (totals: VisitTotals, daysCovered: Int, daysRequested: Int) {
-        let requested = max(1, Int(to.timeIntervalSince(since) / 86400))
+        let requested = Self.daysRequested(from: since, to: to)
         let covered = min(requested, Self.maximumDays)
         var url = Self.apiBase
             .appendingPathComponent("rest/v1.1/sites/\(siteID)/stats/visits")

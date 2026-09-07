@@ -2,7 +2,10 @@ import Foundation
 
 /// Collects scheduled and sent post analytics from Buffer.
 ///
-/// **This talks to Buffer's v1 REST API, which is retired on 1 February 2027.**
+/// **This talks to Buffer's v1 REST API, which is retired on 1 February 2027 —
+/// with brownouts on 11 November and 9 December 2026**, short scheduled
+/// interruptions where legacy requests error out. Those are the dates this file
+/// breaks first, and they are much nearer than the sunset.
 /// The API says so itself, in a `sunset:` header and in the body:
 /// *"The Buffer legacy REST API is deprecated and will be retired on 1 February
 /// 2027. Please migrate to the GraphQL API before then."*
@@ -102,7 +105,6 @@ struct BufferCollector: Collector {
 
         let scheduledCounts = try await fetchScheduledCounts(profiles: profiles, token: token)
 
-
         var metrics: [String: MetricValue] = [
             "profiles_count":    .int(profiles.count),
             "sent_updates":      .int(totalSent),
@@ -142,16 +144,28 @@ struct BufferCollector: Collector {
     /// Fetches one page of sent updates, and reports whether the page was full.
     ///
     /// Deliberately **not** paginated, unlike Mastodon, Bluesky and Hacker News
-    /// in #73. This talks to an API that is retired on 1 February 2027 and whose
-    /// replacement is a different protocol entirely, so a page walk written here
-    /// gets written twice. What the undercount actually needs is to stop being
-    /// *silent*.
+    /// in #73 — a choice, not a limitation. Buffer documents a `page` parameter
+    /// on this endpoint and #138 already landed a page-number walk for Hacker
+    /// News, so the pattern exists. The reason to skip it is that this file is
+    /// dying: the legacy REST API is retired on **1 February 2027**, with
+    /// **brownouts on 11 November and 9 December 2026** when legacy requests
+    /// error out outright, and the replacement is a different protocol. A page
+    /// walk written here gets written twice.
     ///
-    /// A full page is the signal, not the envelope's `total`. `total` is the
-    /// profile's own count and there is no way from here to tell whether it
-    /// respects the `since` filter — using it would report every narrow window
-    /// as truncated. A page that comes back at exactly `count` might have more
-    /// behind it; a short one certainly does not.
+    /// What the undercount actually needs is to stop being *silent*, and that
+    /// survives the migration as a requirement even though this code will not.
+    ///
+    /// A full page is the signal, not the envelope's `total`. Buffer's own
+    /// reference shows `total` in an example response and never defines it —
+    /// there is no response-parameters table on that page — so what it counts is
+    /// a guess. A page that comes back at exactly `count` might have more behind
+    /// it; a short one certainly does not, and that needs no documentation to
+    /// be true.
+    ///
+    /// (`fetchScheduledCounts` does use `total`, for pending posts. That is not
+    /// a contradiction so much as a different bet: there, being wrong means a
+    /// queue count is off; here it would mean silently mislabelling every narrow
+    /// window.)
     private func fetchSentUpdates(
         profileID: String,
         token: String,

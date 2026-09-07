@@ -68,6 +68,26 @@ struct PromptAssemblerTests {
         #expect(!prompt.contains("Note:"))
     }
 
+    @Test("Every collection cap reaches the prompt",
+          arguments: [(Platform.bluesky,    "posts_truncated"),
+                      (Platform.buffer,     "posts_sampled"),
+                      (Platform.jetpack,    "views_window"),
+                      (Platform.hackerNews, "mentions_sampled")])
+    func collectionCapsAreRendered(platform: Platform, key: String) throws {
+        // A metric written to the database and read by nothing is exactly what
+        // the #136 review caught, and three more of these shipped afterwards
+        // with no test pinning the rendering — deleting both prompt lines left
+        // the whole suite green.
+        //
+        // The number these qualify looks like a period total and is really a
+        // page size or a truncated window. If the note does not reach the
+        // prompt, recording it achieves nothing at all.
+        let note = "SENTINEL-cap-note"
+        let data = PlatformData(platform: platform, metrics: [key: .string(note)])
+        let prompt = assembler.assemble(makeInput(snapshots: try snaps(data)))
+        #expect(prompt.contains(note), "\(platform) did not render \(key)")
+    }
+
     @Test("A truncated post count says so in the prompt")
     func mastodonTruncationIsRendered() throws {
         // The whole point of recording posts_truncated is that the prompt says
