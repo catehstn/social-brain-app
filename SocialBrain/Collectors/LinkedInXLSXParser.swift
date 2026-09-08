@@ -15,6 +15,11 @@ import Foundation
 ///                          Rows 4+ = daily data.
 ///   Sheet 5 – DEMOGRAPHICS: (not parsed)
 ///
+/// Newer exports carry six sheets, splitting demographics into AUDIENCE and
+/// CONTENT. Sheets 1–4 are unaffected, which is why this reads them by
+/// position — but the shape does move, so that assumption is worth re-checking
+/// against a real file rather than trusted (#72).
+///
 /// Key metrics produced:
 /// - `total_impressions`  – impressions total from the DISCOVERY sheet
 /// - `members_reached`    – unique members reached (DISCOVERY sheet)
@@ -155,7 +160,13 @@ struct LinkedInXLSXParser {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         formatter.dateFormat = "M/d/yyyy"
-        return formatter.date(from: raw.trimmingCharacters(in: .whitespaces))
+        let trimmed = raw.trimmingCharacters(in: .whitespaces)
+        // `M/d/yyyy` happily accepts a two-digit year and reads it literally, so
+        // "12/31/26" parses as 0026-12-31. periodEnd clamps the future, not the
+        // absurd past, so that would file a snapshot two millennia early instead
+        // of falling back to the import clock.
+        guard trimmed.split(separator: "/").last?.count == 4 else { return nil }
+        return formatter.date(from: trimmed)
     }
 
     // MARK: - XML

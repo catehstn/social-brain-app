@@ -10,9 +10,10 @@ import Foundation
 /// string, including the numbers.** A fixture written from reading the parser
 /// never has that shape.
 ///
-/// The fixture keeps LinkedIn's structure byte-for-byte — sheet names and order,
-/// cell types, styles, the `<si>` layout, the dates — and replaces only the
-/// numbers and the account name. See `Fixtures/README.md`.
+/// The fixture keeps LinkedIn's structure — sheet names and order, cell types,
+/// styles, the `<si>` layout, the dates — and redacts content by whitelist: a
+/// string survives only if the parser reads it, or is a date. See
+/// `Fixtures/README.md`, which records why it is a whitelist.
 @Suite("LinkedIn real export")
 struct LinkedInRealExportTests {
 
@@ -72,7 +73,7 @@ struct LinkedInRealExportTests {
     }
 
     @Test("LinkedIn's own date spelling parses")
-    func linkedInDateFormat() {
+    func linkedInDateFormat() throws {
         // M/d/yyyy, month first, unpadded. Confirmed against the export's own
         // filename range rather than assumed: the file covering 2026-05-09 to
         // 2026-05-22 has rows running 5/9/2026 to 5/22/2026, so the leading
@@ -81,13 +82,27 @@ struct LinkedInRealExportTests {
         //
         // Parsed here rather than in ExportDates, which every file importer
         // shares: a slash format there would make LinkedIn's convention the
-        // default for Substack and Amazon KDP too, and ExportDatesTests pins
-        // that it stays out.
-        let date = try? #require(LinkedInXLSXParser.linkedInDate("5/9/2026"))
+        // default for Substack and O'Reilly too, and ExportDatesTests pins that
+        // it stays out.
+        let date = try #require(LinkedInXLSXParser.linkedInDate("5/9/2026"))
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
-        let parts = calendar.dateComponents([.month, .day], from: date ?? .distantPast)
+        calendar.timeZone = try #require(TimeZone(secondsFromGMT: 0))
+        let parts = calendar.dateComponents([.year, .month, .day], from: date)
+        #expect(parts.year == 2026)
         #expect(parts.month == 5)
         #expect(parts.day == 9)
+    }
+
+    @Test("A two-digit year is refused rather than read as year 26",
+          arguments: ["12/31/26", "1/1/99", "5/9/26"])
+    func twoDigitYearsAreRefused(raw: String) {
+        // `M/d/yyyy` accepts a two-digit year and reads it literally, so
+        // "12/31/26" becomes 0026-12-31 — two thousand years before any export.
+        // The future clamp on periodEnd does not catch it, because the absurd
+        // direction is the past. A single four-digit row would win via max(),
+        // so this only bites if LinkedIn changed format wholesale — but then it
+        // would file every snapshot in the first century rather than falling
+        // back to the import clock, which is the wrong way to fail.
+        #expect(LinkedInXLSXParser.linkedInDate(raw) == nil)
     }
 }
