@@ -138,8 +138,6 @@ final class PlatformsViewModel {
         let platformData: PlatformData
 
         switch instance.platform {
-        case .amazon:
-            platformData = try AmazonKDPImporter().parse(data: rawData)
         case .linkedin:
             platformData = try LinkedInImporter().parse(data: rawData)
         case .oreilly:
@@ -168,7 +166,6 @@ final class PlatformsViewModel {
             ]
         case "tsv", "txt", "text":
             candidates = [
-                (.amazon,  { try AmazonKDPImporter().parse(data: data) }),
                 (.oreilly, { try OReillyImporter().parse(data: data) }),
             ]
         case "eml":
@@ -272,7 +269,7 @@ enum ImportError: LocalizedError, Equatable {
         case .cancelled:                  return nil
         case .unsupportedPlatform(let p): return "File import is not yet supported for \(p.displayName)."
         case .unsupportedExtension:       return "Drop a CSV, TSV, TXT, or XLSX file to import."
-        case .unrecognisedFormat:         return "The file format wasn't recognised. Make sure you're dropping a LinkedIn, Substack, Amazon KDP, or O'Reilly export."
+        case .unrecognisedFormat:         return "The file format wasn't recognised. Make sure you're dropping a LinkedIn, Substack, or O'Reilly export."
         }
     }
 }

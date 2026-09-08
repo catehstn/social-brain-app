@@ -176,10 +176,6 @@ struct SpikeDetector: Sendable {
             return [Monitored(key: "followers_blog", label: "Followers"),
                     Monitored(key: "total_views", label: "Views"),
                     Monitored(key: "total_visitors", label: "Visitors")]
-        case .amazon:
-            return [Monitored(key: "units_sold", label: "Units Sold"),
-                    Monitored(key: "royalties_usd", label: "Royalties"),
-                    Monitored(key: "kenp_pages_read", label: "KENP Pages Read")]
         case .linkedin:
             return [Monitored(key: "total_impressions", label: "Impressions"),
                     Monitored(key: "total_likes", label: "Likes")]

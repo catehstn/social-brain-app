@@ -47,13 +47,14 @@ struct FeedViewModelTests {
         #expect(!vm.cards.isEmpty)
     }
 
-    @Test("load() with empty database produces 4 stale reminder cards")
+    @Test("load() with empty database produces 3 stale reminder cards")
     func emptyDatabaseProducesStaleReminders() async throws {
         let db = try makeDB()
         let vm = FeedViewModel(database: db)
         await vm.load()
-        // stale reminders for linkedin, substack, amazon, oreilly
-        #expect(vm.cards.filter { $0.cardType == .staleReminder }.count == 4)
+        // stale reminders for linkedin, substack, oreilly — Amazon KDP was
+        // retired, so the count drops with it.
+        #expect(vm.cards.filter { $0.cardType == .staleReminder }.count == 3)
     }
 
     @Test("stale snapshot produces stale reminder card")

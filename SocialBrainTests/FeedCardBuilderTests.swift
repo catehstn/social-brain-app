@@ -34,10 +34,12 @@ struct FeedCardBuilderTests {
         #expect(result.count == 281) // 280 chars + "…"
     }
 
-    @Test("build with empty snapshots produces 4 stale reminder cards")
+    @Test("build with empty snapshots produces 3 stale reminder cards")
     func buildEmptySnapshotsProducesFourStaleReminders() {
         let cards = FeedCardBuilder.build(snapshots: [:], now: Date())
-        #expect(cards.filter { $0.cardType == .staleReminder }.count == 4)
+        // One per file-export platform: LinkedIn, Substack, O'Reilly. Was
+        // four until Amazon KDP was retired.
+        #expect(cards.filter { $0.cardType == .staleReminder }.count == 3)
     }
 
     @Test("build is non-throwing — compiles without try")
@@ -70,16 +72,18 @@ struct FeedCardBuilderTests {
         #expect(!cards.contains { $0.platform == .linkedin && $0.cardType == .staleReminder })
     }
 
-    @Test("build produces stale reminder for Amazon beyond 30-day threshold")
-    func buildAmazonStaleAfter30Days() throws {
+    @Test("build produces stale reminder beyond the 30-day threshold")
+    func buildOReillyStaleAfter30Days() throws {
+        // O'Reilly, not Amazon KDP — the 30-day threshold outlived that
+        // platform's retirement and still needs a case exercising it.
         let staleDate = fixedNow.addingTimeInterval(-(31 * 24 * 3600))
-        let payload = try JSONEncoder().encode(AmazonData(latestTitle: "Book", totalRoyalties: 10))
+        let payload = try JSONEncoder().encode(["total_page_views": MetricValue.int(10)])
         let snapshots: [PlatformInstance: PlatformSnapshot] = [
-            PlatformInstance(platform: .amazon): PlatformSnapshot(runID: 1, platform: "amazon",
+            PlatformInstance(platform: .oreilly): PlatformSnapshot(runID: 1, platform: "oreilly",
                                       collectedAt: staleDate, metricsJSON: payload)
         ]
         let cards = FeedCardBuilder.build(snapshots: snapshots, now: fixedNow)
-        #expect(cards.contains { $0.platform == .amazon && $0.cardType == .staleReminder })
+        #expect(cards.contains { $0.platform == .oreilly && $0.cardType == .staleReminder })
     }
 
     @Test("FeedCardType displayName returns human-readable strings")

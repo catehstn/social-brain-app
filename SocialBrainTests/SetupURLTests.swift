@@ -29,7 +29,6 @@ struct SetupURLTests {
     ///
     /// Excluded from this list:
     /// - `bsky.app/settings/app-passwords` — SPA route; 404 to HEAD, works in browser
-    /// - `kdp.amazon.com` — requires auth; all paths redirect or 404 to HEAD
     static let setupURLs: [(label: String, url: String)] = [
         // API Key platforms
         ("Buttondown keys",            "https://buttondown.com/keys"),

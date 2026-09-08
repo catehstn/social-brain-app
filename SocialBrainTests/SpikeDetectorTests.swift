@@ -277,22 +277,24 @@ struct SpikeDetectorTests {
 
     // MARK: - Raw event counts are not averages
 
-    @Test("Selling one book then two is news, however small the numbers")
+    @Test("One booking then two is news, however small the numbers")
     func smallCountsOfDiscreteEventsStillSurface() throws {
         // An average can move without anything happening. A count cannot: two
-        // units sold is two real sales. An earlier version of the floor applied
-        // one count-sized number to every metric and muted this — on a 99c
-        // ebook the royalties stayed under the floor too, so a doubled sales
-        // month produced complete silence.
+        // bookings are two real bookings. An earlier version of the floor
+        // applied one count-sized number to every metric and muted exactly
+        // this, so a doubled month produced complete silence.
+        //
+        // Was Amazon units_sold until that platform was retired; the argument
+        // is about raw event counts, not about books.
         //
         // Deliberately below averageFloor on both sides. Fixtures that clear it
         // still pass if someone "consistently" applies the average floor here,
         // which is the regression actually worth catching.
-        let previous = try makeSnapshot(platform: .amazon, metrics: ["units_sold": .double(1)])
-        let current  = try makeSnapshot(platform: .amazon, metrics: ["units_sold": .double(2)])
+        let previous = try makeSnapshot(platform: .calendly, metrics: ["events_count": .double(1)])
+        let current  = try makeSnapshot(platform: .calendly, metrics: ["events_count": .double(2)])
 
         let alerts = SpikeDetector().detect(current: current, previous: previous)
-        #expect(alerts.map(\.metricKey) == ["units_sold"])
+        #expect(alerts.map(\.metricKey) == ["events_count"])
     }
 
     @Test("Dropping off Hacker News altogether is reported")

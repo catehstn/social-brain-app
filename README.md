@@ -124,7 +124,7 @@ Grouped by how much work they are to connect:
 
 - **API key** — Buttondown, GoatCounter, Calendly, Buffer
 - **OAuth / token** — Mastodon, Bluesky, Jetpack (WordPress.com), Google Search Console
-- **File export** — Amazon KDP, LinkedIn (XLSX), O'Reilly (email), Substack (CSV)
+- **File export** — LinkedIn (XLSX), O'Reilly (email), Substack (CSV)
 - **No auth** — Hacker News
 
 Groupings come from `Platform.authType` in `SocialBrain/Models/Platform.swift` —

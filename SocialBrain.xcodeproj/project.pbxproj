@@ -57,9 +57,7 @@
 		5C18DFF0CD1A386ACA251EFF /* SubstackImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D2C781BEE3E368AAD52A071 /* SubstackImporter.swift */; };
 		5BE28607F3564D44AC1DCBF7 /* ExportDates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 809C4F0642284D71A581C2A1 /* ExportDates.swift */; };
 		5C7C564E792CA1DD24E881AC /* CalendlyCollectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF6E210799137F03E23C4EC6 /* CalendlyCollectorTests.swift */; };
-		5F2BCDB24B8B05E351F06785 /* AmazonKDPImporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54CF9E65755F901741FE20F9 /* AmazonKDPImporter.swift */; };
 		6025308D798885FB9D71C922 /* DashboardViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD8CE54D3FD8FD77FB796D95 /* DashboardViewModel.swift */; };
-		605752A0BE34ADDD17FFB017 /* AmazonKDPImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E72692C95DB62426B3BE05A6 /* AmazonKDPImporterTests.swift */; };
 		612EF2EA7D815191DCA3F6FE /* Platform.swift in Sources */ = {isa = PBXBuildFile; fileRef = F284E6CCC2F1782721703DDE /* Platform.swift */; };
 		6446F2668347478543B8C673 /* BufferCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60871A8EA0FAEDB8DA8FA7B3 /* BufferCollector.swift */; };
 		66AC68012563FDFF8CB3BE14 /* PlatformInstanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B4D35113290A97A57262F31 /* PlatformInstanceTests.swift */; };
@@ -183,7 +181,6 @@
 		513AE74E252C7EFD1834FFA3 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		51E3F715FA10EB4303470093 /* FeedViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedViewModelTests.swift; sourceTree = "<group>"; };
 		5247D72A41BCA462D7B38811 /* SocialBrain.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SocialBrain.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		54CF9E65755F901741FE20F9 /* AmazonKDPImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmazonKDPImporter.swift; sourceTree = "<group>"; };
 		60871A8EA0FAEDB8DA8FA7B3 /* BufferCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BufferCollector.swift; sourceTree = "<group>"; };
 		62075DC99894FAA00E9BF328 /* PlatformsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformsView.swift; sourceTree = "<group>"; };
 		623DE38C88FED64C2371FD12 /* SidebarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarTests.swift; sourceTree = "<group>"; };
@@ -244,7 +241,6 @@
 		DBC7AA60FA245D9489A99649 /* CollectionEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionEngineTests.swift; sourceTree = "<group>"; };
 		DF6E210799137F03E23C4EC6 /* CalendlyCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendlyCollectorTests.swift; sourceTree = "<group>"; };
 		DFF6DD23BAF88CD6436309C4 /* FeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
-		E72692C95DB62426B3BE05A6 /* AmazonKDPImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AmazonKDPImporterTests.swift; sourceTree = "<group>"; };
 		E83BC22CE0C5C53010A28382 /* FeedDatabaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedDatabaseTests.swift; sourceTree = "<group>"; };
 		EC9DD24783A63A5FA71435EE /* PlatformDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformDetailView.swift; sourceTree = "<group>"; };
 		EFD080AC051AC0A2A45C4782 /* SocialBrainUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SocialBrainUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -377,7 +373,6 @@
 		72FCC5C9A5E1827F3E54C41A /* Collectors */ = {
 			isa = PBXGroup;
 			children = (
-				54CF9E65755F901741FE20F9 /* AmazonKDPImporter.swift */,
 				0AC1E6FBE27355FF4A5F9ED4 /* BlueskyCollector.swift */,
 				40085DB1D4C7410096CD6A3B /* RateParsing.swift */,
 				E9F1B4890B1D44EE83E17FA3 /* ISO8601Decoding.swift */,
@@ -467,7 +462,6 @@
 			isa = PBXGroup;
 			children = (
 				723C9EE37EDB5333AAB879BD /* TestSupport */,
-				E72692C95DB62426B3BE05A6 /* AmazonKDPImporterTests.swift */,
 				6824A853F434CC1AE79933A8 /* BlueskyCollectorTests.swift */,
 				FA2BAEB2923B9E65E8E39568 /* ButtondownCollectorTests.swift */,
 				DF6E210799137F03E23C4EC6 /* CalendlyCollectorTests.swift */,
@@ -725,7 +719,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				605752A0BE34ADDD17FFB017 /* AmazonKDPImporterTests.swift in Sources */,
 				1C6360F131B69EB484A0858D /* BlueskyCollectorTests.swift in Sources */,
 				7F875E7D93FE02FD42E15C9C /* ButtondownCollectorTests.swift in Sources */,
 				5C7C564E792CA1DD24E881AC /* CalendlyCollectorTests.swift in Sources */,
@@ -779,7 +772,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				5F2BCDB24B8B05E351F06785 /* AmazonKDPImporter.swift in Sources */,
 				70C6E23BAA351CEA23FAEC57 /* AnalyticsGoal.swift in Sources */,
 				33AFDAD2603FD51B00CA689A /* AppDatabase.swift in Sources */,
 				531853D5C5AE831BDD30E000 /* BackgroundRefreshScheduler.swift in Sources */,

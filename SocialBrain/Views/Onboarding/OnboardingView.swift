@@ -139,7 +139,7 @@ struct OnboardingView: View {
                 icon: "doc.badge.arrow.up",
                 title: "File Export",
                 color: .orange,
-                platforms: "Substack, Amazon KDP, LinkedIn, O'Reilly",
+                platforms: "Substack, LinkedIn, O'Reilly",
                 detail: "Download a CSV or TSV export from each platform and import it here.",
                 docsAnchor: "file-export"
             )

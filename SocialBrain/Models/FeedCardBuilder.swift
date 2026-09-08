@@ -8,7 +8,7 @@ enum StalenessThreshold {
     static func threshold(for platform: Platform) -> TimeInterval? {
         switch platform {
         case .linkedin, .substack:  return threeDays
-        case .amazon, .oreilly:     return thirtyDays
+        case .oreilly:              return thirtyDays
         default:                    return nil
         }
     }
@@ -48,7 +48,7 @@ struct FeedCardBuilder {
 
         // 1. Stale reminders (highest priority — user needs to act)
         // Check default instance for each file-export platform.
-        for platform in [Platform.linkedin, .substack, .amazon, .oreilly] {
+        for platform in [Platform.linkedin, .substack, .oreilly] {
             guard let threshold = StalenessThreshold.threshold(for: platform) else { continue }
             let defaultInstance = PlatformInstance(platform: platform)
             if let snapshot = snapshots[defaultInstance] {

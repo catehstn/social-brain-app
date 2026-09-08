@@ -35,7 +35,7 @@ Me (Cate). Weekly cadence, usually Saturday or Sunday morning with coffee. Also:
 **Platforms (13):** grouped as `Platform.swift` declares them —
 - **API key:** Buttondown · GoatCounter · Calendly · Buffer
 - **OAuth / token:** Mastodon · Bluesky · Jetpack (WordPress.com) · Google Search Console
-- **File export (drag-drop):** LinkedIn (XLSX) · O'Reilly (email) · Substack (CSV) · Amazon KDP
+- **File export (drag-drop):** LinkedIn (XLSX) · O'Reilly (email) · Substack (CSV)
 - **No auth:** Hacker News
 
 ## Sidebar (top-level navigation)

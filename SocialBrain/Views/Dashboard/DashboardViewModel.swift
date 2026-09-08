@@ -127,10 +127,6 @@ final class DashboardViewModel {
             return [("followers_blog", "Followers"),
                     ("total_views", "Views"),
                     ("total_visitors", "Visitors")]
-        case .amazon:
-            return [("units_sold", "Units Sold"),
-                    ("royalties_usd", "Royalties (USD)"),
-                    ("kenp_pages_read", "KENP Pages Read")]
         case .linkedin:
             return [("total_impressions", "Impressions"),
                     ("total_likes", "Likes"),

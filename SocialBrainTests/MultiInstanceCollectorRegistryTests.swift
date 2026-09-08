@@ -60,7 +60,7 @@ struct MultiInstanceCollectorRegistryTests {
             instances: mockInstances,
             hasCredentials: mockHasCredentials
         )
-        let fileExportPlatforms: Set<Platform> = [.amazon, .linkedin, .oreilly, .substack]
+        let fileExportPlatforms: Set<Platform> = [.linkedin, .oreilly, .substack]
         let collectorPlatforms = Set(collectors.map(\.platform))
         #expect(collectorPlatforms.isDisjoint(with: fileExportPlatforms))
     }

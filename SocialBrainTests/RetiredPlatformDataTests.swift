@@ -2,8 +2,8 @@ import Testing
 import Foundation
 @testable import SocialBrain
 
-/// #43 retires the Vercel collector, and requires that history already in the
-/// store is left alone.
+/// #43 retires the Vercel collector and #74 retires Amazon KDP, both requiring
+/// that history already in the store is left alone.
 ///
 /// Removing `Platform.vercel` means those rows no longer map to a case, so they
 /// stop appearing in the UI — which is intended. What must *not* happen is their
@@ -13,12 +13,12 @@ struct RetiredPlatformDataTests {
 
     /// Writes a snapshot for a platform the enum no longer knows about, the way
     /// an older build would have.
-    private func seedRetiredRow(_ db: AppDatabase) async throws {
+    private func seedRetiredRow(_ db: AppDatabase, platform: String = "vercel") async throws {
         var run = CollectionRun(startedAt: Date(), platformCount: 1, errorCount: 0)
         try await db.saveRun(&run)
         var snapshot = PlatformSnapshot(
             runID: run.id!,
-            platform: "vercel",
+            platform: platform,
             collectedAt: Date(timeIntervalSince1970: 1_767_225_600),
             // Encoded the way the app really writes it. The hand-written
             // `{"int":12}` shape does not decode — MetricValue is tagged — so
@@ -29,16 +29,17 @@ struct RetiredPlatformDataTests {
         try await db.saveSnapshot(&snapshot)
     }
 
-    @Test("Vercel is no longer a known platform")
-    func vercelIsRetired() {
-        #expect(Platform(rawValue: "vercel") == nil)
-        #expect(!Platform.allCases.contains { $0.rawValue == "vercel" })
+    @Test("A retired platform is no longer a known one", arguments: ["vercel", "amazon"])
+    func retiredPlatformsAreGone(rawValue: String) {
+        #expect(Platform(rawValue: rawValue) == nil)
+        #expect(!Platform.allCases.contains { $0.rawValue == rawValue })
     }
 
-    @Test("Rows for a retired platform are kept, not deleted")
-    func retiredRowsSurvive() async throws {
+    @Test("Rows for a retired platform are kept, not deleted",
+          arguments: ["vercel", "amazon"])
+    func retiredRowsSurvive(platform: String) async throws {
         let db = try AppDatabase.makeInMemory()
-        try await seedRetiredRow(db)
+        try await seedRetiredRow(db, platform: platform)
 
         // Read through the app's own accessors, then confirm the row is still
         // on disk. "Left alone" means not deleted, even though nothing displays it.
@@ -47,15 +48,16 @@ struct RetiredPlatformDataTests {
 
         let remaining = try await db.snapshots(forRunID: 1)
         #expect(remaining.count == 1)
-        #expect(remaining.first?.platform == "vercel")
+        #expect(remaining.first?.platform == platform)
         // And it is still readable, not just present.
         #expect(try remaining.first?.decodedMetrics()["deployments"] == .int(12))
     }
 
-    @Test("A retired row is skipped rather than crashing the queries that span it")
-    func retiredRowsAreSkippedSafely() async throws {
+    @Test("A retired row is skipped rather than crashing the queries that span it",
+          arguments: ["vercel", "amazon"])
+    func retiredRowsAreSkippedSafely(platform: String) async throws {
         let db = try AppDatabase.makeInMemory()
-        try await seedRetiredRow(db)
+        try await seedRetiredRow(db, platform: platform)
 
         // A live platform alongside it, so the queries have something to return.
         var run = CollectionRun(startedAt: Date(), platformCount: 1, errorCount: 0)
@@ -70,7 +72,7 @@ struct RetiredPlatformDataTests {
         #expect(latest.count == 1)
         #expect(latest.keys.first?.platform == .mastodon)
         // The retired row contributes nothing and breaks nothing.
-        #expect(!latest.keys.contains { $0.platform.rawValue == "vercel" })
+        #expect(!latest.keys.contains { $0.platform.rawValue == platform })
     }
 
     @Test("The platform list is pinned, so a silent removal or rename cannot happen")
@@ -81,7 +83,7 @@ struct RetiredPlatformDataTests {
         // would orphan every stored snapshot row and every Keychain item, which
         // is exactly the failure this retirement is being careful about.
         #expect(Platform.allCases.map(\.rawValue).sorted() == [
-            "amazon", "bluesky", "buffer", "buttondown", "calendly",
+            "bluesky", "buffer", "buttondown", "calendly",
             "goat_counter", "google_search_console", "hacker_news", "jetpack",
             "linkedin", "mastodon", "oreilly", "substack"
         ])
