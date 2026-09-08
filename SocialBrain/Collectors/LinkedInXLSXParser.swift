@@ -91,7 +91,71 @@ struct LinkedInXLSXParser {
         }
 
         guard !metrics.isEmpty else { throw ParseError.noUsableData }
-        return PlatformData(platform: .linkedin, metrics: metrics)
+        return PlatformData(
+            platform: .linkedin,
+            // The export's own dates, not the import clock (#76). The
+            // ENGAGEMENT sheet is one row per day, so its newest date is the
+            // end of the period the file describes — importing last quarter's
+            // export today should file it under last quarter, or the chart axis
+            // and the comparison SpikeDetector makes are both wrong.
+            //
+            // Falls back to nil, and thus to collectedAt, when the sheet is
+            // missing or the dates do not parse. The column name is read from
+            // the header rather than assumed, for the same reason every other
+            // lookup here is.
+            periodEnd: periodEnd(from: zip, sharedStrings: sharedStrings),
+            metrics: metrics
+        )
+    }
+
+    /// The newest date in the ENGAGEMENT sheet's date column.
+    private func periodEnd(from zip: MiniZIPReader, sharedStrings: [String]) -> Date? {
+        // `try?` flattens the double optional parsePart returns, so a missing
+        // sheet and a refused one both land here as nil — which is right: a
+        // date we cannot read means fall back to the import clock, not fail.
+        guard let doc = try? parsePart(zip, named: "xl/worksheets/sheet2.xml"),
+              let column = headerColumn(in: doc, sharedStrings: sharedStrings, matching: "date")
+        else { return nil }
+
+        let cells = (try? doc.nodes(forXPath: "//*[local-name()='c']")) ?? []
+        let dates: [Date] = cells.compactMap { cell in
+            guard let el = cell as? XMLElement,
+                  let ref = el.attribute(forName: "r")?.stringValue,
+                  String(ref.prefix(while: { $0.isLetter })).uppercased() == column,
+                  let row = Int(String(ref.drop(while: { $0.isLetter }))), row >= 2,
+                  let text = cellText(el, sharedStrings: sharedStrings)
+            else { return nil }
+            return Self.linkedInDate(text)
+        }
+        // Clamped to now for the same reason ExportDates does it: an export can
+        // carry a future-dated row, and a future periodEnd would put the
+        // snapshot beyond every Dashboard range and make it permanently latest.
+        let now = Date()
+        return dates.filter { $0 <= now }.max()
+    }
+
+    /// Parses LinkedIn's date spelling.
+    ///
+    /// `M/d/yyyy` — month first, unpadded. Confirmed against a real export
+    /// rather than assumed: the file covering 2026-05-09 to 2026-05-22 has rows
+    /// running `5/9/2026 … 5/22/2026`, so the leading component is the month.
+    /// Reading it the other way would silently move a snapshot by up to eleven
+    /// months.
+    ///
+    /// Deliberately not added to `ExportDates`, which every file importer
+    /// shares: `1/2/2026` is ambiguous, and putting a slash format there would
+    /// make one source's convention the default for all of them. The knowledge
+    /// lives with the source that has the evidence.
+    ///
+    /// `en_US_POSIX` because a Thai or Persian locale would otherwise read this
+    /// against a different calendar — the bug found in
+    /// `GoogleSearchConsoleCollector` and fixed in #104.
+    static func linkedInDate(_ raw: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "M/d/yyyy"
+        return formatter.date(from: raw.trimmingCharacters(in: .whitespaces))
     }
 
     // MARK: - XML
@@ -599,6 +663,13 @@ struct LinkedInXLSXParser {
 
     /// Finds the column letter (e.g. "C") whose header in row 1 contains "engagement".
     private func engagementsColumn(in doc: XMLDocument, sharedStrings: [String]) -> String? {
+        headerColumn(in: doc, sharedStrings: sharedStrings, matching: "engagement")
+    }
+
+    /// The column letter whose row-1 header contains `needle`, case-insensitively.
+    private func headerColumn(
+        in doc: XMLDocument, sharedStrings: [String], matching needle: String
+    ) -> String? {
         guard let cells = try? doc.nodes(forXPath:
                   "//*[local-name()='row'][@r='1']/*[local-name()='c']") else { return nil }
         for cell in cells {
@@ -610,7 +681,7 @@ struct LinkedInXLSXParser {
             guard let el  = cell as? XMLElement,
                   let ref = el.attribute(forName: "r")?.stringValue,
                   let label = cellText(el, sharedStrings: sharedStrings),
-                  label.lowercased().contains("engagement") else { continue }
+                  label.lowercased().contains(needle) else { continue }
             return String(ref.prefix(while: { $0.isLetter })).uppercased()
         }
         return nil

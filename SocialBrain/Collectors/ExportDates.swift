@@ -23,6 +23,14 @@ enum ExportDates {
         "yyyy-MM-dd"
     ]
 
+    /// Deliberately no slash format here. `1/2/2026` is January 2nd or the 2nd
+    /// of January depending on who wrote it, and this helper is shared by every
+    /// file importer — adding one would make a single source's convention the
+    /// default for all of them. `rejectsUnparseable` pins that.
+    ///
+    /// An importer that *knows* its source's spelling parses it itself and
+    /// passes the result in. `LinkedInXLSXParser` does exactly that.
+
     private static let parsers: [DateFormatter] = formats.map { format in
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
