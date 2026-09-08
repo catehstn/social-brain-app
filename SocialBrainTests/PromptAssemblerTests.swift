@@ -72,7 +72,8 @@ struct PromptAssemblerTests {
           arguments: [(Platform.bluesky,    "posts_truncated"),
                       (Platform.buffer,     "posts_sampled"),
                       (Platform.jetpack,    "views_window"),
-                      (Platform.hackerNews, "mentions_sampled")])
+                      (Platform.hackerNews, "mentions_sampled"),
+                      (Platform.buttondown, "emails_sampled")])
     func collectionCapsAreRendered(platform: Platform, key: String) throws {
         // A metric written to the database and read by nothing is exactly what
         // the #136 review caught, and three more of these shipped afterwards

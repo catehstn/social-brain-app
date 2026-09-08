@@ -162,6 +162,7 @@ struct PromptAssembler {
         if !rates.isEmpty {
             lines.append(rates.joined(separator: ", "))
         }
+        if let note = data.stringMetric("emails_sampled") { lines.append("Note: \(note)") }
         return lines
     }
 
