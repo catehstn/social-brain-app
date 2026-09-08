@@ -35,7 +35,7 @@ struct FeedCardBuilderTests {
     }
 
     @Test("build with empty snapshots produces 3 stale reminder cards")
-    func buildEmptySnapshotsProducesFourStaleReminders() {
+    func buildEmptySnapshotsProducesStaleReminders() {
         let cards = FeedCardBuilder.build(snapshots: [:], now: Date())
         // One per file-export platform: LinkedIn, Substack, O'Reilly. Was
         // four until Amazon KDP was retired.

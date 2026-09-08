@@ -71,18 +71,12 @@ struct SpikeDetector: Sendable {
         /// - **Rates** are 0–1 fractions, so any count-sized floor would mute
         ///   every one of them. One percentage point is the equivalent scale.
         /// - **Raw counts of discrete events** get no floor. Each unit is a
-        ///   real thing that happened: selling 1 book then 2 is news, and so is
+        ///   real thing that happened: one booking then two is news, and so is
         ///   two Hacker News mentions dropping to none. This is the case an
         ///   earlier version of this change got wrong, muting both.
         /// - **Ranks** get no floor, and the reasoning inverts: for
         ///   `avg_position` a small number is the *best* state, so a floor
         ///   suppresses exactly the good news.
-        ///
-        /// `royalties_usd` fits none of the four and is left unfloored. It is a
-        /// continuous currency amount, so it can move on marketplace mix or FX
-        /// with no extra sale — genuinely the noise this exists to stop — but
-        /// flooring it at any dollar figure mutes a real sales month on a 99c
-        /// ebook, which is worse. Left deliberately, not overlooked.
         var floor: Double = 0
     }
 
