@@ -37,11 +37,6 @@ struct CalendlyData: Codable, Sendable {
     var upcomingEventDates: [Date]
 }
 
-struct AmazonData: Codable, Sendable {
-    var latestTitle: String?
-    var totalRoyalties: Double
-}
-
 struct JetpackData: Codable, Sendable {
     var latestPostTitle: String?
     var totalViews: Int

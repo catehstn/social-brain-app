@@ -216,7 +216,7 @@ enum CollectorRegistry {
         case .hackerNews:
             var c = HackerNewsCollector(); c.instanceName = instance.instanceName; return c
         // File-export platforms return nil — they're imported manually.
-        case .amazon, .linkedin, .oreilly, .substack:
+        case .linkedin, .oreilly, .substack:
             return nil
         }
     }

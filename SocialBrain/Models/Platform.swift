@@ -6,7 +6,6 @@ public enum Platform: String, CaseIterable, Codable, Hashable, Sendable, Identif
     case buttondown
     case goatCounter = "goat_counter"
     case calendly
-    case amazon
     case mastodon
     case jetpack
     case bluesky
@@ -22,7 +21,6 @@ public enum Platform: String, CaseIterable, Codable, Hashable, Sendable, Identif
         case .buttondown:          "Buttondown"
         case .goatCounter:         "GoatCounter"
         case .calendly:            "Calendly"
-        case .amazon:              "Amazon KDP"
         case .mastodon:            "Mastodon"
         case .jetpack:             "Jetpack Stats"
         case .bluesky:             "Bluesky"
@@ -41,7 +39,7 @@ public enum Platform: String, CaseIterable, Codable, Hashable, Sendable, Identif
             return .apiKey
         case .mastodon, .jetpack, .bluesky, .googleSearchConsole:
             return .oauthToken
-        case .amazon, .linkedin, .oreilly, .substack:
+        case .linkedin, .oreilly, .substack:
             return .fileExport
         case .hackerNews:
             return .noAuth
@@ -54,7 +52,6 @@ public enum Platform: String, CaseIterable, Codable, Hashable, Sendable, Identif
         case .buttondown:          "envelope.fill"
         case .goatCounter:         "chart.bar.fill"
         case .calendly:            "calendar"
-        case .amazon:              "books.vertical.fill"
         case .mastodon:            "bubble.left.and.bubble.right.fill"
         case .jetpack:             "bolt.fill"
         case .bluesky:             "cloud.fill"

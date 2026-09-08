@@ -181,17 +181,6 @@ struct PlatformCredentialSheet: View {
             field("Domain to Track", key: "site_code",
                   help: "Your domain — e.g. example.com")
 
-        case .amazon:
-            importSection(
-                instructions: """
-                    1. Sign in to KDP (kdp.amazon.com) → Reports → Prior Months' Royalties
-                    2. Select the month range and click Download
-                    3. Click Import TSV below to load the file
-                    """,
-                extensions: ["tsv", "txt", "csv"],
-                buttonLabel: "Import TSV"
-            )
-
         case .linkedin:
             importSection(
                 instructions: """
@@ -339,7 +328,7 @@ struct PlatformCredentialSheet: View {
 
     private var isFileImportPlatform: Bool {
         switch platform {
-        case .amazon, .linkedin, .oreilly, .substack: true
+        case .linkedin, .oreilly, .substack: true
         default:                                      false
         }
     }

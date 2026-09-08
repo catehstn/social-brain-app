@@ -88,7 +88,6 @@ struct PromptAssembler {
         case .buttondown:  return buttondownLines(data)
         case .goatCounter: return goatCounterLines(data)
         case .calendly:    return calendlyLines(data)
-        case .amazon:      return amazonLines(data)
         case .jetpack:     return jetpackLines(data)
         case .linkedin:            return linkedinLines(data)
         case .oreilly:             return oreillyLines(data)
@@ -197,18 +196,6 @@ struct PromptAssembler {
             if let t = data.stringMetric("top_event_type_\(i)") { types.append(t) }
         }
         if !types.isEmpty { lines.append("Top event types: \(types.joined(separator: ", "))") }
-        return lines
-    }
-
-    private func amazonLines(_ data: PlatformData) -> [String] {
-        var lines: [String] = []
-        if let units = data.intMetric("units_sold") {
-            var s = "Units sold: \(formatted(units))"
-            if let titles = data.intMetric("titles_with_sales") { s += " across \(titles) title\(titles == 1 ? "" : "s")" }
-            lines.append(s)
-        }
-        if let v = data.doubleMetric("royalties_usd") { lines.append("Royalties: $\(String(format: "%.2f", v))") }
-        if let v = data.intMetric("kenp_pages_read")  { lines.append("KENP pages read: \(formatted(v))") }
         return lines
     }
 

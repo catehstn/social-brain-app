@@ -47,7 +47,6 @@ struct FeedCardView: View {
         case .buttondown:  return "envelope"
         case .goatCounter: return "chart.line.uptrend.xyaxis"
         case .calendly:    return "calendar"
-        case .amazon:      return "shippingbox"
         case .jetpack:     return "bolt"
         case .linkedin:    return "person.crop.square"
         case .oreilly:     return "book"

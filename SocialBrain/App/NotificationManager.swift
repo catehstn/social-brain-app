@@ -3,7 +3,7 @@ import Foundation
 
 /// Manages `UserNotifications` for the app — primarily stale-export reminders
 /// that prompt the user to download and import a fresh file-export from platforms
-/// like Amazon KDP or Substack.
+/// like Substack or O'Reilly.
 actor NotificationManager {
 
     static let shared = NotificationManager()
@@ -32,7 +32,7 @@ actor NotificationManager {
     /// Schedules (or re-schedules) a stale-export reminder for the given platform.
     ///
     /// Uses the same per-platform thresholds as `StalenessThreshold` in FeedCardBuilder:
-    /// LinkedIn and Substack fire after 3 days; Amazon KDP and O'Reilly after 30 days.
+    /// LinkedIn and Substack fire after 3 days; O'Reilly after 30 days.
     /// If the stale date has already passed, a notification fires immediately (after a
     /// short delay so the app has finished launching).
     ///

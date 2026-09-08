@@ -7,7 +7,7 @@ import Foundation
 ///
 /// The scheduler fires approximately once per day when the system is idle, giving
 /// the app a chance to collect fresh analytics from all configured API platforms.
-/// File-export platforms (Substack, Amazon KDP) cannot be refreshed automatically
+/// File-export platforms (Substack, O'Reilly) cannot be refreshed automatically
 /// because they require the user to download the export manually.
 final class BackgroundRefreshScheduler: NSObject, @unchecked Sendable {
 

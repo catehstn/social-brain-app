@@ -70,12 +70,6 @@
     <p>Grant it <code>users:read</code> and <code>scheduled_events:read</code>. A new token has no API access until scopes are requested, so one created without these fails with a 403 saying the permissions are insufficient.</p>
   </div>
 
-  <div class="platform">
-    <span class="badge api-key">API Key</span>
-    <h3>Amazon KDP</h3>
-    <p>Amazon KDP doesn't have a public API. Use the <strong>File Export</strong> method instead — see below.</p>
-  </div>
-
   <h2 id="access-token">Access Token / App Password Platforms</h2>
 
   <div class="platform">
@@ -131,15 +125,6 @@
     <ul>
       <li>Go to your Substack dashboard → <strong>Settings → Exports</strong></li>
       <li>Request a data export; download the ZIP and find <code>subscribers.csv</code>.</li>
-    </ul>
-  </div>
-
-  <div class="platform">
-    <span class="badge export">File Export</span>
-    <h3>Amazon KDP</h3>
-    <ul>
-      <li>Go to <a href="https://kdp.amazon.com/en_US/report/royalty" target="_blank">KDP Reports → Royalty</a></li>
-      <li>Download the <strong>Prior Months Royalties</strong> TSV for the current month.</li>
     </ul>
   </div>
 
