@@ -11,6 +11,8 @@
 		422D0B9930444F0D866F235D /* SpikeNotifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 387E3CA89E67464486E85CCC /* SpikeNotifierTests.swift */; };
 		FE2D827788724FA9A4768B92 /* RateParsingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1795729F69DD454EBD2ECDFC /* RateParsingTests.swift */; };
 		972A1EE96F744FFBA1A6C0C9 /* MockURLSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5A3C1CF7C7A45D09C4FD2C9 /* MockURLSessionTests.swift */; };
+		D217FD4C0CAE4ECFBBA0872C /* FixtureRedactionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E6758D8D65A4551938765BC /* FixtureRedactionTests.swift */; };
+		634E91845BC84854B1C9F9C9 /* LinkedInRealExportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB1B1117738D4EC2B4085CB3 /* LinkedInRealExportTests.swift */; };
 		B3DFA2B918464027804E414C /* DroppedFileRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED753319985B448BAE38297D /* DroppedFileRoutingTests.swift */; };
 		92F2BBD0283D4563B9E3F4FB /* ISO8601DecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D99545779F1740D98B000C30 /* ISO8601DecodingTests.swift */; };
 		0434DB34C669B38CFF30CF6E /* MultiInstanceDatabaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3C41D3F3B0270D6350F2348 /* MultiInstanceDatabaseTests.swift */; };
@@ -260,6 +262,8 @@
 		387E3CA89E67464486E85CCC /* SpikeNotifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpikeNotifierTests.swift; sourceTree = "<group>"; };
 		1795729F69DD454EBD2ECDFC /* RateParsingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RateParsingTests.swift; sourceTree = "<group>"; };
 		E5A3C1CF7C7A45D09C4FD2C9 /* MockURLSessionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockURLSessionTests.swift; sourceTree = "<group>"; };
+		7E6758D8D65A4551938765BC /* FixtureRedactionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureRedactionTests.swift; sourceTree = "<group>"; };
+		EB1B1117738D4EC2B4085CB3 /* LinkedInRealExportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LinkedInRealExportTests.swift; sourceTree = "<group>"; };
 		ED753319985B448BAE38297D /* DroppedFileRoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DroppedFileRoutingTests.swift; sourceTree = "<group>"; };
 		D99545779F1740D98B000C30 /* ISO8601DecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ISO8601DecodingTests.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6A7B8C9D0E1F2 /* MastodonOAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonOAuth.swift; sourceTree = "<group>"; };
@@ -501,6 +505,8 @@
 				387E3CA89E67464486E85CCC /* SpikeNotifierTests.swift */,
 				1795729F69DD454EBD2ECDFC /* RateParsingTests.swift */,
 				E5A3C1CF7C7A45D09C4FD2C9 /* MockURLSessionTests.swift */,
+				7E6758D8D65A4551938765BC /* FixtureRedactionTests.swift */,
+				EB1B1117738D4EC2B4085CB3 /* LinkedInRealExportTests.swift */,
 				ED753319985B448BAE38297D /* DroppedFileRoutingTests.swift */,
 				D99545779F1740D98B000C30 /* ISO8601DecodingTests.swift */,
 				D2505C743A6696B343E4774E /* SubstackImporterTests.swift */,
@@ -760,6 +766,8 @@
 				422D0B9930444F0D866F235D /* SpikeNotifierTests.swift in Sources */,
 				FE2D827788724FA9A4768B92 /* RateParsingTests.swift in Sources */,
 				972A1EE96F744FFBA1A6C0C9 /* MockURLSessionTests.swift in Sources */,
+				D217FD4C0CAE4ECFBBA0872C /* FixtureRedactionTests.swift in Sources */,
+				634E91845BC84854B1C9F9C9 /* LinkedInRealExportTests.swift in Sources */,
 				B3DFA2B918464027804E414C /* DroppedFileRoutingTests.swift in Sources */,
 				92F2BBD0283D4563B9E3F4FB /* ISO8601DecodingTests.swift in Sources */,
 				07EB2774970E7FDB3EAC6E83 /* SubstackImporterTests.swift in Sources */,
