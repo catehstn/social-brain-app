@@ -160,6 +160,24 @@ Filing an issue is not finished until it carries these:
 | Milestone | **Always**, unless genuinely un-schedulable. `M1 — Runnable again`, `M2 — Design pass`, `M3 — Ship`. |
 | `blocked` | **Only if** waiting on something outside this repo. Then it gets no milestone. |
 
+## Test fixtures from real data
+
+**Redact by whitelist, never by blacklist.** A string in a checked-in fixture
+survives only if a parser reads it, or is a date or a number. Everything else is
+replaced.
+
+This is not a style preference. A "redacted" LinkedIn export in this repo was
+built the other way — replace digits, replace dates, replace the one name I
+thought of — and shipped to a public repo carrying 49 post URLs, two demographics
+tables naming employers, job titles, seniority and locations, and the account
+name in `docProps/core.xml`, a file the redaction never opened. Checking it meant
+grepping for the name, which the blacklist *had* removed: it verified the rule
+had run, not that the file was safe.
+
+`FixtureRedactionTests` enforces this on every `.xlsx` in `SocialBrainTests/
+Fixtures/`, across every XML part rather than just `sharedStrings`. Adding a
+string to its allowlist is a deliberate act; that is the point.
+
 ## Living docs
 
 **Doc updates go in the same PR as the code change, never a follow-up.**
