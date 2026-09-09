@@ -11,9 +11,9 @@ import Foundation
 /// never has that shape.
 ///
 /// The fixture keeps LinkedIn's structure — sheet names and order, cell types,
-/// styles, the `<si>` layout, the dates — and redacts content by whitelist: a
+/// styles, the `<si>` layout, the dates — and redacts content by allowlist: a
 /// string survives only if the parser reads it, or is a date. See
-/// `Fixtures/README.md`, which records why it is a whitelist.
+/// `Fixtures/README.md`, which records why it is a allowlist.
 @Suite("LinkedIn real export")
 struct LinkedInRealExportTests {
 

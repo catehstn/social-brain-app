@@ -5,12 +5,12 @@
 A real LinkedIn **Aggregate Analytics** export, redacted.
 
 Captured from `linkedin.com/analytics/creator/content → Export`, then redacted by
-**whitelist**: a string survives only if the parser reads it (`Impressions`,
+**allowlist**: a string survives only if the parser reads it (`Impressions`,
 `Members reached`, `Date`, `Engagements`, `New followers`, the
 `Total followers on …` header) or is a date. Numbers become synthetic ones.
 Everything else — including `docProps` — becomes `redacted`.
 
-A whitelist because the first attempt was a blacklist, replacing digits, dates
+A allowlist because the first attempt was a denylist, replacing digits, dates
 and the literal account name. It let **49 LinkedIn post URLs** through, with
 slugs naming the posts, plus the audience-location rows and the account name in
 `docProps/core.xml`. Redacting what you expect to be present is not the same as

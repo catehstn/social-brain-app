@@ -162,7 +162,7 @@ Filing an issue is not finished until it carries these:
 
 ## Test fixtures from real data
 
-**Redact by whitelist, never by blacklist.** A string in a checked-in fixture
+**Redact by allowlist, never by denylist.** A string in a checked-in fixture
 survives only if a parser reads it, or is a date or a number. Everything else is
 replaced.
 
@@ -171,7 +171,7 @@ built the other way — replace digits, replace dates, replace the one name I
 thought of — and shipped to a public repo carrying 49 post URLs, two demographics
 tables naming employers, job titles, seniority and locations, and the account
 name in `docProps/core.xml`, a file the redaction never opened. Checking it meant
-grepping for the name, which the blacklist *had* removed: it verified the rule
+grepping for the name, which the denylist *had* removed: it verified the rule
 had run, not that the file was safe.
 
 `FixtureRedactionTests` enforces this on every `.xlsx` in `SocialBrainTests/

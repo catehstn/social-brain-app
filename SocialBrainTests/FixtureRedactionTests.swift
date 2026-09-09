@@ -6,7 +6,7 @@ import Foundation
 /// This exists because a fixture in this directory shipped to a public repo
 /// holding 49 LinkedIn post URLs, two demographics tables naming employers, job
 /// titles, seniority and locations, and the account name in `docProps`. It had
-/// been "redacted" by a blacklist: replace digits, replace dates, replace the
+/// been "redacted" by a denylist: replace digits, replace dates, replace the
 /// one name I thought of. Everything I had not thought of went through.
 ///
 /// So the rule is inverted here, and enforced rather than remembered. A string
@@ -59,7 +59,7 @@ struct FixtureRedactionTests {
                     Issue.record("""
                         Unredacted text in \(file.lastPathComponent) → \(name):
                           \(value.prefix(120))
-                        Fixtures are redacted by whitelist. If this string is one a
+                        Fixtures are redacted by allowlist. If this string is one a
                         parser genuinely reads, add it to `allowedText` on purpose.
                         """)
                 }
@@ -69,7 +69,7 @@ struct FixtureRedactionTests {
 
     @Test("No fixture contains anything shaped like a link or an address")
     func fixturesCarryNoIdentifiers() throws {
-        // A second, blunter net. The whitelist above is the real guard; this
+        // A second, blunter net. The allowlist above is the real guard; this
         // catches a URL or email smuggled inside something that passes it, and
         // says so in terms a reader recognises immediately.
         let files = try FileManager.default
