@@ -29,33 +29,76 @@ struct FixtureRedactionTests {
         "Discovery", "Engagement", "Followers"
     ]
 
-    private func isAllowed(_ text: String) -> Bool {
+    /// Attribute values that are structure rather than content: relationship
+    /// ids, cell references, MIME types, schema URLs, the sheet names LinkedIn
+    /// writes, and the handful of literals OOXML requires.
+    ///
+    /// Enumerated rather than skipped, because `<sheet name="…">` is an
+    /// attribute and a perfectly good place to hide a name — a mutant that did
+    /// exactly that passed the previous version of this test.
+    private static func isStructural(_ value: String, partNames: Set<String>) -> Bool {
+        // Relationship targets name other parts of this same archive. Checked
+        // against the parts actually present rather than a path pattern, so a
+        // file *named* after a person would still be caught.
+        // Targets are relative to the referring part's directory, so
+        // `worksheets/sheet1.xml` names `xl/worksheets/sheet1.xml`.
+        let bare = String(value.drop(while: { $0 == "/" }))
+        if partNames.contains(bare) { return true }
+        if !bare.isEmpty, partNames.contains(where: { $0.hasSuffix("/" + bare) || $0 == bare }) {
+            return true
+        }
+        let structuralSheets: Set<String> = [
+            "DISCOVERY", "ENGAGEMENT", "TOP POSTS", "FOLLOWERS",
+            "AUDIENCE DEMOGRAPHICS", "CONTENT DEMOGRAPHICS", "DEMOGRAPHICS"
+        ]
+        if structuralSheets.contains(value) { return true }
+        if value.hasPrefix("http://schemas.") || value.hasPrefix("http://purl.org")
+            || value.hasPrefix("http://www.w3.org") { return true }
+        if value.hasPrefix("application/") || value.hasPrefix("/xl/") || value.hasPrefix("/docProps/") {
+            return true
+        }
+        // rId3, A1, B2:C99, "1", "0", "true", "Calibri", "s", "n", …
+        if value.wholeMatch(of: /rId\d+/) != nil { return true }
+        if value.wholeMatch(of: /[A-Z]{1,3}\d{1,7}(:[A-Z]{1,3}\d{1,7})?/) != nil { return true }
+        if value.wholeMatch(of: /[-\d.]+/) != nil { return true }
+        if ["true", "false", "s", "n", "str", "inlineStr", "b", "e", "d",
+            "Calibri", "none", "1.0", "UTF-8", "yes",
+            // Extensions declared in [Content_Types].xml, and the library
+            // LinkedIn writes the file with. Named here rather than skipped,
+            // so that part is inspected rather than exempt — reading it at all
+            // is new: `unzip -p` treated the bracketed name as a glob and
+            // matched nothing.
+            "rels", "xml", "Apache POI",
+            // The whole non-numeric vocabulary of styles.xml, enumerated rather
+            // than exempting the part. Six values, and if a seventh appears
+            // this test says so — which is the behaviour wanted from a file
+            // that should never carry content.
+            "darkGray", "left", "minor", "major"].contains(value) { return true }
+        return false
+    }
+
+    private func isAllowed(_ text: String, partNames: Set<String>) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if Self.allowedText.contains(trimmed) { return true }
+        if Self.isStructural(trimmed, partNames: partNames) { return true }
         if trimmed.wholeMatch(of: /\d{1,2}\/\d{1,2}\/\d{4}/) != nil { return true }
-        if trimmed.wholeMatch(of: /\d+(\.\d+)?/) != nil { return true }
         if trimmed.wholeMatch(of: /Total followers on \d{1,2}\/\d{1,2}\/\d{4}/) != nil { return true }
         return false
     }
 
     @Test("Every string in every .xlsx fixture is one we deliberately kept")
     func fixturesCarryNoRealText() throws {
-        let files = try FileManager.default
-            .contentsOfDirectory(at: fixturesDirectory, includingPropertiesForKeys: nil)
-            .filter { $0.pathExtension == "xlsx" }
-
-        // Fails rather than skips when the directory is empty: a guard that
-        // quietly checks nothing is how the original problem got through.
-        #expect(!files.isEmpty, "no .xlsx fixtures found — is the path still right?")
-
+        let files = try xlsxFixtures()
         for file in files {
-            let parts = try Self.zipEntries(in: try Data(contentsOf: file))
-
-            // Not just sharedStrings. docProps/core.xml is where the account
-            // name survived, and it was never looked at.
-            for (name, contents) in parts where name.hasSuffix(".xml") {
-                let text = String(decoding: contents, as: UTF8.self)
-                for value in Self.textNodes(in: text) where !isAllowed(value) {
+            let parts = try Self.unpack(file)
+            let partNames = Set(parts.map(\.name))
+            for (name, contents) in parts {
+                guard name.hasSuffix(".xml") || name.hasSuffix(".rels") else {
+                    Issue.record("\(file.lastPathComponent) contains a non-XML part: \(name)")
+                    continue
+                }
+                for value in try Self.textAndAttributes(in: contents)
+                where !isAllowed(value, partNames: partNames) {
                     Issue.record("""
                         Unredacted text in \(file.lastPathComponent) → \(name):
                           \(value.prefix(120))
@@ -70,79 +113,128 @@ struct FixtureRedactionTests {
     @Test("No fixture contains anything shaped like a link or an address")
     func fixturesCarryNoIdentifiers() throws {
         // A second, blunter net. The allowlist above is the real guard; this
-        // catches a URL or email smuggled inside something that passes it, and
-        // says so in terms a reader recognises immediately.
-        let files = try FileManager.default
-            .contentsOfDirectory(at: fixturesDirectory, includingPropertiesForKeys: nil)
-            .filter { $0.pathExtension == "xlsx" }
-
-        for file in files {
-            for (name, contents) in try Self.zipEntries(in: try Data(contentsOf: file)) {
+        // catches an identifier smuggled inside something that passes it, and
+        // names it in terms a reader recognises at once.
+        for file in try xlsxFixtures() {
+            for (name, contents) in try Self.unpack(file) {
                 let text = String(decoding: contents, as: UTF8.self)
-                // Schema URLs are unavoidable in OOXML and are not identifiers.
-                let stripped = text.replacingOccurrences(
-                    of: "http://schemas.openxmlformats.org", with: "")
+                    .replacingOccurrences(of: "http://schemas.openxmlformats.org", with: "")
                     .replacingOccurrences(of: "http://purl.org", with: "")
                     .replacingOccurrences(of: "http://www.w3.org", with: "")
                 for needle in ["http://", "https://", "@", "linkedin.com"] {
-                    #expect(!stripped.contains(needle),
+                    #expect(!text.contains(needle),
                             "\(file.lastPathComponent) → \(name) contains \(needle)")
                 }
             }
         }
     }
 
-    // MARK: - Minimal reading of the archive
-
-    private static func textNodes(in xml: String) -> [String] {
-        var values: [String] = []
-        for tag in ["t", "dc:title", "dc:creator", "dc:subject", "dc:description", "cp:keywords"] {
-            var search = xml[...]
-            while let open = search.range(of: "<\(tag)"),
-                  let gt = search[open.upperBound...].firstIndex(of: ">") {
-                // A self-closing `<t/>` has no closing tag. Skipping the check
-                // here would make the scan run to the *next* element's `</t>`
-                // and report a span across two entries as one unredacted
-                // string — which is exactly what it did on first run.
-                guard search[search.index(before: gt)] != "/" else {
-                    search = search[search.index(after: gt)...]
-                    continue
-                }
-                guard let close = search.range(of: "</\(tag)>", range: gt..<search.endIndex) else { break }
-                values.append(String(search[search.index(after: gt)..<close.lowerBound]))
-                search = search[close.upperBound...]
-            }
-        }
-        return values
+    /// Fails rather than skips when there is nothing to check: a guard that
+    /// quietly inspects nothing is how the original problem got through.
+    private func xlsxFixtures() throws -> [URL] {
+        let files = try FileManager.default
+            .contentsOfDirectory(at: fixturesDirectory, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "xlsx" }
+        try #require(!files.isEmpty, "no .xlsx fixtures found — is the path still right?")
+        return files
     }
 
-    /// Reads the archive with `unzip`, so this test needs no ZIP implementation
-    /// of its own and cannot inherit a bug from the one under test.
-    private static func zipEntries(in data: Data) throws -> [(String, Data)] {
-        let temp = FileManager.default.temporaryDirectory
-            .appendingPathComponent("fixture-\(UUID().uuidString).xlsx")
-        try data.write(to: temp)
-        defer { try? FileManager.default.removeItem(at: temp) }
+    // MARK: - Reading the archive
 
-        let listing = try run(["/usr/bin/unzip", "-Z1", temp.path])
+    /// Every text node and every attribute value in the document.
+    ///
+    /// Parsed with `XMLDocument` rather than scanned by hand. The first version
+    /// of this walked the markup with string ranges against a fixed list of six
+    /// tag names, and a review found it silently green for a name in
+    /// `cp:lastModifiedBy`, in `<Company>`, in `<Manager>`, in an XML comment,
+    /// and in a `<sheet name=…>` attribute — because those were not on the list
+    /// and attributes were never read at all. A guard that inspects only what
+    /// its author enumerated is the same mistake as redacting by denylist, one
+    /// level up.
+    ///
+    /// `XMLDocument` is Foundation, not the ZIP or spreadsheet code under test,
+    /// so this cannot inherit a bug from what it is guarding.
+    private static func textAndAttributes(in xml: Data) throws -> [String] {
+        let document = try XMLDocument(data: xml, options: [.nodeLoadExternalEntitiesNever])
+        var found: [String] = []
+
+        func walk(_ node: XMLNode) {
+            if let element = node as? XMLElement {
+                for attribute in element.attributes ?? [] {
+                    if let value = attribute.stringValue { found.append(value) }
+                }
+            }
+            // Comments and processing instructions carry text too, and a name
+            // in a comment is a name.
+            if node.kind == .text || node.kind == .comment || node.kind == .processingInstruction,
+               let value = node.stringValue {
+                found.append(value)
+            }
+            for child in node.children ?? [] { walk(child) }
+        }
+        // From the document, not its root element: a comment before `<sst` is a
+        // top-level child and would otherwise never be visited. A name in a
+        // comment is a name.
+        walk(document)
+        return found
+    }
+
+    /// Unpacks the archive to a directory and returns every file in it.
+    ///
+    /// `unzip -d`, not `unzip -p <name>`: entry names are treated as *glob
+    /// patterns* by the latter, so `[Content_Types].xml` reads as a character
+    /// class and matches nothing. That part was never inspected at all.
+    ///
+    /// The exit status is checked, which it previously was not — a file that is
+    /// not a zip produced no entries, both loops iterated zero times, and the
+    /// suite went green. A guard that quietly checks nothing is worse than none.
+    private static func unpack(_ file: URL) throws -> [(name: String, contents: Data)] {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("fixture-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let status = try run(["/usr/bin/unzip", "-q", "-o", file.path, "-d", directory.path])
+        guard status == 0 else {
+            throw FixtureError.notReadable(file.lastPathComponent, status: status)
+        }
+
+        guard let walker = FileManager.default.enumerator(
+            at: directory, includingPropertiesForKeys: [.isRegularFileKey])
+        else { throw FixtureError.notReadable(file.lastPathComponent, status: -1) }
+
         var entries: [(String, Data)] = []
-        for name in String(decoding: listing, as: UTF8.self)
-            .split(separator: "\n").map(String.init) where !name.hasSuffix("/") {
-            entries.append((name, try run(["/usr/bin/unzip", "-p", temp.path, name])))
+        for case let url as URL in walker {
+            guard (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true
+            else { continue }
+            let name = url.path.replacingOccurrences(of: directory.path + "/", with: "")
+            entries.append((name, try Data(contentsOf: url)))
+        }
+        guard !entries.isEmpty else {
+            throw FixtureError.notReadable(file.lastPathComponent, status: 0)
         }
         return entries
     }
 
-    private static func run(_ arguments: [String]) throws -> Data {
+    enum FixtureError: Error, CustomStringConvertible {
+        case notReadable(String, status: Int32)
+        var description: String {
+            switch self {
+            case let .notReadable(name, status):
+                "\(name) could not be unpacked (unzip exit \(status)). A fixture that "
+                + "cannot be read must fail, not silently pass an empty check."
+            }
+        }
+    }
+
+    @discardableResult
+    private static func run(_ arguments: [String]) throws -> Int32 {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: arguments[0])
         process.arguments = Array(arguments.dropFirst())
-        let pipe = Pipe()
-        process.standardOutput = pipe
+        process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         try process.run()
-        let out = pipe.fileHandleForReading.readDataToEndOfFile()
         process.waitUntilExit()
-        return out
+        return process.terminationStatus
     }
 }
