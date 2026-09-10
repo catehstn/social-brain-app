@@ -140,6 +140,73 @@ struct KeychainStore: Sendable {
 
     // MARK: - Bulk delete
 
+    /// Every account name stored under this service.
+    ///
+    /// The rest of this type takes a `Platform` and builds the key from it, so
+    /// there was no way to ask what is *actually* in the Keychain — and that is
+    /// the question that matters after a platform is retired. Removing
+    /// `Platform.vercel` in #116 and `Platform.amazon` in #149 left their
+    /// credentials stored under keys nothing can now name, so the app could
+    /// neither show them nor delete them (#118).
+    ///
+    /// Returns raw account strings rather than `PlatformInstance` values,
+    /// because the whole point is the ones that no longer parse as a platform.
+    func storedAccounts() throws -> [String] {
+        let query: [CFString: Any] = [
+            kSecClass:            kSecClassGenericPassword,
+            kSecAttrService:      service,
+            kSecMatchLimit:       kSecMatchLimitAll,
+            kSecReturnAttributes: true
+        ]
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound { return [] }
+        guard status == errSecSuccess else { throw KeychainError.unexpectedStatus(status) }
+        guard let items = result as? [[CFString: Any]] else { return [] }
+        return items.compactMap { $0[kSecAttrAccount] as? String }.sorted()
+    }
+
+    /// Saves under a raw account name.
+    ///
+    /// **Never called in production**, the same warning `deleteAll()` carries:
+    /// the app always goes through `save(_:for:)`, which builds the key from a
+    /// `Platform`. This exists so a test can write an item the way an older
+    /// build did — under a platform the enum no longer has, or under the bare
+    /// platform name from before multi-instance — which is otherwise impossible
+    /// to construct.
+    func saveRaw(_ credentials: Credentials, account: String) throws {
+        let data = try JSONSerialization.data(withJSONObject: credentials.values)
+        let query: [CFString: Any] = [
+            kSecClass:          kSecClassGenericPassword,
+            kSecAttrService:    service,
+            kSecAttrAccount:    account,
+            kSecValueData:      data,
+            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+        ]
+        SecItemDelete(query as CFDictionary)
+        let status = SecItemAdd(query as CFDictionary, nil)
+        guard status == errSecSuccess else { throw KeychainError.unexpectedStatus(status) }
+    }
+
+    /// Deletes one stored item by its raw account name.
+    ///
+    /// Deliberately separate from `delete(for:)`, which requires a `Platform`
+    /// and therefore cannot address an orphan at all. Nothing calls this
+    /// automatically: an orphaned credential is deleted only when the user asks,
+    /// because the token also has to be revoked at the provider and the app
+    /// cannot do that — removing it quietly would hide the half that matters.
+    func deleteAccount(_ account: String) throws {
+        let query: [CFString: Any] = [
+            kSecClass:       kSecClassGenericPassword,
+            kSecAttrService: service,
+            kSecAttrAccount: account
+        ]
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw KeychainError.unexpectedStatus(status)
+        }
+    }
+
     /// Removes every item under this store's service.
     ///
     /// Exists so tests can sweep their own service in teardown. Deleting
@@ -148,13 +215,14 @@ struct KeychainStore: Sendable {
     /// Safe on the production store only in the sense that it is never called
     /// there — it would delete all of the user's credentials.
     func deleteAll() throws {
-        let query: [CFString: Any] = [
-            kSecClass:       kSecClassGenericPassword,
-            kSecAttrService: service
-        ]
-        let status = SecItemDelete(query as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else {
-            throw KeychainError.unexpectedStatus(status)
+        // One call per item. `SecItemDelete` with only a service in the query
+        // removes a *single* match on the file-based keychain, not every match
+        // — so this used to delete one item and report success, and
+        // `ScratchKeychain`'s cleanup left the rest in the developer's real
+        // login Keychain. That is audit item 1's exact failure mode, and it
+        // only started biting when a test first used the `withStore` helper.
+        for account in try storedAccounts() {
+            try deleteAccount(account)
         }
     }
 }

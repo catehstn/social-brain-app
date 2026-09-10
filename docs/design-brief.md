@@ -106,9 +106,11 @@ This is the chart-heavy screen. Not the home briefing.
 
 ### Settings *(macOS Prefs window)*
 
-*Not built. `SettingsView` currently has only the goal display, a read-only list
-of configured platforms, and "Re-run Wizard". The controls below are proposed —
-see [#92](https://github.com/catehstn/social-brain-app/issues/92).*
+*Mostly not built. `SettingsView` has the goal display, a read-only list of
+configured platforms, "Re-run Wizard", and — when there are any — a list of
+credentials left behind by a retired platform, with a link to revoke the token at
+its provider (#118). The controls below are proposed — see
+[#92](https://github.com/catehstn/social-brain-app/issues/92).*
 
 - Data location (default `~/Library/Containers/com.catehuston.SocialBrain/Data/Library/Application Support/SocialBrain/` — the app is sandboxed).
 - Auto-refresh: on/off + time-of-day picker (uses `NSBackgroundActivityScheduler`).
