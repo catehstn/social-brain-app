@@ -272,12 +272,26 @@ private struct Update: Decodable {
     }
 
     init(from decoder: Decoder) throws {
-        let c    = try decoder.container(keyedBy: CodingKeys.self)
-        id         = try c.decode(String.self, forKey: .id)
-        // Buffer returns sent_at as a Unix timestamp integer, when it is present.
-        sentAt = (try? c.decode(Double.self, forKey: .sentAt))
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+
+        // `decodeIfPresent`, not `try?`. Both yield nil for an absent key, which
+        // is the case that matters — a pending post carries no `sent_at`. They
+        // differ on a key that is present but the *wrong type*: `try?` swallows
+        // that too, so if Buffer ever sent `sent_at` as a string, every post
+        // would silently fall outside the `since` window and `sent_updates`
+        // would report 0. Zero is a plausible answer for a quiet month, which is
+        // why nobody would notice (#133).
+        //
+        // Buffer returns it as a Unix timestamp, when present.
+        sentAt = try c.decodeIfPresent(Double.self, forKey: .sentAt)
             .map(Date.init(timeIntervalSince1970:))
-        statistics = try? c.decode(UpdateStats.self, forKey: .statistics)
+
+        // Same reasoning, wider blast radius: one malformed field used to nil
+        // the whole block, and the sums downstream then contributed nothing —
+        // so clicks, reach and likes all read zero while `sent_updates` looked
+        // healthy.
+        statistics = try c.decodeIfPresent(UpdateStats.self, forKey: .statistics)
     }
 }
 
