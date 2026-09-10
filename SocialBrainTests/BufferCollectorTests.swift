@@ -191,6 +191,75 @@ struct BufferCollectorTests {
         #expect(data.stringMetric("posts_sampled") != nil)
     }
 
+    // MARK: - Decode errors must not become zeros
+
+    private func sessionWithSent(_ p1: String) -> MockURLSession {
+        MockURLSession([
+            "/1/profiles.json": (Self.profilesJSON, 200),
+            "/1/profiles/p1/updates/sent.json": (p1, 200),
+            "/1/profiles/p2/updates/sent.json": (Self.sentP2JSON, 200),
+            "/1/profiles/p1/updates/pending.json": (Self.pendingJSON, 200),
+            "/1/profiles/p2/updates/pending.json": (Self.pendingJSON, 200)
+        ])
+    }
+
+    @Test("A sent_at of the wrong type is an error, not a post outside the window")
+    func wrongTypedSentAtIsAnError() async throws {
+        // `try?` could not tell "absent" from "wrong type". Absent is normal —
+        // a pending post has no sent_at — but wrong type meant every post
+        // silently fell outside the `since` window and sent_updates reported 0,
+        // which reads as a quiet month rather than a broken decode (#133).
+        let session = sessionWithSent("""
+            {"updates":[{"id":"u1","sent_at":"1767312000",
+             "statistics":{"clicks":9,"reach":10,"likes":1}}]}
+            """)
+        await #expect(throws: CollectorError.self) {
+            try await BufferCollector(session: session).collect(
+                since: Date(timeIntervalSince1970: 1_767_225_600), credentials: credentials)
+        }
+    }
+
+    @Test("A malformed statistics block is an error, not three zeros")
+    func malformedStatisticsIsAnError() async throws {
+        // One bad field used to nil the whole block, and the sums downstream
+        // contributed nothing — so clicks, reach and likes all read zero while
+        // sent_updates looked healthy. The worst shape: nothing about the
+        // output signals a problem.
+        let session = sessionWithSent("""
+            {"updates":[{"id":"u1","sent_at":1767312000,
+             "statistics":{"clicks":"9","reach":10,"likes":1}}]}
+            """)
+        await #expect(throws: CollectorError.self) {
+            try await BufferCollector(session: session).collect(
+                since: nil, credentials: credentials)
+        }
+    }
+
+    @Test("A pending post with no sent_at still decodes")
+    func absentSentAtIsStillFine() async throws {
+        // The behaviour #115 fixed, and the reason `sentAt` is optional at all.
+        // Tightening the decode must not undo it: pending.json has no sent_at
+        // on any row, and scheduled_updates has to keep counting.
+        let session = makeSession()
+        let data = try await BufferCollector(session: session)
+            .collect(since: nil, credentials: credentials)
+        #expect(data.metrics["scheduled_updates"] == .int(6))
+    }
+
+    @Test("A post with no statistics at all still decodes")
+    func absentStatisticsIsStillFine() async throws {
+        // Absent is legitimate — a post can have no stats yet — and must stay
+        // distinguishable from malformed.
+        let session = sessionWithSent("""
+            {"updates":[{"id":"u1","sent_at":1767312000}]}
+            """)
+        let data = try await BufferCollector(session: session)
+            .collect(since: nil, credentials: credentials)
+        #expect(data.metrics["sent_updates"] == .int(2))
+        // p2's single post contributes; p1's contributes nothing but is counted.
+        #expect(data.metrics["total_clicks"] == .int(7))
+    }
+
     @Test("Names the top profiles by sent count, most first")
     func namesTopProfiles() async throws {
         // The profiles send different counts on purpose. With both on two the
