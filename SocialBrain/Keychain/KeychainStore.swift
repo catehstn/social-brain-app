@@ -140,13 +140,6 @@ struct KeychainStore: Sendable {
 
     // MARK: - Bulk delete
 
-    /// Removes every item under this store's service.
-    ///
-    /// Exists so tests can sweep their own service in teardown. Deleting
-    /// per-account can't recover from a crash between save and cleanup, and an
-    /// orphaned item is unfindable without knowing its exact service name.
-    /// Safe on the production store only in the sense that it is never called
-    /// there — it would delete all of the user's credentials.
     /// Every account name stored under this service.
     ///
     /// The rest of this type takes a `Platform` and builds the key from it, so
@@ -175,10 +168,12 @@ struct KeychainStore: Sendable {
 
     /// Saves under a raw account name.
     ///
-    /// Internal and test-only in practice: production always goes through
-    /// `save(_:for:)`, which builds the key from a `Platform`. This exists so a
-    /// test can write an item the way an older build did — under a platform the
-    /// enum no longer has — which is otherwise impossible to construct.
+    /// **Never called in production**, the same warning `deleteAll()` carries:
+    /// the app always goes through `save(_:for:)`, which builds the key from a
+    /// `Platform`. This exists so a test can write an item the way an older
+    /// build did — under a platform the enum no longer has, or under the bare
+    /// platform name from before multi-instance — which is otherwise impossible
+    /// to construct.
     func saveRaw(_ credentials: Credentials, account: String) throws {
         let data = try JSONSerialization.data(withJSONObject: credentials.values)
         let query: [CFString: Any] = [
@@ -212,14 +207,22 @@ struct KeychainStore: Sendable {
         }
     }
 
+    /// Removes every item under this store's service.
+    ///
+    /// Exists so tests can sweep their own service in teardown. Deleting
+    /// per-account can't recover from a crash between save and cleanup, and an
+    /// orphaned item is unfindable without knowing its exact service name.
+    /// Safe on the production store only in the sense that it is never called
+    /// there — it would delete all of the user's credentials.
     func deleteAll() throws {
-        let query: [CFString: Any] = [
-            kSecClass:       kSecClassGenericPassword,
-            kSecAttrService: service
-        ]
-        let status = SecItemDelete(query as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else {
-            throw KeychainError.unexpectedStatus(status)
+        // One call per item. `SecItemDelete` with only a service in the query
+        // removes a *single* match on the file-based keychain, not every match
+        // — so this used to delete one item and report success, and
+        // `ScratchKeychain`'s cleanup left the rest in the developer's real
+        // login Keychain. That is audit item 1's exact failure mode, and it
+        // only started biting when a test first used the `withStore` helper.
+        for account in try storedAccounts() {
+            try deleteAccount(account)
         }
     }
 }

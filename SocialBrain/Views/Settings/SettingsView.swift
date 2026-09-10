@@ -4,6 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     @State private var configured: [Platform] = []
     @State private var orphaned: [OrphanedCredential] = []
+    @State private var removalError: String?
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = true
     @AppStorage("analyticsGoal") private var goalRaw: String = AnalyticsGoal.growReach.rawValue
     @AppStorage("analyticsGoalCustomText") private var goalCustomText: String = ""
@@ -97,6 +98,12 @@ struct SettingsView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
+            if let removalError {
+                Text(removalError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
             ForEach(orphaned) { credential in
                 HStack {
                     Text(credential.displayName)
@@ -114,7 +121,17 @@ struct SettingsView: View {
     }
 
     private func remove(_ credential: OrphanedCredential) {
-        try? KeychainStore.shared.deleteAccount(credential.id)
+        // Not `try?`. If the Keychain refuses — locked, an ACL denial,
+        // errSecInteractionNotAllowed — swallowing it made the row disappear
+        // anyway, because `reload()` below also falls back to an empty list on
+        // failure. On the one screen whose purpose is telling the user the truth
+        // about a live token, "it looks like it worked" is the wrong answer.
+        do {
+            try KeychainStore.shared.deleteAccount(credential.id)
+            removalError = nil
+        } catch {
+            removalError = "Could not remove \(credential.displayName): \(error.localizedDescription)"
+        }
         reload()
     }
 

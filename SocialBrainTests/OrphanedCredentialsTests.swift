@@ -42,9 +42,29 @@ struct OrphanedCredentialsTests {
         #expect(found.first?.instanceName == "team:prod")
     }
 
-    @Test("An account with no separator is ignored rather than half-parsed")
-    func malformedAccountsAreIgnored() {
-        #expect(OrphanedCredentials.find(in: ["nonsense", ""]).isEmpty)
+    @Test("A key written before multi-instance is still an orphan")
+    func preMultiInstanceKeysAreFound() {
+        // Credentials used to be stored under the bare platform name, with no
+        // colon, and no migration was ever written. So a Vercel token saved
+        // before that change is sitting under "vercel" — and it is the *likeliest*
+        // stranded key, because once multi-instance landed the app would have
+        // shown Vercel as unconfigured and prompted a re-save under the new
+        // format, leaving the old one behind.
+        //
+        // An earlier version of this suite asserted these were correctly
+        // ignored, which pinned the gap as intentional.
+        let found = OrphanedCredentials.find(in: ["vercel", "mastodon", "nonsense"])
+        #expect(found.map(\.id) == ["vercel", "nonsense"])
+        #expect(found.first?.instanceName == "default")
+        // A live platform's bare name is still not an orphan.
+        #expect(!found.contains { $0.platformName == "mastodon" })
+    }
+
+    @Test("An account with no platform part is ignored")
+    func emptyPlatformNamesAreIgnored() {
+        // ":default" and "" name nothing this app could have written, and would
+        // render a blank row with a Remove button.
+        #expect(OrphanedCredentials.find(in: ["", ":default"]).isEmpty)
     }
 
     @Test("A named instance reads differently from a default one")
@@ -95,6 +115,57 @@ struct OrphanedCredentialsTests {
             // The live credential is untouched.
             #expect(try store.storedAccounts() == ["mastodon:default"])
         }
+    }
+
+    @Test("Sweeping a store removes every item, not just one")
+    func deleteAllRemovesEverything() throws {
+        // SecItemDelete with only a service in the query removes a *single*
+        // match on the file-based keychain. deleteAll used to make one call and
+        // report success, so ScratchKeychain's teardown left items behind in the
+        // developer's real login Keychain — the failure audit item 1 records,
+        // reintroduced the moment a test first used `withStore`.
+        let store = ScratchKeychain.make()
+        for i in 0..<5 {
+            try store.saveRaw(Credentials(["k": "v"]), account: "retired\(i):default")
+        }
+        #expect(try store.storedAccounts().count == 5)
+        try store.deleteAll()
+        #expect(try store.storedAccounts().isEmpty)
+    }
+
+    @Test("A store with nothing in it reports nothing, rather than failing")
+    func emptyStoreIsNotAnError() throws {
+        // The ordinary case for anyone who has configured no platforms: the
+        // query returns errSecItemNotFound, which is an absence and not an error.
+        let store = ScratchKeychain.make()
+        #expect(try store.storedAccounts().isEmpty)
+    }
+
+    @Test("Accounts come back in a stable order")
+    func accountsAreSorted() throws {
+        try ScratchKeychain.withStore { store in
+            for name in ["zulu", "alpha", "mike"] {
+                try store.saveRaw(Credentials(["k": "v"]), account: "\(name):default")
+            }
+            #expect(try store.storedAccounts() == ["alpha:default", "mike:default", "zulu:default"])
+        }
+    }
+
+    @Test("Saving the same account twice replaces it rather than duplicating")
+    func saveRawOverwrites() throws {
+        try ScratchKeychain.withStore { store in
+            try store.saveRaw(Credentials(["k": "first"]), account: "vercel:default")
+            try store.saveRaw(Credentials(["k": "second"]), account: "vercel:default")
+            #expect(try store.storedAccounts() == ["vercel:default"])
+        }
+    }
+
+    @Test("An unknown platform has no revocation link rather than a guessed one")
+    func unknownPlatformsHaveNoLink() {
+        // Sending someone to a plausible-looking but wrong revocation page is
+        // worse than sending them nowhere.
+        let found = OrphanedCredentials.find(in: ["someservice:default"])
+        #expect(found.first?.revocationURL == nil)
     }
 
     @Test("Deleting an account that is not there is not an error")
