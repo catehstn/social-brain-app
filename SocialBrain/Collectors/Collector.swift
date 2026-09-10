@@ -116,9 +116,16 @@ extension DecodingError {
     /// `updates[3].sent_at`. Empty when the error is about the root value.
     ///
     /// Coding keys are schema names, not data, so this is safe to show a user
-    /// and to log `.public`. That holds only while nothing decodes a
-    /// `[String: T]`, where the keys *would* be data. Nothing does today; if
-    /// something starts to, this needs revisiting.
+    /// and to log `.public`. That holds only while nothing *reachable from
+    /// `decodeJSON`* decodes a `[String: T]`, where the keys would be data
+    /// rather than schema. Nothing reachable from here does today — though the
+    /// app does decode `[String: MetricValue]` elsewhere, from its own metrics
+    /// JSON, with a separate decoder that never lands in this path.
+    ///
+    /// If a response type ever gains a dictionary, this leaks twice over: the
+    /// payload key renders as a field name, and a *numeric* key renders as an
+    /// array index, because the stdlib's dictionary coding key sets `intValue`
+    /// from the string. Revisit this before adding one.
     var fieldPath: String {
         var path = context.codingPath
         // `keyNotFound` reports the path of the *container*, so the missing key

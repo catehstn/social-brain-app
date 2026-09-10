@@ -58,12 +58,28 @@ struct DecodeJSONTests {
         #expect(msg.contains("Int"))
     }
 
-    @Test("A missing key names the key that is missing, not its parent")
+    @Test("A missing key names the key that is missing")
     func namesTheMissingKey() throws {
-        // `keyNotFound` carries the *container's* coding path, so a naive
-        // rendering reports the parent and leaves the user hunting.
         let msg = try message(decoding: #"{"statistics":null}"#, as: Update.self)
-        #expect(msg.contains("id"))
+        #expect(msg.contains("'id'"))
+        #expect(msg.contains("missing"))
+    }
+
+    @Test("A missing key keeps the path of the container it is missing from")
+    func missingKeyKeepsItsContainerPath() throws {
+        // `keyNotFound` carries the *container's* coding path, not the missing
+        // key's, so the key has to be appended to it. Appending is only half of
+        // that: keeping the container path is the other half, and the case
+        // above cannot see it — `Update` sits at the root there, so the
+        // container path is empty and discarding it changes nothing.
+        //
+        // Getting this wrong reports `clicks`, which appears nowhere in the
+        // response, and says nothing about which of the updates it belongs to.
+        let msg = try message(
+            decoding: #"{"updates":[{"id":"a"},{"id":"b","statistics":{}}]}"#,
+            as: Envelope.self
+        )
+        #expect(msg.contains("updates[1].statistics.clicks"))
         #expect(msg.contains("missing"))
     }
 
@@ -84,7 +100,7 @@ struct DecodeJSONTests {
     @Test("An explicit null for a required field says so")
     func distinguishesNullFromAbsent() throws {
         let msg = try message(decoding: #"{"id":null}"#, as: Update.self)
-        #expect(msg.contains("id"))
+        #expect(msg.contains("'id'"))
         #expect(msg.contains("null"))
     }
 
