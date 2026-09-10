@@ -108,6 +108,63 @@ extension URLRequest {
     }
 }
 
+// MARK: - Decode failure detail
+
+extension DecodingError {
+
+    /// Which field the error is about, as a dotted path — `statistics.clicks`,
+    /// `updates[3].sent_at`. Empty when the error is about the root value.
+    ///
+    /// Coding keys are schema names, not data, so this is safe to show a user
+    /// and to log `.public`. That holds only while nothing decodes a
+    /// `[String: T]`, where the keys *would* be data. Nothing does today; if
+    /// something starts to, this needs revisiting.
+    var fieldPath: String {
+        var path = context.codingPath
+        // `keyNotFound` reports the path of the *container*, so the missing key
+        // itself has to be appended or the message names the parent.
+        if case .keyNotFound(let key, _) = self { path.append(key) }
+
+        return path.reduce(into: "") { result, key in
+            if let index = key.intValue {
+                result += "[\(index)]"
+            } else {
+                if !result.isEmpty { result += "." }
+                result += key.stringValue
+            }
+        }
+    }
+
+    /// What went wrong, built only from the error's structured fields — the type
+    /// expected and whether the key was absent. Never from `debugDescription`,
+    /// which can embed the offending *value*: `iso8601Flexible` in
+    /// `ISO8601Decoding.swift` writes the raw timestamp into it. That string is
+    /// for the log, at `.private`, not for a screen.
+    var expectation: String {
+        switch self {
+        case .typeMismatch(let type, _):  "expected \(type)"
+        case .valueNotFound(let type, _): "expected \(type), got null"
+        case .keyNotFound:                "missing"
+        case .dataCorrupted:              "not in the expected format"
+        @unknown default:                 "could not be decoded"
+        }
+    }
+
+    /// Foundation's own description of the failure. Useful, and unsafe to show:
+    /// it may contain the value that failed. Log it `.private`, never render it.
+    var debugDescriptionForLog: String { context.debugDescription }
+
+    private var context: Context {
+        switch self {
+        case .typeMismatch(_, let c), .valueNotFound(_, let c),
+             .keyNotFound(_, let c), .dataCorrupted(let c):
+            c
+        @unknown default:
+            Context(codingPath: [], debugDescription: "")
+        }
+    }
+}
+
 /// Decodes a JSON response, throwing `CollectorError` on HTTP errors or decode failures.
 func decodeJSON<T: Decodable>(
     _ type: T.Type,
@@ -148,6 +205,26 @@ func decodeJSON<T: Decodable>(
     }
     do {
         return try decoder.decode(type, from: data)
+    } catch let error as DecodingError {
+        // `error.localizedDescription` collapses every case to "The data
+        // couldn't be read because it isn't in the correct format" — naming
+        // neither the field nor the type expected, so a wrong-typed `sent_at`
+        // and a wrong-typed `statistics.clicks` are indistinguishable (#152).
+        //
+        // Same privacy split as the HTTP branch above: the field path is schema
+        // and goes out `.public`, the body and `debugDescription` are the
+        // response's own content and stay `.private`. `debugDescription` is
+        // private specifically because it can carry the offending value.
+        let field = error.fieldPath
+        collectorLog.error("""
+            Decode failed \(field.isEmpty ? "at the top level" : "at \(field)", privacy: .public): \
+            \(error.expectation, privacy: .public). \
+            \(error.debugDescriptionForLog, privacy: .private) \
+            Body: \(String(decoding: data, as: UTF8.self), privacy: .private)
+            """)
+        throw CollectorError.decodingError(
+            field.isEmpty ? error.expectation : "'\(field)' \(error.expectation)"
+        )
     } catch {
         throw CollectorError.decodingError(error.localizedDescription)
     }
