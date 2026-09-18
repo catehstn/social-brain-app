@@ -202,6 +202,55 @@ struct BlueskyCollectorTests {
         "username": "alice.bsky.social", "password": "app-pass"
     ])
 
+    @Test("Every feed page asks for posts without replies, at the page size it walks by")
+    func feedRequestsPostsWithoutReplies() async throws {
+        // `filter` changes *what is counted* without changing the shape of the
+        // result, so deleting it deflates every per-post average — replies get
+        // counted as posts — and nothing else looks wrong. SpikeDetector then
+        // reads the shift as a real change in engagement, which is the false
+        // alarm #120 spent two rounds removing. Same class as Mastodon's
+        // exclude_reblogs (#143).
+        //
+        // `posts_no_replies` is a knownValue of app.bsky.feed.getAuthorFeed's
+        // `filter` (atproto lexicon, checked 2026-09-18), and `limit` there
+        // accepts up to 100, so 50 is in range.
+        let (collector, session) = makeCollector([
+            .init(Self.feedPage(posts: 50, newest: Self.day(2026, 3, 28), cursor: "c1")),
+            .init(Self.feedPage(posts: 2, newest: Self.day(2026, 2, 6), cursor: nil))
+        ])
+        _ = try await collector.collect(
+            since: Self.day(2026, 1, 1), credentials: paginationCredentials
+        )
+
+        // Every page of the walk, not just the first: a filter dropped on page
+        // two would undercount exactly the pages nobody checks.
+        #expect(session.requests(path: Self.feedPath).count == 2)
+
+        let filters = session.queryValues("filter", path: Self.feedPath)
+        #expect(filters.count == 2)
+        #expect(filters.allSatisfy { $0 == "posts_no_replies" })
+
+        // The count assertion is the load-bearing half: allSatisfy is true of an
+        // empty array, so without it this pins a wrong value but not a missing
+        // one — and missing is the mutation #143 is about. It matters more here
+        // than it looks, because the lexicon's own default for `limit` is 50, so
+        // dropping the parameter changes nothing upstream. What it pins is the
+        // page size that maximumPages * pageSize truncation arithmetic assumes.
+        let limits = session.queryValues("limit", path: Self.feedPath)
+        #expect(limits.count == 2)
+        #expect(limits.allSatisfy { $0 == "50" })
+
+        // getProfile is scoped by `actor` too, and only the feed's was pinned.
+        // Follower counts for the wrong account look entirely plausible — the
+        // same argument that made #141 pin Calendly's `user`. Outside #143's
+        // table, but it is the one remaining unpinned scoping parameter in this
+        // collector and this is the test that would have caught it.
+        let profilePath = "/xrpc/app.bsky.actor.getProfile"
+        let profileActors = session.queryValues("actor", path: profilePath)
+        #expect(profileActors.count == session.requests(path: profilePath).count)
+        #expect(profileActors.allSatisfy { $0 == "did:plc:abc123" })
+    }
+
     @Test("Follows the cursor past the first page")
     func followsTheCursor() async throws {
         // One page of 50 was fetched and filtered, so any window holding more
