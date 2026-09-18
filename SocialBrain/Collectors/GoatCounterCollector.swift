@@ -75,11 +75,16 @@ struct GoatCounterCollector: Collector {
         baseURL: URL, apiKey: String, start: Date, end: Date
     ) async throws -> [PageHit] {
         var url = baseURL.appendingPathComponent("stats/hits")
+        // No `order` here, however much the call wants one: GoatCounter's API
+        // has no such parameter, and it rejects unknown query parameters rather
+        // than ignoring them, so sending it 400s the request and fails the whole
+        // collection (#154). The ordering is not lost — `stats/hits` is already
+        // sorted by count descending server-side, so `limit` alone returns the
+        // top pages. `GoatCounterCollectorTests` pins the allowed set.
         url.append(queryItems: [
             URLQueryItem(name: "start",  value: iso8601Date(start)),
             URLQueryItem(name: "end",    value: iso8601Date(end)),
-            URLQueryItem(name: "limit",  value: "5"),
-            URLQueryItem(name: "order",  value: "-count")
+            URLQueryItem(name: "limit",  value: "5")
         ])
         var req = URLRequest(url: url)
         req.setBearerToken(apiKey)
