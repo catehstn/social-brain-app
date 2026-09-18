@@ -231,9 +231,11 @@ struct MastodonCollectorTests {
             credentials: Credentials(["access_token": "t", "instance_url": "https://mastodon.social"])
         )
 
+        // Literal, not a self-comparison: "every page of the walk" is only
+        // self-enforcing if a regression to fetching one page fails here.
         let path = "/api/v1/accounts/109876543/statuses"
-        let requestCount = session.requests(path: path).count
-        #expect(requestCount >= 1)
+        let requestCount = 2
+        #expect(session.requests(path: path).count == requestCount)
 
         // Every page of the walk. A parameter dropped on page two would
         // miscount exactly the pages nobody inspects.

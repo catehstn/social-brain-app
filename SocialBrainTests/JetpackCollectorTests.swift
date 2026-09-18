@@ -142,11 +142,15 @@ struct JetpackCollectorTests {
     @Test("The window is requested in days, so quantity means days")
     func visitsAreRequestedInDays() async throws {
         // unit and quantity are read together: quantity=90 is ninety days,
-        // weeks, months or years depending on unit, and the rest of this suite
-        // — and views_window's wording — assumes days. Dropping unit changes
-        // the scale of the window silently, because the response shape is
-        // identical either way. This is the one parameter here that carries a
-        // unit (#143).
+        // weeks or months depending on unit, and the rest of this suite — and
+        // views_window's wording — assumes days.
+        //
+        // #143 says deleting `unit` silently changes the scale. It does not:
+        // the v1 reference documents `unit` as "One of: day, week or month
+        // Default: 'day'", so dropping it leaves the behaviour unchanged. (The
+        // v1.1 page 404s; JetpackCollector.maximumDays records the same.) What
+        // this pins is someone *changing* day to week, which would rescale the
+        // window with an identical response shape and no other test noticing.
         let mock = session
         _ = try await JetpackCollector(session: mock)
             .collect(since: Date().addingTimeInterval(-14 * 86_400), credentials: credentials)
