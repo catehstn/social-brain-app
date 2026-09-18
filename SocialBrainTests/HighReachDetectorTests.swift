@@ -5,6 +5,12 @@ import Foundation
 @Suite("High Reach Detector Tests")
 struct HighReachDetectorTests {
 
+    /// Nothing hidden, and backed by memory rather than UserDefaults.standard.
+    /// Without this the suite reads the developer's own hidden-platform
+    /// settings, so hiding LinkedIn in the real app would fail these tests
+    /// (#80) — the same non-hermeticity #127 fixed for the Keychain.
+    private let noneHidden = ScratchVisibility.make()
+
     // MARK: - Helpers
 
     private func makeSnapshot(
@@ -149,7 +155,7 @@ struct HighReachDetectorTests {
     func highReachCardInFeed() throws {
         let snap = try makeSnapshot(platform: .buttondown,
                                     metrics: ["avg_open_rate": .double(0.55)])
-        let cards = FeedCardBuilder.build(snapshots: [PlatformInstance(platform: .buttondown): snap])
+        let cards = FeedCardBuilder.build(snapshots: [PlatformInstance(platform: .buttondown): snap], visibility: noneHidden)
         let highReachCards = cards.filter { $0.cardType == .highReach }
         #expect(highReachCards.count == 1)
         #expect(highReachCards[0].platform == .buttondown)
@@ -168,8 +174,8 @@ struct HighReachDetectorTests {
         ])
         let cards = FeedCardBuilder.build(
             snapshots: [PlatformInstance(platform: .buttondown): curr],
-            previousSnapshots: [PlatformInstance(platform: .buttondown): prev]
-        )
+            previousSnapshots: [PlatformInstance(platform: .buttondown): prev],
+            visibility: noneHidden)
         // Both spike and high-reach are valid, but they should not both appear for the same platform
         let spikeCards = cards.filter { $0.cardType == .spikeAlert && $0.platform == .buttondown }
         let hrCards = cards.filter { $0.cardType == .highReach && $0.platform == .buttondown }

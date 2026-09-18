@@ -142,4 +142,62 @@ struct PlatformVisibilitySuite {
             #expect(store.isHidden(.buttondown) == false)
         }
     }
+    // MARK: - visible(_:) — the prompt half of #80
+
+    @Test("visible drops hidden platforms and keeps the rest")
+    func visibleFiltersHiddenPlatforms() throws {
+        // RunViewModel sends this dictionary to PromptAssembler. Before it was
+        // filtered, a platform the user had hidden was still being written into
+        // the prompt and sent to Claude.
+        let store = ScratchVisibility.make()
+        store.hide(.linkedin)
+
+        let payload = Data("{}".utf8)
+        let byInstance: [PlatformInstance: PlatformSnapshot] = [
+            PlatformInstance(platform: .linkedin):
+                PlatformSnapshot(runID: 1, platform: "linkedin",
+                                 collectedAt: Date(), metricsJSON: payload),
+            PlatformInstance(platform: .mastodon):
+                PlatformSnapshot(runID: 1, platform: "mastodon",
+                                 collectedAt: Date(), metricsJSON: payload)
+        ]
+
+        let visible = store.visible(byInstance)
+
+        #expect(visible.keys.map(\.platform) == [.mastodon])
+    }
+
+    @Test("Hiding a platform hides every instance of it, not just the default")
+    func visibleFiltersNamedInstancesToo() {
+        // Visibility is per platform, not per instance, so a second Mastodon
+        // account must go with the first. Filtering on the default instance
+        // alone is the mistake SettingsView still makes (#80).
+        let store = ScratchVisibility.make()
+        store.hide(.mastodon)
+
+        let payload = Data("{}".utf8)
+        let byInstance: [PlatformInstance: PlatformSnapshot] = [
+            PlatformInstance(platform: .mastodon):
+                PlatformSnapshot(runID: 1, platform: "mastodon",
+                                 collectedAt: Date(), metricsJSON: payload),
+            PlatformInstance(platform: .mastodon, instanceName: "second"):
+                PlatformSnapshot(runID: 1, platform: "mastodon", instanceName: "second",
+                                 collectedAt: Date(), metricsJSON: payload)
+        ]
+
+        #expect(store.visible(byInstance).isEmpty)
+    }
+
+    @Test("visible is a filter, not a clear — nothing hidden means nothing dropped")
+    func visibleKeepsEverythingWhenNothingHidden() {
+        let store = ScratchVisibility.make()
+        let payload = Data("{}".utf8)
+        let byInstance: [PlatformInstance: PlatformSnapshot] = [
+            PlatformInstance(platform: .mastodon):
+                PlatformSnapshot(runID: 1, platform: "mastodon",
+                                 collectedAt: Date(), metricsJSON: payload)
+        ]
+
+        #expect(store.visible(byInstance).count == 1)
+    }
 }

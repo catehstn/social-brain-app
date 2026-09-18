@@ -22,10 +22,16 @@ struct FeedCardBuilder {
     // NOTE: This function does NOT throw — all JSON decoding is done
     // with `try?` internally.  The signature is non-throwing so callers don't
     // need spurious `try` and tests don't need `throws`.
+    /// - Parameter visibility: consulted at the point of use. Hiding a platform
+    ///   used to change only the Platforms grid, so the feed went on nagging
+    ///   about a platform the user had said they don't use — worst of all for
+    ///   the stale-export reminders, whose whole message is "go and do
+    ///   something about this" (#80).
     static func build(
         snapshots: [PlatformInstance: PlatformSnapshot],
         previousSnapshots: [PlatformInstance: PlatformSnapshot] = [:],
-        now: Date = Date()
+        now: Date = Date(),
+        visibility: PlatformVisibilityStore = .shared
     ) -> [FeedCard] {
         var cards: [FeedCard] = []
 
@@ -138,7 +144,12 @@ struct FeedCardBuilder {
             ))
         }
 
-        return cards
+        // Filtered once, at the single exit, rather than inside each of the six
+        // card-producing blocks above. Every card names the platform it is
+        // about, so one filter covers the card types that exist now and the
+        // ones added later — which is the property that failed here: the rule
+        // was enforced in the grid and nowhere a card is actually made.
+        return cards.filter { !visibility.isHidden($0.platform) }
     }
 
     // MARK: - Private helpers

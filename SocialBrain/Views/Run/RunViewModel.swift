@@ -23,12 +23,14 @@ final class RunViewModel {
     private let database: AppDatabase
     private let engine: CollectionEngine
     private let assembler: PromptAssembler
+    private let visibility: PlatformVisibilityStore
     private var lastSince: Date?
 
-    init(database: AppDatabase) {
+    init(database: AppDatabase, visibility: PlatformVisibilityStore = .shared) {
         self.database = database
         self.engine = CollectionEngine(database: database)
         self.assembler = PromptAssembler()
+        self.visibility = visibility
     }
 
     // MARK: - Actions
@@ -100,12 +102,19 @@ final class RunViewModel {
             }
         }
 
-        guard !snapshotsByInstance.isEmpty else { return }
+        // Hidden platforms are dropped here rather than earlier: collection
+        // still runs and still records history, so unhiding a platform does not
+        // leave a gap in its series. What hiding means is "don't put this in
+        // front of me", and the prompt is the largest place it was ignored —
+        // a hidden platform was still being sent to Claude (#80).
+        let visibleSnapshots = visibility.visible(snapshotsByInstance)
+
+        guard !visibleSnapshots.isEmpty else { return }
 
         let input = PromptAssembler.Input(
             periodLabel: periodLabel(since: lastSince),
             reportDate: summary.completedAt,
-            snapshots: snapshotsByInstance,
+            snapshots: visibleSnapshots,
             goal: AnalyticsGoal.current,
             goalCustomText: AnalyticsGoal.customText
         )
