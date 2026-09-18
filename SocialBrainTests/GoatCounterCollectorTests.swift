@@ -118,4 +118,75 @@ struct GoatCounterCollectorTests {
         }
     }
 
+    /// GoatCounter's documented query parameters, from
+    /// `https://www.goatcounter.com/api.json`, checked 2026-09-18.
+    private static let documentedParameters: [String: Set<String>] = [
+        "/api/v0/stats/total": ["start", "end", "path_by_name", "include_paths"],
+        "/api/v0/stats/hits":  ["start", "end", "limit", "group",
+                                "path_by_name", "daily", "include_paths", "exclude_paths"]
+    ]
+
+    @Test("Sends no parameter GoatCounter does not document")
+    func sendsOnlyDocumentedParameters() async throws {
+        // An allowlist, not a check for the one bad parameter: GoatCounter
+        // rejects unknown query parameters rather than ignoring them, so any
+        // invented parameter 400s the request and — because collect() awaits
+        // both endpoints together — fails the entire collection. That is what
+        // `order=-count` did (#154); a denylist would have caught that one and
+        // waved the next one through.
+        //
+        // MockURLSession answers any query, so this is the only place the
+        // request's shape is checked at all. #143 is the same gap in the other
+        // collectors.
+        let session = MockURLSession([
+            "/api/v0/stats/total": (Self.totalsJSON, 200),
+            "/api/v0/stats/hits":  (Self.hitsJSON,   200)
+        ])
+        _ = try await GoatCounterCollector(session: session).collect(
+            since: nil,
+            credentials: Credentials(["api_key": "k", "site_code": "example"])
+        )
+
+        // Every endpoint the collector hits must be one this allowlist knows
+        // about, or the loop below silently skips it: adding a fixture for a new
+        // path is enough to make the request itself pass unchecked.
+        #expect(Set(session.requestedURLs.map(\.path))
+                    .subtracting(Self.documentedParameters.keys).isEmpty,
+                "a GoatCounter endpoint is being called that documentedParameters does not cover")
+
+        for (path, allowed) in Self.documentedParameters {
+            #expect(!session.requests(path: path).isEmpty,
+                    "\(path) was never requested — this check would pass vacuously")
+            for request in session.requests(path: path) {
+                let sent = Set(
+                    URLComponents(url: try #require(request.url), resolvingAgainstBaseURL: false)?
+                        .queryItems?.map(\.name) ?? []
+                )
+                #expect(sent.subtracting(allowed).isEmpty,
+                        "\(path) sends undocumented \(sent.subtracting(allowed).sorted())")
+            }
+        }
+    }
+
+    @Test("Asks for five top pages and relies on the server's own ordering")
+    func topPagesRequestIsLimitedNotOrdered() async throws {
+        // limit=5 is what makes top_page_1...5 the *top* five rather than an
+        // arbitrary five: GoatCounter's default page size is 20. Deleting it
+        // left every test green, which is the #143 class of gap.
+        //
+        // The ordering is the server's — `stats/hits` sorts by count descending
+        // (db/query/hit_list.List.sql, `order by total desc`), so limit alone is
+        // enough and there is nothing to ask for. See sendsOnlyDocumentedParameters
+        // for why asking anyway was fatal.
+        let session = MockURLSession([
+            "/api/v0/stats/total": (Self.totalsJSON, 200),
+            "/api/v0/stats/hits":  (Self.hitsJSON,   200)
+        ])
+        _ = try await GoatCounterCollector(session: session).collect(
+            since: nil,
+            credentials: Credentials(["api_key": "k", "site_code": "example"])
+        )
+
+        #expect(session.queryValue("limit", path: "/api/v0/stats/hits") == "5")
+    }
 }
