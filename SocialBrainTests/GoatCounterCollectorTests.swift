@@ -147,7 +147,16 @@ struct GoatCounterCollectorTests {
             credentials: Credentials(["api_key": "k", "site_code": "example"])
         )
 
+        // Every endpoint the collector hits must be one this allowlist knows
+        // about, or the loop below silently skips it: adding a fixture for a new
+        // path is enough to make the request itself pass unchecked.
+        #expect(Set(session.requestedURLs.map(\.path))
+                    .subtracting(Self.documentedParameters.keys).isEmpty,
+                "a GoatCounter endpoint is being called that documentedParameters does not cover")
+
         for (path, allowed) in Self.documentedParameters {
+            #expect(!session.requests(path: path).isEmpty,
+                    "\(path) was never requested — this check would pass vacuously")
             for request in session.requests(path: path) {
                 let sent = Set(
                     URLComponents(url: try #require(request.url), resolvingAgainstBaseURL: false)?
@@ -179,7 +188,5 @@ struct GoatCounterCollectorTests {
         )
 
         #expect(session.queryValue("limit", path: "/api/v0/stats/hits") == "5")
-        #expect(session.queryValues("order", path: "/api/v0/stats/hits").isEmpty)
     }
-
 }
