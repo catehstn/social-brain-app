@@ -61,6 +61,17 @@ struct ExportDatesTests {
         #expect(ExportDates.latest(in: [["a"]], column: 9) == nil)
     }
 
+    @Test("A negative column counts as absent, not as an index from the end")
+    func negativeColumnIsAbsent() {
+        // -1 reaches here from the Substack importer's columnIndex helper, which
+        // signals a missing column with -1 rather than nil. The path is already
+        // exercised end to end by SubstackImporterTests.legacyFormatToleratesA-
+        // MissingDate; this states the contract at the boundary where -1 arrives,
+        // so it survives that importer changing.
+        let rows = [["a", "2026-01-01"], ["b", "2026-03-15"]]
+        #expect(ExportDates.latest(in: rows, column: -1) == nil)
+    }
+
     @Test("No parseable dates at all yields nil, not the epoch")
     func noDatesIsNil() {
         // Returning .distantPast here would silently file the snapshot in 1
