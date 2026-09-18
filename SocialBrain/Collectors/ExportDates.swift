@@ -56,9 +56,9 @@ enum ExportDates {
     /// Returns `nil` when the column is absent or nothing parses, so callers can
     /// fall back rather than silently record an epoch date.
     ///
-    /// A negative index counts as absent: the importers' `columnIndex` helper
-    /// signals a missing column with `-1`, not `nil`, so an `Int?` parameter
-    /// alone would not catch it.
+    /// A negative index counts as absent: the Substack importer's `columnIndex`
+    /// helper signals a missing column with `-1`, not `nil`, so an `Int?`
+    /// parameter alone would not catch it. (`LinkedInImporter`'s returns `Int?`.)
     static func latest(in rows: [[String]], column: Int?, now: Date = .now) -> Date? {
         guard let column, column >= 0 else { return nil }
         // Clamped to now. Substack exports include scheduled posts, so a future
