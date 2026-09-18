@@ -139,6 +139,21 @@ struct JetpackCollectorTests {
         }
     }
 
+    @Test("The window is requested in days, so quantity means days")
+    func visitsAreRequestedInDays() async throws {
+        // unit and quantity are read together: quantity=90 is ninety days,
+        // weeks, months or years depending on unit, and the rest of this suite
+        // — and views_window's wording — assumes days. Dropping unit changes
+        // the scale of the window silently, because the response shape is
+        // identical either way. This is the one parameter here that carries a
+        // unit (#143).
+        let mock = session
+        _ = try await JetpackCollector(session: mock)
+            .collect(since: Date().addingTimeInterval(-14 * 86_400), credentials: credentials)
+
+        #expect(mock.queryValue("unit", path: Self.visitsPath) == "day")
+    }
+
     // MARK: - The 90-day cap
 
     @Test("A window longer than the cap says so instead of looking complete")

@@ -207,6 +207,45 @@ struct MastodonCollectorTests {
         #expect(maxIDs == ["961"])
     }
 
+    @Test("Every status page excludes boosts and asks for the API's maximum page")
+    func statusRequestsExcludeBoosts() async throws {
+        // exclude_reblogs changes *what is counted* without changing the shape
+        // of the result: dropping it counts other people's posts as this
+        // account's, deflating every per-post average, and nothing looks wrong.
+        // SpikeDetector then reads the shift as real engagement — the false
+        // alarm #120 removed. Bluesky's `filter` is the same class (#143).
+        //
+        // limit=40 is the documented maximum for this endpoint
+        // (docs.joinmastodon.org, checked 2026-09-18), so a smaller value costs
+        // extra requests for identical data and a larger one is silently capped.
+        let session = MockURLSession([
+            "/api/v1/accounts/verify_credentials": [.init(Self.credentialsJSON)],
+            "/api/v1/accounts/109876543/statuses": [
+                .init(Self.statusPage(count: 40, newest: Self.day(2026, 3, 28), idBase: 1000)),
+                .init(Self.statusPage(count: 5, newest: Self.day(2026, 2, 16), idBase: 900))
+            ]
+        ])
+        let collector = MastodonCollector(session: session)
+        _ = try await collector.collect(
+            since: Self.day(2026, 1, 1),
+            credentials: Credentials(["access_token": "t", "instance_url": "https://mastodon.social"])
+        )
+
+        let path = "/api/v1/accounts/109876543/statuses"
+        let requestCount = session.requests(path: path).count
+        #expect(requestCount >= 1)
+
+        // Every page of the walk. A parameter dropped on page two would
+        // miscount exactly the pages nobody inspects.
+        let excludes = session.queryValues("exclude_reblogs", path: path)
+        #expect(excludes.count == requestCount)
+        #expect(excludes.allSatisfy { $0 == "true" })
+
+        let limits = session.queryValues("limit", path: path)
+        #expect(limits.count == requestCount)
+        #expect(limits.allSatisfy { $0 == "40" })
+    }
+
     @Test("Stops as soon as a page reaches past the window")
     func stopsAtTheBoundary() async throws {
         // Statuses come back newest-first, so once a page ends older than
