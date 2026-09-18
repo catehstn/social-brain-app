@@ -127,6 +127,44 @@ struct MultiInstanceKeychainTests {
         #expect(ScratchKeychain.make().service != KeychainStore.shared.service)
     }
 
+    // MARK: - Isolation between concurrent test hosts (#127)
+
+    @Test("A scratch service is scoped to this test run, not just this test")
+    func scratchServiceIsScopedToTheRun() {
+        // Two hosts running the suite at once — one per git worktree — used to
+        // land on the same service name, and save()'s update-then-add is not
+        // atomic across processes, so one of them got errSecDuplicateItem.
+        // Without the run component this assertion is the whole bug: the name
+        // would be identical in both hosts.
+        let service = ScratchKeychain.make("scopeCheck").service
+        let pid = String(ProcessInfo.processInfo.processIdentifier)
+
+        #expect(service.hasPrefix("com.catehuston.SocialBrain.tests."),
+                "must stay under the greppable prefix, or orphans become unfindable")
+        #expect(service.contains(".\(pid)."),
+                "must carry this process's id, or concurrent hosts collide")
+        #expect(service.hasSuffix(".scopeCheck"),
+                "must still name the test, so an orphan says where it came from")
+    }
+
+    @Test("A scratch store starts empty even if the last run left something behind")
+    func scratchStoreStartsEmpty() throws {
+        // PIDs are recycled. A run that crashed between a write and its cleanup
+        // strands an item, and the next process to be handed that PID would
+        // otherwise inherit it and fail its first save the same way.
+        let instance = PlatformInstance(platform: .buttondown, instanceName: "\(base)recycled")
+        let first = ScratchKeychain.make("recycledPID")
+        try first.save(Credentials(["api_key": "stranded"]), for: instance)
+        #expect(try first.load(for: instance)?.apiKey == "stranded")
+
+        // Same label, same PID — exactly what a recycled PID hands the next run.
+        let second = ScratchKeychain.make("recycledPID")
+        defer { try? second.delete(for: instance) }
+
+        #expect(second.service == first.service)
+        #expect(try second.load(for: instance) == nil)
+    }
+
 }
 
 // MARK: - Credentials helpers

@@ -15,13 +15,38 @@ import Foundation
 /// suite has already stranded 246 plists in the app container. Deriving the name
 /// from `#function` keeps it unique per test, reproducible across runs, and
 /// sweepable afterwards.
+///
+/// **But the name alone is not unique per *run*, and that flaked.** Naming the
+/// service only after the test meant two test hosts running at once — one per
+/// git worktree — used the same service, and `KeychainStore.save` is not atomic
+/// across processes: it tries `SecItemUpdate`, and on `errSecItemNotFound` falls
+/// back to `SecItemAdd`. The other process can add the item in between, so the
+/// add returns `errSecDuplicateItem` (-25299) and the test fails with a scary
+/// error that passes on a re-run (#127).
+///
+/// The process ID closes that, and is chosen over a UUID precisely to keep the
+/// objection above answered: PIDs are unique among *concurrently running*
+/// processes, which is the whole collision, while being bounded and recycled, so
+/// strandings cannot accumulate the way 246 plists did. Everything is still
+/// reachable under one greppable prefix:
+///
+///     security dump-keychain | grep com.catehuston.SocialBrain.tests
 enum ScratchKeychain {
 
     private static let servicePrefix = "com.catehuston.SocialBrain.tests"
 
-    /// A store scoped to a service named for the calling test.
+    /// Distinct for every test host alive at the same time. See the note above
+    /// for why this is the PID rather than a UUID.
+    private static let runID = String(ProcessInfo.processInfo.processIdentifier)
+
+    /// A store scoped to a service named for the calling test and this test run.
+    ///
+    /// Emptied on the way out, so a recycled PID that inherited an item from a
+    /// crashed earlier run starts clean rather than failing the first save.
     static func make(_ label: String = #function) -> KeychainStore {
-        KeychainStore(service: "\(servicePrefix).\(sanitised(label))")
+        let store = KeychainStore(service: "\(servicePrefix).\(runID).\(sanitised(label))")
+        try? store.deleteAll()
+        return store
     }
 
     /// A store scoped to the caller, emptied before and after `body` runs.
