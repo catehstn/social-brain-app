@@ -154,6 +154,7 @@ struct MultiInstanceKeychainTests {
         // otherwise inherit it and fail its first save the same way.
         let instance = PlatformInstance(platform: .buttondown, instanceName: "\(base)recycled")
         let first = ScratchKeychain.make("recycledPID")
+        defer { try? first.delete(for: instance) }
         try first.save(Credentials(["api_key": "stranded"]), for: instance)
         #expect(try first.load(for: instance)?.apiKey == "stranded")
 
