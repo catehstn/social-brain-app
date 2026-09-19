@@ -13,7 +13,13 @@ struct SpikeAlert: Sendable {
     /// The raw metric key used in `[String: MetricValue]` dictionaries.
     let metricKey: String
     /// How this metric reads to a person.
-    var rendering: Rendering = .percentage
+    ///
+    /// Not defaulted, deliberately. Swift's memberwise initialiser lets a
+    /// defaulted parameter be omitted, so a construction site added later would
+    /// silently get `.percentage` — which for a rank is the bug this fixes.
+    /// `Monitored` defaults it instead, where one default covers thirty-odd
+    /// entries and omission means "ordinary metric".
+    let rendering: Rendering
 
     /// How a change should be written out.
     enum Rendering: Sendable {
