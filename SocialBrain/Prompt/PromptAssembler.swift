@@ -227,6 +227,28 @@ struct PromptAssembler {
         if let v = data.intMetric("total_shares")   { engagement.append("\(formatted(v)) shares") }
         if !engagement.isEmpty { lines.append("Engagement: \(engagement.joined(separator: ", "))") }
         if let v = data.doubleMetric("avg_ctr") { lines.append("Average CTR: \(pct(v))") }
+
+        // The four below come only from the XLSX export; the CSV path cannot
+        // produce them. They were collected and stored but read nowhere, so an
+        // XLSX import gave the user nothing a CSV would not have (#114).
+        //
+        // Follower growth is the reason it mattered: nothing else in the app
+        // reports it for LinkedIn at all.
+        var followers: [String] = []
+        if let v = data.intMetric("total_followers") { followers.append("\(formatted(v)) total") }
+        if let v = data.intMetric("new_followers")   { followers.append("\(formatted(v)) new this period") }
+        if !followers.isEmpty { lines.append("Followers: \(followers.joined(separator: ", "))") }
+
+        // Reported separately from the likes/comments/shares line above rather
+        // than folded into it: this is LinkedIn's own total, not the sum of
+        // those three, and presenting it as though it were would invite the
+        // reader to check the arithmetic and find it wrong.
+        if let v = data.intMetric("total_engagements") {
+            lines.append("Total engagements (LinkedIn's own count): \(formatted(v))")
+        }
+        if let v = data.intMetric("members_reached") {
+            lines.append("Unique members reached: \(formatted(v))")
+        }
         return lines
     }
 
