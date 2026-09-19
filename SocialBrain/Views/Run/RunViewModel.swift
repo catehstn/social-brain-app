@@ -24,13 +24,17 @@ final class RunViewModel {
     private let engine: CollectionEngine
     private let assembler: PromptAssembler
     private let visibility: PlatformVisibilityStore
+    private let goals: AnalyticsGoalStore
     private var lastSince: Date = .distantPast
 
-    init(database: AppDatabase, visibility: PlatformVisibilityStore = .shared) {
+    init(database: AppDatabase,
+         visibility: PlatformVisibilityStore = .shared,
+         goals: AnalyticsGoalStore = .shared) {
         self.database = database
         self.engine = CollectionEngine(database: database)
         self.assembler = PromptAssembler()
         self.visibility = visibility
+        self.goals = goals
     }
 
     // MARK: - Actions
@@ -118,8 +122,8 @@ final class RunViewModel {
             periodLabel: Self.periodLabel(since: lastSince),
             reportDate: summary.completedAt,
             snapshots: visibleSnapshots,
-            goal: AnalyticsGoal.current,
-            goalCustomText: AnalyticsGoal.customText
+            goal: goals.current,
+            goalCustomText: goals.customText
         )
         generatedPrompt = assembler.assemble(input)
     }

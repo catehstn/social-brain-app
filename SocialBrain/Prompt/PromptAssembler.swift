@@ -9,6 +9,15 @@ import Foundation
 /// reasonable token budget.
 struct PromptAssembler {
 
+    /// Injected so the prompt does not depend on the developer's own stored
+    /// labels — see `PlatformInstance.displayName(using:)`.
+    let labels: InstanceLabels
+
+    init(labels: InstanceLabels = .shared) {
+        self.labels = labels
+    }
+
+
     /// A period label and the corresponding snapshots to include.
     struct Input {
         let periodLabel: String           // e.g. "Last 30 days"
@@ -49,7 +58,7 @@ struct PromptAssembler {
 
             for instance in instances {
                 guard let snap = input.snapshots[instance] else { continue }
-                let headerLabel = multiInstance ? instance.displayName : platform.displayName
+                let headerLabel = multiInstance ? instance.displayName(using: labels) : platform.displayName
                 // Build PlatformData from snapshot for formatting
                 if let metrics = try? snap.decodedMetrics() {
                     let data = PlatformData(platform: platform,

@@ -28,28 +28,45 @@ enum AnalyticsGoal: String, CaseIterable, Codable, Sendable {
 
 // MARK: - Persistence
 
-extension AnalyticsGoal {
-    private static let goalKey       = "analyticsGoal"
-    private static let customTextKey = "analyticsGoalCustomText"
+/// Where the chosen goal is stored.
+///
+/// A type with an injected store rather than statics over
+/// `UserDefaults.standard`, so a test can use a throwaway one — the same
+/// treatment `PlatformVisibilityStore` and `InstanceRegistry` already had, and
+/// `InstanceLabels` gains here (#58, #90). Nothing tested goal selection
+/// before, so nothing was polluting real preferences yet; that was luck.
+struct AnalyticsGoalStore: @unchecked Sendable {
+
+    /// The production store. The only place `UserDefaults.standard` is used.
+    static let shared = AnalyticsGoalStore(defaults: UserDefaults.standard)
+
+    let defaults: any KeyValueStore
+
+    init(defaults: any KeyValueStore) {
+        self.defaults = defaults
+    }
+
+    private let goalKey       = "analyticsGoal"
+    private let customTextKey = "analyticsGoalCustomText"
 
     /// The currently saved goal. Defaults to `.growReach` if unset.
-    static var current: AnalyticsGoal {
+    var current: AnalyticsGoal {
         get {
-            guard let raw = UserDefaults.standard.string(forKey: goalKey),
+            guard let raw = defaults.string(forKey: goalKey),
                   let goal = AnalyticsGoal(rawValue: raw) else { return .growReach }
             return goal
         }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: goalKey) }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: goalKey) }
     }
 
     /// Free-text clarification for the `.other` case.
-    static var customText: String {
-        get { UserDefaults.standard.string(forKey: customTextKey) ?? "" }
-        set { UserDefaults.standard.set(newValue, forKey: customTextKey) }
+    var customText: String {
+        get { defaults.string(forKey: customTextKey) ?? "" }
+        nonmutating set { defaults.set(newValue, forKey: customTextKey) }
     }
 
     /// Human-readable label including custom text when applicable.
-    static var currentLabel: String {
+    var currentLabel: String {
         let goal = current
         if goal == .other, !customText.isEmpty {
             return customText

@@ -100,6 +100,14 @@ final class InMemoryKeyValueStore: KeyValueStore, @unchecked Sendable {
         lock.withLock { storage[key] = value }
     }
 
+    func string(forKey key: String) -> String? {
+        lock.withLock { storage[key] as? String }
+    }
+
+    func set(_ value: String, forKey key: String) {
+        lock.withLock { storage[key] = value }
+    }
+
     func removeObject(forKey key: String) {
         _ = lock.withLock { storage.removeValue(forKey: key) }
     }

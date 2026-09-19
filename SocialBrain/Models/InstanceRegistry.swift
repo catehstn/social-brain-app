@@ -21,6 +21,10 @@ protocol KeyValueStore: Sendable {
     func set(_ value: [String], forKey key: String)
     func bool(forKey key: String) -> Bool
     func set(_ value: Bool, forKey key: String)
+    /// Added for `InstanceLabels` and `AnalyticsGoal`, which wrote
+    /// `UserDefaults.standard` directly until #58.
+    func string(forKey key: String) -> String?
+    func set(_ value: String, forKey key: String)
     func removeObject(forKey key: String)
 }
 
@@ -30,6 +34,10 @@ extension UserDefaults: @unchecked @retroactive Sendable {}
 
 extension UserDefaults: KeyValueStore {
     public func set(_ value: [String], forKey key: String) {
+        set(value as Any?, forKey: key)
+    }
+
+    public func set(_ value: String, forKey key: String) {
         set(value as Any?, forKey: key)
     }
 }

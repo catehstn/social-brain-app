@@ -11,8 +11,8 @@ struct OnboardingView: View {
     let onComplete: () -> Void
 
     @State private var step: Step = .welcome
-    @State private var selectedGoal: AnalyticsGoal = AnalyticsGoal.current
-    @State private var customGoalText: String = AnalyticsGoal.customText
+    @State private var selectedGoal: AnalyticsGoal = AnalyticsGoalStore.shared.current
+    @State private var customGoalText: String = AnalyticsGoalStore.shared.customText
     @State private var showGuide = false
     @State private var guideAnchor = ""
 
@@ -284,8 +284,8 @@ struct OnboardingView: View {
     }
 
     private func saveGoal() {
-        AnalyticsGoal.current = selectedGoal
-        AnalyticsGoal.customText = customGoalText
+        AnalyticsGoalStore.shared.current = selectedGoal
+        AnalyticsGoalStore.shared.customText = customGoalText
     }
 }
 
