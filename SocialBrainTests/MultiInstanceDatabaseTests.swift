@@ -42,7 +42,7 @@ struct MultiInstanceDatabaseTests {
 
         let snapshots = try await db.snapshots(forRunID: runID)
         #expect(snapshots.count == 1)
-        #expect(snapshots[0].instanceName == "default")
+        #expect(snapshots.first?.instanceName == "default")
         _ = metricsBase64  // suppress unused warning
     }
 

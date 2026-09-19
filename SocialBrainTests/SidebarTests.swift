@@ -10,11 +10,11 @@ struct SidebarTests {
     }
 
     @Test(".feed is positioned between .run and .dashboard")
-    func feedPositionedBetweenRunAndDashboard() {
+    func feedPositionedBetweenRunAndDashboard() throws {
         let cases = SidebarItem.allCases
-        let runIdx  = cases.firstIndex(of: .run)!
-        let feedIdx = cases.firstIndex(of: .feed)!
-        let dashIdx = cases.firstIndex(of: .dashboard)!
+        let runIdx  = try #require(cases.firstIndex(of: .run))
+        let feedIdx = try #require(cases.firstIndex(of: .feed))
+        let dashIdx = try #require(cases.firstIndex(of: .dashboard))
         #expect(runIdx < feedIdx)
         #expect(feedIdx < dashIdx)
     }

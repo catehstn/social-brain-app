@@ -281,6 +281,6 @@ struct FeedCardBuilderTests {
         let defaultInstance = PlatformInstance(platform: .buttondown)
         let items = HighReachDetector().detect(snapshots: [defaultInstance: snap])
         #expect(items.count == 1)
-        #expect(items[0].platform == .buttondown)
+        #expect(items.first?.platform == .buttondown)
     }
 }
