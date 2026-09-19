@@ -6,8 +6,9 @@ on:
   pull_request:
     branches: [main]
 
-# Cancel superseded runs on the same branch. macOS runners bill at a 10x
-# minute multiplier, so redundant runs are the expensive kind.
+# Cancel superseded runs on the same branch. Not for the bill — this repo is
+# public, so runners are free — but a superseded run still occupies a macOS
+# runner and delays the one you care about.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -172,6 +173,13 @@ jobs:
           path: '*.xcresult'
           retention-days: 7
 
+  # On pull requests, deliberately. A proposal to take it off them (#91) was
+  # withdrawn: the saving was in billed minutes, and this repo is public, so
+  # every run reports billable.MACOS.total_ms = 0.
+  #
+  # It is also not a duplicate of the test jobs' compile. Debug sets
+  # ONLY_ACTIVE_ARCH, so this is the only job that builds the x86_64 slice, and
+  # the only one that exercises whole-module optimisation.
   release-build:
     name: Release Build
     runs-on: macos-15

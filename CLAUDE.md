@@ -164,9 +164,24 @@ instead. Everywhere else the table applies.
 ## CI
 
 - **Treat a single green check as provisional.** Before reporting a PR as passing
-  — or merging it — confirm all four jobs (**Unit Tests**, **UI Tests**, **MCP Server**,
-  **Release Build**) have *concluded* green, not just started, and that they ran
-  against the current head commit.
+  — or merging it — confirm all four jobs (**Unit Tests**, **UI Tests**,
+  **MCP Server**, **Release Build**) have *concluded* green, not just started,
+  and that they ran against the current head commit.
+- **CI minutes are free *while this repo is public*.** Standard GitHub-hosted
+  runners are unmetered on public repos: every run reports
+  `billable.MACOS.total_ms = 0`. Verify with
+  `gh api repos/catehstn/social-brain-app/actions/runs/<id>/timing`.
+
+  **If the repo ever goes private this bullet becomes wrong**, and so do two
+  comments in `ci.yml` (the concurrency group and `release-build`). Re-check
+  with that endpoint before trusting any of the three.
+
+  This has now caused the same mistake twice. The audit and #91 were written
+  while the repo was private and the allowance was genuinely exhausted; that
+  changed on 2026-09-04 and is recorded in #91's comments, not its body. A
+  later pass read only the body, rebuilt the whole cost case, and proposed
+  trading PR coverage to save a bill of zero. **Read the comments.** Wall-clock
+  time is still worth arguing about; billed minutes are not.
 - **A green check is only worth what the pipeline can actually fail on.** This
   repo reported success for months while not building at all: `xcodebuild |
   xcpretty` without `pipefail` returns the *formatter's* exit code, so the failing
@@ -177,18 +192,35 @@ instead. Everywhere else the table applies.
   xcodebuild test` did exactly that — environment variables need the
   `TEST_RUNNER_` prefix to reach the test host. Run it and confirm the test count
   is non-zero.
-- **Run the tests locally before pushing.** macOS runners bill at a **10x** minute
-  multiplier, so the ~2,000 free minutes/month are really ~200 macOS-minutes. The
+- **Run the tests locally before pushing.** Not for the bill — see above — but
+  because a macOS runner takes minutes to tell you what `xcodebuild` tells you
+  in seconds, and a red PR is noise for whoever looks next. The
   workflow triggers on pushes to `main` and on pull requests, so a feature-branch
-  push runs nothing until a PR exists — after that, all three jobs fire on every
-  push to it. Pushing to find out is not free.
-- **Every job needs `timeout-minutes`.** GitHub's default is 360. A hung macOS
-  job at 6 hours x 10 = 3,600 billed minutes, which is 18x the monthly
-  allowance — from one stuck step.
-- CI floats on the runner's default Xcode; local development is on a newer one.
-  That gap has already caught a real bug (see `ISO8601Decoding.swift`) and also
-  costs a round-trip when a failure doesn't reproduce locally. Policy is being
-  decided in #51.
+  push runs nothing until a PR exists — after that, every job fires on every
+  push to it.
+- **Every job needs `timeout-minutes`.** GitHub's default is 360, so one stuck
+  step holds a runner for six hours and blocks the queue behind it.
+- **The CI/local Xcode gap is deliberate** (#51). CI floats on the runner's
+  default — Xcode 16.4 (16F6) at the time of writing — while local development
+  is on 26.6. Newer swift-foundation is more lenient, so CI is the stricter
+  check, and it has already caught a real bug: `JSONDecoder`'s `.iso8601`
+  strategy rejects fractional seconds, so the Mastodon and Bluesky collectors
+  passed locally and failed on CI, which is how we learned they would fail
+  against their **live APIs**. `ISO8601Decoding.swift` names Mastodon, Bluesky
+  and Calendly.
+
+  The cost is a round-trip when a failure doesn't reproduce locally — suspect
+  the toolchain before suspecting the change.
+
+  A matrix over both versions is **not** ruled out on cost — there is none. It
+  is not being done because eight macOS jobs would queue against the free
+  tier's concurrency cap, so the wall-clock cost is real even though the bill is
+  not. That is a judgement made here, not measured: #51 rejected the matrix on
+  the billed-minutes grounds that turned out to be false, so if anyone wants the
+  matrix, the wall-clock claim is the one to test.
+
+  **The README's stated minimum must match what CI actually verifies.** It said
+  16.3 while CI ran 16.4; if the runner image moves, update both.
 
 ## Issue tracking
 
