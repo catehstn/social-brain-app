@@ -137,4 +137,34 @@ struct FeedDatabaseTests {
 
         #expect(!vm.series.isEmpty)
     }
+
+    @Test("The Dashboard charts LinkedIn follower growth from an XLSX import")
+    @MainActor
+    func dashboardChartsLinkedInFollowers() async throws {
+        // total_followers was collected by the XLSX importer and read by
+        // nothing, so follower growth — the one thing the XLSX export offers
+        // that the CSV path cannot — was invisible everywhere (#114).
+        let db = try makeDB()
+        let runID = try await makeRun(in: db)
+
+        let data = PlatformData(
+            platform: .linkedin,
+            metrics: ["total_followers": .int(8420), "new_followers": .int(137),
+                      "total_impressions": .int(4200)]
+        )
+        var snap = try PlatformSnapshot(runID: runID, data: data)
+        try await db.saveSnapshot(&snap)
+
+        let vm = DashboardViewModel(database: db,
+                                    initialInstance: PlatformInstance(platform: .linkedin))
+        vm.timeRange = .all
+        await vm.load()
+
+        #expect(vm.series.contains { $0.label == "Followers" })
+        // The growth line as well as the cumulative one — a cumulative series
+        // only steps when an export lands, so it is the less informative half.
+        #expect(vm.series.contains { $0.label == "New Followers" })
+        // Not vacuous: an already-charted metric is still there beside it.
+        #expect(vm.series.contains { $0.label == "Impressions" })
+    }
 }

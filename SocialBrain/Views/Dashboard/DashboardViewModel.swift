@@ -128,9 +128,21 @@ final class DashboardViewModel {
                     ("total_views", "Views"),
                     ("total_visitors", "Visitors")]
         case .linkedin:
+            // Both follower metrics: total_followers is the cumulative level,
+            // new_followers the per-period growth, and the growth is the more
+            // informative line — a cumulative series only steps when an export
+            // lands. Nothing else in the app reported LinkedIn follower growth
+            // at all (#114).
+            //
+            // members_reached is left off because it says little that
+            // total_impressions does not — not because of crowding: each series
+            // renders as its own card in an adaptive grid, so one more simply
+            // scrolls. Add it if it proves useful.
             return [("total_impressions", "Impressions"),
                     ("total_likes", "Likes"),
-                    ("total_comments", "Comments")]
+                    ("total_comments", "Comments"),
+                    ("total_followers", "Followers"),
+                    ("new_followers", "New Followers")]
         case .oreilly:
             return [("total_page_views", "Page Views"),
                     ("total_unique_users", "Unique Users")]

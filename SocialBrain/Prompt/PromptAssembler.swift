@@ -216,17 +216,52 @@ struct PromptAssembler {
 
     private func linkedinLines(_ data: PlatformData) -> [String] {
         var lines: [String] = []
-        if let posts = data.intMetric("posts_published") {
-            var s = "Posts: \(posts)"
-            if let imp = data.intMetric("total_impressions") { s += ", \(formatted(imp)) impressions" }
-            lines.append(s)
+        // Impressions are not nested under posts_published: the XLSX export
+        // writes total_impressions and never writes posts_published, so nesting
+        // dropped LinkedIn's headline metric from the prompt for exactly the
+        // import path #114 is about. Joined so the CSV shape still reads
+        // "Posts: 5, 4,200 impressions".
+        var posting: [String] = []
+        if let posts = data.intMetric("posts_published") { posting.append("Posts: \(posts)") }
+        if let imp = data.intMetric("total_impressions") {
+            // Labelled when it stands alone, so the XLSX shape does not produce
+            // the assembler's only unlabelled line. Joined to the posts count
+            // when both exist, which is the CSV shape and what pins the string
+            // "Posts: 5, 4,200 impressions".
+            posting.append(posting.isEmpty
+                           ? "Impressions: \(formatted(imp))"
+                           : "\(formatted(imp)) impressions")
         }
+        if !posting.isEmpty { lines.append(posting.joined(separator: ", ")) }
         var engagement: [String] = []
         if let v = data.intMetric("total_likes")    { engagement.append("\(formatted(v)) likes") }
         if let v = data.intMetric("total_comments") { engagement.append("\(formatted(v)) comments") }
         if let v = data.intMetric("total_shares")   { engagement.append("\(formatted(v)) shares") }
         if !engagement.isEmpty { lines.append("Engagement: \(engagement.joined(separator: ", "))") }
         if let v = data.doubleMetric("avg_ctr") { lines.append("Average CTR: \(pct(v))") }
+
+        // The four below come only from the XLSX export; the CSV path cannot
+        // produce them. They were collected and stored but read nowhere, so an
+        // XLSX import gave the user nothing a CSV would not have (#114).
+        //
+        // Follower growth is the reason it mattered: nothing else in the app
+        // reports it for LinkedIn at all.
+        var followers: [String] = []
+        if let v = data.intMetric("total_followers") { followers.append("\(formatted(v)) total") }
+        if let v = data.intMetric("new_followers")   { followers.append("\(formatted(v)) new this period") }
+        if !followers.isEmpty { lines.append("Followers: \(followers.joined(separator: ", "))") }
+
+        // Not the sum of the likes/comments/shares above — it is the ENGAGEMENT
+        // sheet's own Engagements column, totalled across its daily rows. (The
+        // two cannot appear together anyway: LinkedInImporter branches on ZIP
+        // magic bytes and delegates wholesale, so a snapshot is XLSX-shaped or
+        // CSV-shaped, never both.)
+        if let v = data.intMetric("total_engagements") {
+            lines.append("Total engagements: \(formatted(v))")
+        }
+        if let v = data.intMetric("members_reached") {
+            lines.append("Unique members reached: \(formatted(v))")
+        }
         return lines
     }
 

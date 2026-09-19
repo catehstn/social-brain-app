@@ -171,8 +171,16 @@ struct SpikeDetector: Sendable {
                     Monitored(key: "total_views", label: "Views"),
                     Monitored(key: "total_visitors", label: "Visitors")]
         case .linkedin:
+            // total_followers alongside the other two: spike alerts are the only
+            // route by which a LinkedIn metric becomes a Feed card, and every
+            // other follower-bearing platform is monitored this way — Mastodon
+            // and Bluesky on followers_count, Jetpack on followers_blog. Without
+            // it LinkedIn follower growth produced no card while Jetpack's did.
+            // total_likes never appears in an XLSX snapshot, so for that import
+            // path total_followers is the only one of the three that fires.
             return [Monitored(key: "total_impressions", label: "Impressions"),
-                    Monitored(key: "total_likes", label: "Likes")]
+                    Monitored(key: "total_likes", label: "Likes"),
+                    Monitored(key: "total_followers", label: "Followers")]
         case .oreilly:
             return [Monitored(key: "total_page_views", label: "Page Views"),
                     Monitored(key: "total_unique_users", label: "Unique Users")]

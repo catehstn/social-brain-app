@@ -262,6 +262,81 @@ struct PromptAssemblerTests {
         #expect(prompt.contains("2.8%"))
     }
 
+    @Test("LinkedIn section surfaces the metrics only the XLSX export carries")
+    func linkedinXLSXOnlyMetrics() throws {
+        // These four were written by LinkedInXLSXParser and read by nothing —
+        // not the prompt, not the dashboard, not the spike detector — so an
+        // XLSX import produced nothing a CSV import would not have (#114).
+        let data = PlatformData(
+            platform: .linkedin,
+            // Exactly what LinkedInXLSXParser writes — no posts_published,
+            // which is what hid the missing impressions line: it used to render
+            // only inside a posts_published guard this shape never satisfies.
+            metrics: [
+                "total_impressions": .int(107),
+                "total_followers":   .int(8420),
+                "new_followers":     .int(137),
+                "total_engagements": .int(512),
+                "members_reached":   .int(19_300)
+            ]
+        )
+        let prompt = assembler.assemble(makeInput(snapshots: try snaps(data)))
+
+        #expect(prompt.contains("Followers: 8,420 total, 137 new this period"))
+        #expect(prompt.contains("Total engagements: 512"))
+        #expect(prompt.contains("Unique members reached: 19,300"))
+        // The headline metric, which an XLSX import was dropping entirely.
+        // Labelled, because this shape has no posts count to hang it off.
+        #expect(prompt.contains("Impressions: 107"))
+    }
+
+    /// The "## LinkedIn" section of an assembled prompt, up to the next header.
+    private func linkedinSection(of prompt: String) -> String? {
+        guard let start = prompt.range(of: "## LinkedIn") else { return nil }
+        let rest = prompt[start.upperBound...]
+        let end = rest.range(of: "\n## ")?.lowerBound ?? rest.endIndex
+        return String(rest[..<end])
+    }
+
+    @Test("A CSV-only LinkedIn import gains no empty lines from the XLSX metrics")
+    func linkedinCSVImportHasNoFollowerLines() throws {
+        // The CSV path cannot produce any of the four, so their section must
+        // disappear entirely rather than render as "Followers: " with nothing
+        // after it.
+        let data = PlatformData(
+            platform: .linkedin,
+            metrics: ["posts_published": .int(5), "total_impressions": .int(4200)]
+        )
+        let prompt = assembler.assemble(makeInput(snapshots: try snaps(data)))
+
+        #expect(prompt.contains("Posts: 5, 4,200 impressions"))
+
+        // Scoped to this platform's own section rather than the whole prompt.
+        // Asserting on the whole prompt has to be either loose — "Followers:"
+        // is emitted by Mastodon and Jetpack too, so it would false-fail the
+        // first time this test gained a second snapshot — or so narrow it stops
+        // checking the thing it is named for. A bare "- Followers: " with
+        // nothing after it passed both earlier versions.
+        let section = try #require(linkedinSection(of: prompt))
+        #expect(!section.contains("Followers"))
+        #expect(!section.contains("Total engagements"))
+        #expect(!section.contains("Unique members reached"))
+    }
+
+    @Test("One follower metric without the other still reads correctly")
+    func linkedinPartialFollowerData() throws {
+        // FOLLOWERS sheet present but new_followers absent — the parser only
+        // writes it when the sum is above zero, so this is a real shape.
+        let data = PlatformData(
+            platform: .linkedin,
+            metrics: ["total_followers": .int(8420)]
+        )
+        let prompt = assembler.assemble(makeInput(snapshots: try snaps(data)))
+
+        #expect(prompt.contains("Followers: 8,420 total"))
+        #expect(!prompt.contains("new this period"))
+    }
+
     @Test("O'Reilly section formats page views and unique users")
     func oreillySection() throws {
         let data = PlatformData(
