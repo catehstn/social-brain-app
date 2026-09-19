@@ -82,7 +82,7 @@ struct MetricKeyOrphanTests {
 
     @Test("Every metric a platform emits is read by something",
           arguments: Platform.allCases)
-    func emittedKeysAreRead(platform: Platform) throws {
+    func emittedKeysAreRead(platform: Platform) {
         guard let emitted = Self.emitted[platform] else { return }
 
         let read = Self.keysRead(for: platform)
@@ -90,9 +90,7 @@ struct MetricKeyOrphanTests {
             .filter { !Self.isRead($0, by: read) }
             .subtracting(Self.knownOrphans[platform] ?? [])
 
-        let message: Comment = """
-            \(platform.rawValue) emits \(orphans.sorted()) and nothing reads them.             Surface them, stop collecting them, or add them to knownOrphans with an issue.
-            """
+        let message: Comment = "\(platform.rawValue) emits \(orphans.sorted()) and nothing reads them"
         #expect(orphans.isEmpty, message)
     }
 
@@ -108,21 +106,31 @@ struct MetricKeyOrphanTests {
         #expect(nowRead.isEmpty, message)
     }
 
+    @Test("Every known orphan is a key that is still emitted",
+          arguments: Platform.allCases)
+    func knownOrphansAreStillEmitted(platform: Platform) {
+        // Otherwise an entry — and the issue pointer that justifies it — rots
+        // silently once the collector stops writing the key.
+        let listed = Self.knownOrphans[platform] ?? []
+        let stale = listed.subtracting(Self.emitted[platform] ?? [])
+
+        let message: Comment = "\(platform.rawValue): \(stale.sorted()) is no longer emitted — drop it from knownOrphans"
+        #expect(stale.isEmpty, message)
+    }
+
     @Test("Every platform with a collector has an entry in the emitted table")
     func everyCollectedPlatformIsCovered() {
         // A new platform must not slip past the detector by simply being absent
         // from the table.
-        let uncovered = Platform.allCases.filter { platform in
-            platform.authType != .fileExport
-                && Self.emitted[platform] == nil
-                && !Self.platformsWithoutMetrics.contains(platform)
-        }
+        // Every platform, including the file-export ones. Exempting those was
+        // the first version of this guard and it exempted exactly the platforms
+        // that produced #114, #163 and half of #170 — deleting Substack's whole
+        // entry then left the suite green, silently dropping the platform, its
+        // keys and its known orphan from the detector.
+        let uncovered = Platform.allCases.filter { Self.emitted[$0] == nil }
         let message: Comment = "no emitted-key entry for \(uncovered.map(\.rawValue).sorted())"
         #expect(uncovered.isEmpty, message)
     }
-
-    /// Platforms that legitimately emit nothing yet.
-    private static let platformsWithoutMetrics: Set<Platform> = []
 
     // MARK: - What each consumer reads
 
@@ -133,6 +141,7 @@ struct MetricKeyOrphanTests {
         keys.formUnion(DashboardViewModel.metricKeys(for: platform).map(\.key))
         keys.formUnion(promptKeys(for: platform))
         keys.formUnion(highReachKeys(for: platform))
+        keys.formUnion(feedCardKeys(for: platform))
         return keys
     }
 
@@ -156,12 +165,30 @@ struct MetricKeyOrphanTests {
         return all.filter { highReachMessage(platform: platform, keys: all.subtracting([$0])) != full }
     }
 
+    /// The same probe for the Feed. Its metric reads are a fifth consumer, and
+    /// leaving it out would report a key read *only* by the Feed as an orphan.
+    private static func feedCardKeys(for platform: Platform) -> Set<String> {
+        let all = emitted[platform] ?? []
+        let full = feedCards(platform: platform, keys: all)
+        return all.filter { feedCards(platform: platform, keys: all.subtracting([$0])) != full }
+    }
+
     // MARK: - Probe helpers
 
-    /// A value large enough to clear every floor and threshold, as both an int
-    /// and a rate — rates are read as fractions, so 0.87 is a high one.
+    /// A value large enough to clear every floor and threshold in every
+    /// consumer.
+    ///
+    /// 9.0 rather than a plausible rate, because `avg_*` keys are read two
+    /// ways: as rates (thresholds above 0.40) and as counts —
+    /// `HighReachDetector` wants `avg_favourites >= 5.0` for Mastodon and
+    /// `avg_likes >= 5.0` for Bluesky. A rate-shaped 0.87 cleared the first and
+    /// failed the second, so the high-reach probe returned nil for the full key
+    /// set and reported *every* Mastodon and Bluesky key as unread. That is a
+    /// false orphan, and the cure for a false orphan is an allowlist entry —
+    /// which is how a real reader gets written off permanently. It renders as
+    /// 900% in the prompt; the probe only cares whether the output changes.
     private static func sample(for key: String) -> MetricValue {
-        if key.hasPrefix("avg_") || key == "ctr" { return .double(0.87) }
+        if key.hasPrefix("avg_") || key == "ctr" { return .double(9.0) }
         if key == "avg_position" { return .double(3.5) }
         if numberedFamilies.contains(where: { key.hasPrefix($0) }) { return .string("/sample") }
         if key.hasSuffix("_truncated") || key.hasSuffix("_sampled") || key.hasSuffix("_window") {
@@ -187,6 +214,15 @@ struct MetricKeyOrphanTests {
                 goalCustomText: ""
             )
         )
+    }
+
+    private static func feedCards(platform: Platform, keys: Set<String>) -> String {
+        guard let snapshot = try? PlatformSnapshot(runID: 1, data: data(platform: platform, keys: keys))
+        else { return "" }
+        return FeedCardBuilder.build(
+            snapshots: [PlatformInstance(platform: platform): snapshot],
+            visibility: ScratchVisibility.make()
+        ).map(\.snippet).sorted().joined(separator: "|")
     }
 
     private static func highReachMessage(platform: Platform, keys: Set<String>) -> String? {
