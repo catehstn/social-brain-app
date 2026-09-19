@@ -164,17 +164,20 @@ instead. Everywhere else the table applies.
 ## CI
 
 - **Treat a single green check as provisional.** Before reporting a PR as passing
-  — or merging it — confirm all three PR jobs (**Unit Tests**, **UI Tests**,
-  **MCP Server**) have *concluded* green, not just started, and that they ran
-  against the current head commit.
-- **Release Build does not run on pull requests** (#91). It runs on pushes to
-  `main` and on demand via `workflow_dispatch`. It was ~40 of the ~130 billed
-  macOS-minutes a full run cost — the largest single share — to compile source
-  the other jobs already compile, differing only in configuration. So a
-  Release-only break reaches `main` and is fixed forward. **If a change could
-  plausibly break only the Release configuration, run it on the branch first:**
-  `gh workflow run CI --ref <branch>`, or locally with
-  `xcodebuild build -scheme SocialBrain -configuration Release`.
+  — or merging it — confirm all four jobs (**Unit Tests**, **UI Tests**,
+  **MCP Server**, **Release Build**) have *concluded* green, not just started,
+  and that they ran against the current head commit.
+- **CI minutes are free, and arguments that assume otherwise are wrong.** The
+  repo is public, so standard GitHub-hosted runners are unmetered: every run
+  reports `billable.MACOS.total_ms = 0`. Verify with
+  `gh api repos/catehstn/social-brain-app/actions/runs/<id>/timing`.
+
+  This has now caused the same mistake twice. The audit and #91 were written
+  while the repo was private and the allowance was genuinely exhausted; that
+  changed on 2026-09-04 and is recorded in #91's comments, not its body. A
+  later pass read only the body, rebuilt the whole cost case, and proposed
+  trading PR coverage to save a bill of zero. **Read the comments.** Wall-clock
+  time is still worth arguing about; billed minutes are not.
 - **A green check is only worth what the pipeline can actually fail on.** This
   repo reported success for months while not building at all: `xcodebuild |
   xcpretty` without `pipefail` returns the *formatter's* exit code, so the failing
@@ -185,14 +188,14 @@ instead. Everywhere else the table applies.
   xcodebuild test` did exactly that — environment variables need the
   `TEST_RUNNER_` prefix to reach the test host. Run it and confirm the test count
   is non-zero.
-- **Run the tests locally before pushing.** macOS runners bill at a **10x** minute
-  multiplier, so the ~2,000 free minutes/month are really ~200 macOS-minutes. The
+- **Run the tests locally before pushing.** Not for the bill — see above — but
+  because a macOS runner takes minutes to tell you what `xcodebuild` tells you
+  in seconds, and a red PR is noise for whoever looks next. The
   workflow triggers on pushes to `main` and on pull requests, so a feature-branch
-  push runs nothing until a PR exists — after that, every job except Release
-  Build fires on every push to it. Pushing to find out is not free.
-- **Every job needs `timeout-minutes`.** GitHub's default is 360. A hung macOS
-  job at 6 hours x 10 = 3,600 billed minutes, which is 18x the monthly
-  allowance — from one stuck step.
+  push runs nothing until a PR exists — after that, every job fires on every
+  push to it.
+- **Every job needs `timeout-minutes`.** GitHub's default is 360, so one stuck
+  step holds a runner for six hours and blocks the queue behind it.
 - **The CI/local Xcode gap is deliberate** (#51). CI floats on the runner's
   default — Xcode 16.4 (16F6) at the time of writing — while local development
   is on 26.6. Newer swift-foundation is more lenient, so CI is the stricter
@@ -203,8 +206,8 @@ instead. Everywhere else the table applies.
 
   The cost is a round-trip when a failure doesn't reproduce locally — suspect
   the toolchain before suspecting the change. A matrix over both versions was
-  rejected on cost: macOS runners bill at 10x against a ~200-minute monthly
-  allowance, and it would roughly double the spend per push.
+  rejected for the wall-clock and maintenance cost of a second full pass, not
+  for billed minutes — there are none.
 
   **The README's stated minimum must match what CI actually verifies.** It said
   16.3 while CI ran 16.4; if the runner image moves, update both.

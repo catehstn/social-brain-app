@@ -151,7 +151,6 @@ Milestones created and populated:
 - #49 P1 — Tests for LinkedInXLSXParser and MiniZIPReader
 - #55 P1 — LinkedIn XLSX import fails on string-typed metric cells
 - #43 P2 — Retire the Vercel collector
-- #51 P2 — Decide the CI vs local Xcode version policy
 - #58 P2 — Make test isolation structural rather than order-dependent
 - #59 P2 — CI and project-file housekeeping
 - #60 P2 — Decide what to do with SetupURLTests (it has never passed)
@@ -189,7 +188,8 @@ merged branches stop accumulating.
 2. **#48, #49** — backfill collector and parser tests, restoring the guarantee
    CLAUDE.md already states. #49 first: `MiniZIPReader` parses untrusted binary
    input with no tests at all.
-3. **#43, #51** — clear dead weight and settle the toolchain question.
+3. **#43** — clear dead weight. (#51 settled the toolchain question: the gap
+   is kept deliberately, and both CLAUDE.md and the README now record it.)
 4. *Then* M2. The design pass is the interesting work, and it lands on a repo
    that can actually verify itself.
 
@@ -212,13 +212,14 @@ Six branches remain besides `main`, all deliberately:
 
 ## 7. Still needing a decision
 
-- **Enabling GitHub Pages for `docs/`** (issue #28). This repo is private; Pages
-  would publish `docs/index.html` to the public web. That's the intent of #28,
-  but it's an exposure decision, not a settings tidy-up, so it should be made
-  explicitly rather than folded into a cleanup.
-- **The Xcode version gap** (issue #51) — CI floats on the runner default while
-  local is newer. That gap has already caught one real bug and cost two
-  round-trips.
+- **Enabling GitHub Pages for `docs/`** (issue #28). The repo went public on
+  2026-09-04, so the sources are already readable; Pages would additionally
+  serve `docs/index.html` as a rendered site. Still an exposure decision rather
+  than a settings tidy-up, so it should be made explicitly.
+- ~~**The Xcode version gap** (issue #51)~~ — settled. The gap is deliberate:
+  CI on the runner default (16.4) is the stricter check, and it caught the
+  ISO8601 fractional-seconds bug that would have failed against live APIs. See
+  CLAUDE.md's CI section.
 - **Whether `SetupURLTests` is worth keeping** (issue #60) — it has never passed.
 - **Mentions synthesis** (issue #61) — the brief no longer promises it, because
   the code has never had it and #123 cut the line. What is left is the actual
