@@ -293,7 +293,7 @@ For each case in [AuthType.apiKey, .oauthToken, .fileExport, .noAuth]:
 
 ### 18. Regression: all existing unit tests remain green
 **Type:** Regression
-**Command:** `xcodebuild test -scheme SocialBrain -only-testing SocialBrainTests -destination 'platform=macOS'`
+**Command:** `xcodebuild test -scheme SocialBrain -only-testing:SocialBrainTests -destination 'platform=macOS'`
 **Source of truth:** All existing passing tests in `SocialBrainTests/`.
 
 Run before and after implementing the feature. If any test that was green before becomes red, it is a regression introduced by the platforms redesign and must be fixed before the PR is opened.

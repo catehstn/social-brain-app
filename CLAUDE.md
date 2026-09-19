@@ -2,7 +2,7 @@
 
 ## Critical rules for subagents
 
-**Planning subagents:** Your ONLY job is to write the plan **at the path you are given** and commit it — the trycycle skill passes it in (`IMPLEMENTATION_PLAN_PATH`, `TEST_PLAN_PATH`); do not invent a filename. Do NOT implement code, open PRs, merge branches, or do anything else. Stop after writing the plan.
+**Planning subagents:** Your ONLY job is to write the plan and commit it. On a first round you choose the filename, following the trycycle convention — `docs/plans/YYYY-MM-DD-<feature-name>.md`, or `-test-plan.md` for a test plan — and report it back as `## Plan path`; the skill populates `IMPLEMENTATION_PLAN_PATH` from what you report. On an edit or reconsider round you are given that path and must use it. Do NOT implement code, open PRs, merge branches, or do anything else. Stop after writing the plan.
 
 **Never merge to main without explicit user approval.** No subagent may run `gh pr merge`, `git merge`, or `git push` to main unless the user has explicitly said to do so in the current conversation turn.
 
@@ -35,9 +35,10 @@ analysis in Claude. It is a ground-up Swift rewrite of the original Python CLI t
 SocialBrain/
   App/                  # Entry point, background refresh, notifications
   Collectors/           # One file per platform (MastodonCollector.swift, …),
-                        # plus the shared pieces they use: CollectionEngine,
-                        # ExportDates, ISO8601Decoding, RateParsing,
-                        # MiniZIPReader, LinkedInXLSXParser
+                        # plus the shared pieces they use: Collector (the
+                        # protocol), CollectionEngine, ExportDates,
+                        # ISO8601Decoding, RateParsing, MiniZIPReader,
+                        # LinkedInXLSXParser
   Database/             # GRDB schema, migrations, query helpers
   Keychain/             # Credential storage via the Security framework
   Models/               # Shared types, feed cards, spike/reach detection
@@ -346,7 +347,8 @@ Include in every PR:
 
 **A squash merge composes its commit body from *every* commit on the branch**,
 so a `Closes #N` in a commit you later reverted still fires. #91 was closed this
-way: the first commit on a branch said `Closes #91`, the second withdrew that
-change and dropped the line, and the squash carried the stale one anyway.
+way and had to be reopened: the first commit on a branch said `Closes #91`, the
+second withdrew that change and dropped the line, and the squash carried the
+stale one anyway.
 Before merging, check `git log origin/main..HEAD --format=%B | grep Closes`
 against the issues you actually mean to close.
