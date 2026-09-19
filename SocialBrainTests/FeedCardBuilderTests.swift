@@ -149,6 +149,43 @@ struct FeedCardBuilderTests {
         #expect(!filtered.contains { $0.platform == .linkedin })
     }
 
+    @Test("Hiding the strongest platform promotes the next one, not nothing")
+    func hidingBestEngagementPromotesNextVisible() throws {
+        // The metric highlight picks ONE winner across all platforms with max(),
+        // so filtering only the finished cards let a hidden platform win and
+        // then get dropped — deleting "your best this period" from the feed
+        // rather than awarding it to the best visible platform. That is why the
+        // filter is applied to the inputs as well as the output.
+        let mastodon = try JSONEncoder().encode(
+            MastodonData(latestPostText: nil, followersCount: 100, engagementRate: 0.9)
+        )
+        let bluesky = try JSONEncoder().encode(
+            BlueskyData(latestPostText: nil, followersCount: 100, engagementRate: 0.5)
+        )
+        let snapshots: [PlatformInstance: PlatformSnapshot] = [
+            PlatformInstance(platform: .mastodon):
+                PlatformSnapshot(runID: 1, platform: "mastodon",
+                                 collectedAt: fixedNow, metricsJSON: mastodon),
+            PlatformInstance(platform: .bluesky):
+                PlatformSnapshot(runID: 1, platform: "bluesky",
+                                 collectedAt: fixedNow, metricsJSON: bluesky)
+        ]
+
+        // Mastodon wins on 0.9 when nothing is hidden.
+        let all = FeedCardBuilder.build(snapshots: snapshots, now: fixedNow,
+                                        visibility: noneHidden)
+        #expect(all.contains { $0.cardType == .metricHighlight && $0.platform == .mastodon })
+
+        let hidden = ScratchVisibility.make()
+        hidden.hide(.mastodon)
+        let filtered = FeedCardBuilder.build(snapshots: snapshots, now: fixedNow,
+                                             visibility: hidden)
+
+        // Bluesky inherits the highlight. The card must still exist.
+        #expect(filtered.contains { $0.cardType == .metricHighlight && $0.platform == .bluesky })
+        #expect(!filtered.contains { $0.platform == .mastodon })
+    }
+
     @Test("FeedCardType displayName returns human-readable strings")
     func feedCardTypeDisplayName() {
         #expect(FeedCardType.recentPost.displayName == "Recent Post")

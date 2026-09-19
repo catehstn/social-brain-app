@@ -13,10 +13,14 @@ final class FeedViewModel {
 
     private let database: AppDatabase
     private let now: () -> Date
+    private let visibility: PlatformVisibilityStore
 
-    init(database: AppDatabase, now: @escaping @Sendable () -> Date = { Date() }) {
+    init(database: AppDatabase,
+         now: @escaping @Sendable () -> Date = { Date() },
+         visibility: PlatformVisibilityStore = .shared) {
         self.database = database
         self.now = now
+        self.visibility = visibility
     }
 
     func load() async {
@@ -30,7 +34,8 @@ final class FeedViewModel {
             // FeedCardBuilder.build is non-throwing (all JSON decoded with try?)
             cards = FeedCardBuilder.build(snapshots: snapshots,
                                           previousSnapshots: previous,
-                                          now: now())
+                                          now: now(),
+                                          visibility: visibility)
         } catch {
             self.error = error.localizedDescription
         }

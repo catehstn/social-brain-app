@@ -94,7 +94,10 @@ This is the chart-heavy screen. Not the home briefing.
   - Lists configured instances
   - "Set Up" (first instance) or "+ Add another *[Platform]*" (subsequent)
   - Per-instance "Edit" button → opens `PlatformCredentialSheet` modal
-  - "Hide *[Platform]*" affordance (removes from grid; eye-icon toolbar reveals hidden)
+  - "Hide *[Platform]*" affordance (eye-icon toolbar reveals hidden). Hiding
+    removes the platform from the grid, from the Feed's cards, and from the
+    assembled prompt — it means "don't put this in front of me", not "stop
+    collecting it", so history keeps accruing and unhiding leaves no gap.
 - Credential sheet includes: auth-type-appropriate fields, per-platform setup URL (opens in browser), test-connection, and for file-export platforms a **drag-and-drop zone**.
 
 ### Onboarding *(first-run modal)*

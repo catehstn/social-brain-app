@@ -7,6 +7,12 @@ import GRDB
 @MainActor
 struct FeedViewModelTests {
 
+    /// Nothing hidden, and backed by memory rather than UserDefaults.standard.
+    /// FeedViewModel reaches FeedCardBuilder, which now consults visibility, so
+    /// without this the suite reads the developer's own settings: hiding
+    /// LinkedIn in the real app made the stale-reminder count assertions fail.
+    private let noneHidden = ScratchVisibility.make()
+
     private func makeDB() throws -> AppDatabase {
         try AppDatabase.makeInMemory()
     }
@@ -31,7 +37,7 @@ struct FeedViewModelTests {
                                     collectedAt: Date(), metricsJSON: payload)
         try await db.saveSnapshot(&snap)
 
-        let vm = FeedViewModel(database: db)
+        let vm = FeedViewModel(database: db, visibility: noneHidden)
         await vm.load()
 
         #expect(!vm.cards.isEmpty)
@@ -42,7 +48,7 @@ struct FeedViewModelTests {
     @Test("empty database has non-empty cards (stale reminders)")
     func emptyDatabaseHasNonEmptyCards() async throws {
         let db = try makeDB()
-        let vm = FeedViewModel(database: db)
+        let vm = FeedViewModel(database: db, visibility: noneHidden)
         await vm.load()
         #expect(!vm.cards.isEmpty)
     }
@@ -50,7 +56,7 @@ struct FeedViewModelTests {
     @Test("load() with empty database produces 3 stale reminder cards")
     func emptyDatabaseProducesStaleReminders() async throws {
         let db = try makeDB()
-        let vm = FeedViewModel(database: db)
+        let vm = FeedViewModel(database: db, visibility: noneHidden)
         await vm.load()
         // stale reminders for linkedin, substack, oreilly — Amazon KDP was
         // retired, so the count drops with it.
@@ -69,7 +75,7 @@ struct FeedViewModelTests {
                                     collectedAt: staleDate, metricsJSON: payload)
         try await db.saveSnapshot(&snap)
 
-        let vm = FeedViewModel(database: db, now: { fixedNow })
+        let vm = FeedViewModel(database: db, now: { fixedNow }, visibility: noneHidden)
         await vm.load()
 
         let stale = vm.cards.first { (card: FeedCard) in
@@ -90,7 +96,7 @@ struct FeedViewModelTests {
                                     collectedAt: freshDate, metricsJSON: payload)
         try await db.saveSnapshot(&snap)
 
-        let vm = FeedViewModel(database: db, now: { fixedNow })
+        let vm = FeedViewModel(database: db, now: { fixedNow }, visibility: noneHidden)
         await vm.load()
 
         let stale = vm.cards.filter { (card: FeedCard) in
@@ -109,7 +115,7 @@ struct FeedViewModelTests {
                                     collectedAt: Date(), metricsJSON: payload)
         try await db.saveSnapshot(&snap)
 
-        let vm = FeedViewModel(database: db)
+        let vm = FeedViewModel(database: db, visibility: noneHidden)
         await vm.load()
 
         let card = vm.cards.first { $0.platform == .mastodon }
@@ -129,7 +135,7 @@ struct FeedViewModelTests {
                                     metricsJSON: payload)
         try await db.saveSnapshot(&snap)
 
-        let vm = FeedViewModel(database: db)
+        let vm = FeedViewModel(database: db, visibility: noneHidden)
         await vm.load()
 
         #expect(!vm.cards.isEmpty)
@@ -153,10 +159,28 @@ struct FeedViewModelTests {
         try await db.saveSnapshot(&snap1)
         try await db.saveSnapshot(&snap2)
 
-        let vm = FeedViewModel(database: db)
+        let vm = FeedViewModel(database: db, visibility: noneHidden)
         await vm.load()
 
         let mastodonCards = vm.cards.filter { $0.platform == .mastodon }
         #expect(mastodonCards.count >= 2)
+    }
+    @Test("A hidden platform produces no cards through the view model either")
+    func hiddenPlatformIsFilteredThroughTheViewModel() async throws {
+        // FeedCardBuilder's filter is only reached if FeedViewModel passes its
+        // store down. It did not, at first: the builder took a visibility
+        // parameter and this view model let it default to UserDefaults.standard,
+        // which both skipped the filter under test and made this suite read the
+        // developer's own hidden-platform settings.
+        let db = try AppDatabase.makeInMemory()
+        let hidden = ScratchVisibility.make()
+        hidden.hide(.linkedin)
+
+        let vm = FeedViewModel(database: db, visibility: hidden)
+        await vm.load()
+
+        #expect(!vm.cards.contains { $0.platform == .linkedin })
+        // Not vacuous: the other file-export platforms still report.
+        #expect(vm.cards.contains { $0.platform == .substack })
     }
 }
