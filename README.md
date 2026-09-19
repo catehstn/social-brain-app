@@ -149,7 +149,10 @@ Grouped by how much work they are to connect:
 Groupings come from `Platform.authType` in `SocialBrain/Models/Platform.swift` —
 check there rather than trusting this list.
 
-Per-platform setup instructions are in `docs/index.html`.
+Per-platform setup instructions ship inside the app — Help → Setup Guide, which
+reads `SocialBrain/Resources/setup-guide.html`. `docs/index.html` is a copy of
+that file, kept byte-identical by a test, for publishing if GitHub Pages is ever
+turned on (#28). Edit the bundled one.
 
 ## Contributing
 

@@ -1,4 +1,11 @@
 # Platforms Page Redesign — Test Plan
+
+> **Historical.** This plan was implemented in #31 and is kept as a record of
+> the reasoning, not as instructions. Two things in it are now wrong: XcodeGen
+> was removed in #44 — `project.yml` is deleted and `SocialBrain.xcodeproj` is
+> checked in and hand-edited, so **do not run `xcodegen generate`** — and the
+> Platforms screen is being redesigned again under #40.
+
 **Date:** 2026-04-14
 **Feature:** Platforms grid/card layout with push navigation, SF Symbol icons, and hide/show
 
@@ -286,7 +293,7 @@ For each case in [AuthType.apiKey, .oauthToken, .fileExport, .noAuth]:
 
 ### 18. Regression: all existing unit tests remain green
 **Type:** Regression
-**Command:** `xcodebuild test -scheme SocialBrain -only-testing SocialBrainTests -destination 'platform=macOS'`
+**Command:** `xcodebuild test -scheme SocialBrain -only-testing:SocialBrainTests -destination 'platform=macOS'`
 **Source of truth:** All existing passing tests in `SocialBrainTests/`.
 
 Run before and after implementing the feature. If any test that was green before becomes red, it is a regression introduced by the platforms redesign and must be fixed before the PR is opened.
