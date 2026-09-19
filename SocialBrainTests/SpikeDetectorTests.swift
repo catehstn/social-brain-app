@@ -40,6 +40,65 @@ struct SpikeDetectorTests {
         #expect(alerts.isEmpty)
     }
 
+    // MARK: - Search rank reads in rank units (#126)
+
+    @Test("A worsening search rank is not reported with a plus sign")
+    func worseningRankHasNoPlusSign() throws {
+        // Sliding from position 5 to 7 rendered as "+40.0% Avg Position on
+        // Google Search Console". A plus sign and a rising number both read as
+        // good news, so the user was congratulated for getting worse — and the
+        // same inversion would have reached any colour or icon built on
+        // isIncrease.
+        let previous = try makeSnapshot(platform: .googleSearchConsole,
+                                        metrics: ["avg_position": .double(5)])
+        let current  = try makeSnapshot(platform: .googleSearchConsole,
+                                        metrics: ["avg_position": .double(7)])
+
+        let alert = try #require(
+            SpikeDetector().detect(current: current, previous: previous)
+                .first { $0.metricKey == "avg_position" }
+        )
+
+        #expect(!alert.summary.contains("+"))
+        #expect(!alert.summary.contains("%"))
+        #expect(alert.summary == "Avg Position 5.0 → 7.0 on Google Search Console")
+    }
+
+    @Test("An improving search rank reads the same way, in rank units")
+    func improvingRankIsAlsoInRankUnits() throws {
+        // The other direction, because "don't show a plus" could be satisfied
+        // by simply dropping the sign and leaving a percentage that still means
+        // very little for a rank.
+        let previous = try makeSnapshot(platform: .googleSearchConsole,
+                                        metrics: ["avg_position": .double(10)])
+        let current  = try makeSnapshot(platform: .googleSearchConsole,
+                                        metrics: ["avg_position": .double(6)])
+
+        let alert = try #require(
+            SpikeDetector().detect(current: current, previous: previous)
+                .first { $0.metricKey == "avg_position" }
+        )
+
+        #expect(alert.summary == "Avg Position 10.0 → 6.0 on Google Search Console")
+    }
+
+    @Test("Every other Search Console metric still reads as a percentage")
+    func otherMetricsKeepPercentages() throws {
+        // The rank rendering is per metric, not per platform: clicks on the
+        // same platform must be unaffected.
+        let previous = try makeSnapshot(platform: .googleSearchConsole,
+                                        metrics: ["clicks": .double(100)])
+        let current  = try makeSnapshot(platform: .googleSearchConsole,
+                                        metrics: ["clicks": .double(150)])
+
+        let alert = try #require(
+            SpikeDetector().detect(current: current, previous: previous)
+                .first { $0.metricKey == "clicks" }
+        )
+
+        #expect(alert.summary == "+50.0% Clicks on Google Search Console")
+    }
+
     @Test("LinkedIn follower growth is detected, as it is for every other platform")
     func linkedinFollowerSpike() throws {
         // Spike alerts are the only route by which a LinkedIn metric becomes a

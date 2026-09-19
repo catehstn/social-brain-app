@@ -12,6 +12,20 @@ struct SpikeAlert: Sendable {
     let metricLabel: String
     /// The raw metric key used in `[String: MetricValue]` dictionaries.
     let metricKey: String
+    /// How this metric reads to a person.
+    var rendering: Rendering = .percentage
+
+    /// How a change should be written out.
+    enum Rendering: Sendable {
+        /// "+23.4% Followers" — right for anything where more is better and the
+        /// baseline is meaningful.
+        case percentage
+        /// "5 → 7" — for a search rank, where **lower is better** and a
+        /// percentage is close to meaningless anyway. Sliding from position 5
+        /// to 7 rendered as "+40.0% Avg Position": a plus sign and a rising
+        /// number, congratulating the user for getting worse (#126).
+        case rank
+    }
     /// Previous value (from the older snapshot).
     let previousValue: Double
     /// Current value (from the newer snapshot).
@@ -23,15 +37,27 @@ struct SpikeAlert: Sendable {
         return ((currentValue - previousValue) / abs(previousValue)) * 100
     }
 
+    /// Whether the number went up.
+    ///
+    /// Deliberately not "whether this is good news": for a rank it is the
+    /// opposite. `summary` renders ranks in their own units rather than
+    /// signing them, so nothing has to answer that question (#126).
     var isIncrease: Bool { currentValue >= previousValue }
 
-    /// A short human-readable description, e.g. "+23.4% Followers on Mastodon".
+    /// A short human-readable description, e.g. "+23.4% Followers on Mastodon",
+    /// or "Avg Position 5.0 → 7.0 on Google Search Console".
     var summary: String {
-        let sign = isIncrease ? "+" : ""
         let source = instanceName == "default"
             ? platform.displayName
             : "\(platform.displayName) (\(instanceName))"
-        return "\(sign)\(String(format: "%.1f", percentChange))% \(metricLabel) on \(source)"
+        switch rendering {
+        case .percentage:
+            let sign = isIncrease ? "+" : ""
+            return "\(sign)\(String(format: "%.1f", percentChange))% \(metricLabel) on \(source)"
+        case .rank:
+            return "\(metricLabel) \(String(format: "%.1f", previousValue)) → "
+                 + "\(String(format: "%.1f", currentValue)) on \(source)"
+        }
     }
 }
 
@@ -51,6 +77,8 @@ struct SpikeDetector: Sendable {
     private struct Monitored {
         let key: String
         let label: String
+        /// Defaults to a percentage; `avg_position` is the one rank so far.
+        var rendering: SpikeAlert.Rendering = .percentage
         /// The floor, in the metric's own units. Zero means no floor.
         ///
         /// A percentage gate alone is meaningless on small numbers: an average
@@ -117,6 +145,7 @@ struct SpikeDetector: Sendable {
                 instanceName: current.instanceName,
                 metricLabel: metric.label,
                 metricKey: metric.key,
+                rendering: metric.rendering,
                 previousValue: previousVal,
                 currentValue: currentVal
             ))
@@ -194,7 +223,8 @@ struct SpikeDetector: Sendable {
             return [Monitored(key: "clicks", label: "Clicks"),
                     Monitored(key: "impressions", label: "Impressions"),
                     Monitored(key: "ctr", label: "CTR", floor: rateFloor),
-                    Monitored(key: "avg_position", label: "Avg Position")]
+                    Monitored(key: "avg_position", label: "Avg Position",
+                              rendering: .rank)]
         case .buffer:
             return [Monitored(key: "sent_updates", label: "Sent Updates"),
                     Monitored(key: "total_clicks", label: "Clicks"),
