@@ -104,6 +104,74 @@ jobs:
           path: '*.xcresult'
           retention-days: 7
 
+  # The MCP server is a separate product with its own tests, which had never
+  # run before #47 — the target did not exist.
+  mcp-server:
+    name: MCP Server
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Show toolchain
+        run: xcodebuild -version
+
+      - name: Install xcbeautify
+        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+
+      - name: Cache SPM dependencies
+        uses: actions/cache@v4
+        with:
+          # Two paths: the Release step below uses -derivedDataPath build to
+          # run the exact command the README gives people, which puts
+          # SourcePackages under build/ rather than the default location.
+          #
+          # This caches the package *checkout*, not build products — GRDB is
+          # still compiled either way. It saves a clone, which is seconds, at
+          # the cost of a second archived copy. Kept because the alternative is
+          # not running the documented command at all.
+          path: |
+            ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
+            build/SourcePackages
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-
+
+      # Both actions, because they fail differently: the tests do not exercise
+      # DatabaseProxy (they inject a stub store), so only a Release build of the
+      # tool proves the binary the README tells people to build still links.
+      - name: Run MCP tests
+        shell: bash -eo pipefail {0}
+        run: |
+          xcodebuild test \
+            -scheme SocialBrainMCP \
+            -destination 'platform=macOS' \
+            -resultBundlePath TestResults-mcp.xcresult \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM= \
+            | xcbeautify --renderer github-actions
+
+      - name: Build the documented Release binary
+        shell: bash -eo pipefail {0}
+        run: |
+          xcodebuild build \
+            -scheme SocialBrainMCP \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM= \
+            | xcbeautify --renderer github-actions
+          test -x build/Build/Products/Release/SocialBrainMCP
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.job }}-xcresult
+          path: '*.xcresult'
+          retention-days: 7
+
   release-build:
     name: Release Build
     runs-on: macos-15

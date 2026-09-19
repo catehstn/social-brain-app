@@ -24,8 +24,11 @@
 ///     -derivedDataPath build
 ///   # Binary at: build/Build/Products/Release/SocialBrainMCP
 ///
-/// The server reads from the same SQLite database that the Social Brain app writes to:
-///   ~/Library/Application Support/SocialBrain/analytics.sqlite
+/// The server reads from the same SQLite database that the Social Brain app
+/// writes to. The app is sandboxed, so that is inside its container:
+///   ~/Library/Containers/com.catehuston.SocialBrain/Data/Library/Application Support/SocialBrain/analytics.sqlite
+/// `DatabaseProxy` falls back to the unsandboxed location if the app is ever
+/// shipped without the sandbox.
 /// Run a collection in the app before querying via MCP.
 
 import Foundation
@@ -33,5 +36,14 @@ import Foundation
 // MARK: - Entry point
 
 // Run the server on the main thread; async entry point keeps the run loop alive.
-let server = MCPServer()
-await server.run()
+//
+// The database is opened here rather than in a default argument so that a
+// missing one is reported instead of trapping. stdout is the JSON-RPC channel,
+// so the message goes to stderr, which Claude surfaces as server output.
+do {
+    let server = MCPServer(store: try DatabaseProxy())
+    await server.run()
+} catch {
+    FileHandle.standardError.write(Data("SocialBrainMCP: \(error.localizedDescription)\n".utf8))
+    exit(1)
+}

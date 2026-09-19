@@ -120,9 +120,11 @@ struct MCPServerTests {
     func parseError() async throws {
         let server = MCPServer(store: StubStore())
         let garbage = Data("not-json".utf8)
-        let response = await server.handle(garbage)
-        #expect(response != nil)
-        let decoded = json(response!)
+        // #require, not #expect plus `!`: #expect does not halt, so a nil
+        // response would walk into the force unwrap and kill the runner
+        // instead of failing the test. This file only started running with
+        // #47, so #169's sweep never reached it.
+        let decoded = json(try #require(await server.handle(garbage)))
         let error = decoded["error"] as? [String: Any]
         #expect(error?["code"] as? Int == -32700)
     }
@@ -310,5 +312,56 @@ struct MCPServerTests {
         )
         let text = toolText(from: response)
         #expect(text?.contains("No platforms have data") == true)
+    }
+}
+
+// MARK: - Where the database is looked for (#47)
+
+@Suite("Database location")
+struct DatabaseLocationTests {
+
+    private let home = URL(fileURLWithPath: "/Users/someone")
+    private var appSupport: URL { home.appendingPathComponent("Library/Application Support") }
+
+    @Test("The sandboxed container is searched first")
+    func containerPathComesFirst() throws {
+        // The app sets com.apple.security.app-sandbox, so its
+        // .applicationSupportDirectory resolves inside its container. This
+        // server is an unsandboxed command-line tool, where the identical call
+        // returns ~/Library/Application Support — a directory the app never
+        // writes to. DatabaseProxy used to say it "mirrors the path logic in
+        // AppDatabase.makeDefault()", and that mirroring was the bug: matching
+        // code, different paths, so the database could never be found.
+        let candidates = DatabaseProxy.databaseCandidates(home: home, appSupport: appSupport)
+
+        let first = try #require(candidates.first).path
+        #expect(first == "/Users/someone/Library/Containers/com.catehuston.SocialBrain"
+                       + "/Data/Library/Application Support/SocialBrain/analytics.sqlite")
+    }
+
+    @Test("The unsandboxed location is still searched, second")
+    func plainPathIsTheFallback() throws {
+        // So this keeps working if the app is ever shipped without the sandbox.
+        let candidates = DatabaseProxy.databaseCandidates(home: home, appSupport: appSupport)
+
+        #expect(candidates.count == 2)
+        let second = try #require(candidates.dropFirst().first).path
+        #expect(second == "/Users/someone/Library/Application Support/SocialBrain/analytics.sqlite")
+    }
+
+    @Test("The container path is built from the bundle identifier constant")
+    func containerUsesTheBundleIdentifier() throws {
+        // Structural only, deliberately. Asserting the constant equals a copy
+        // of its own literal proves nothing, and nothing here can reach the app
+        // target's PRODUCT_BUNDLE_IDENTIFIER — this tool is a separate binary
+        // and cannot read the app's Info.plist. So renaming the app would leave
+        // these green and the server unable to find the database; the failure
+        // would be loud at runtime (the error names both searched paths) rather
+        // than caught here. #174 tracks the wider gap.
+        let candidates = DatabaseProxy.databaseCandidates(home: home, appSupport: appSupport)
+        let first = try #require(candidates.first).path
+
+        #expect(first.contains("/Containers/" + DatabaseProxy.bundleIdentifier + "/"))
+        #expect(!first.contains("/Containers//"), "the identifier must not be empty")
     }
 }
