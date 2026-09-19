@@ -33,7 +33,7 @@ struct HackerNewsCollectorTests {
     @Test("Counts mentions and sums points and comments")
     func parsesTotals() async throws {
         let collector = HackerNewsCollector(session: makeSession())
-        let data = try await collector.collect(since: nil, credentials: credentials)
+        let data = try await collector.collect(since: .distantPast, credentials: credentials)
 
         #expect(data.metrics["mention_count"] == .int(4))
         #expect(data.metrics["total_points"] == .int(235))
@@ -43,7 +43,7 @@ struct HackerNewsCollectorTests {
     @Test("Top stories are ranked by points, highest first")
     func ranksTopStories() async throws {
         let collector = HackerNewsCollector(session: makeSession())
-        let data = try await collector.collect(since: nil, credentials: credentials)
+        let data = try await collector.collect(since: .distantPast, credentials: credentials)
 
         #expect(data.metrics["top_story_1"] == .string("A post about widgets (120 pts)"))
         #expect(data.metrics["top_story_2"] == .string("Third story (75 pts)"))
@@ -62,7 +62,7 @@ struct HackerNewsCollectorTests {
             ],"nbHits":2,"nbPages":1}
             """
         let data = try await HackerNewsCollector(session: makeSession(json))
-            .collect(since: nil, credentials: credentials)
+            .collect(since: .distantPast, credentials: credentials)
 
         #expect(data.metrics["top_story_1"] == .string("Real (10 pts)"))
         #expect(data.metrics["top_story_2"] == nil)
@@ -76,7 +76,7 @@ struct HackerNewsCollectorTests {
         // and no story_title. This covers the reachable case instead.
         let json = #"{"hits":[{"objectID":"9","url":"https://example.com/x","points":5,"num_comments":0}],"nbHits":1,"nbPages":1}"#
         let data = try await HackerNewsCollector(session: makeSession(json))
-            .collect(since: nil, credentials: credentials)
+            .collect(since: .distantPast, credentials: credentials)
 
         #expect(data.metrics["top_story_1"] == .string("(untitled) (5 pts)"))
     }
@@ -86,7 +86,7 @@ struct HackerNewsCollectorTests {
         // Verified live: a zero-hit query answers {"hits":[],"nbHits":0,"nbPages":0}.
         let session = makeSession(#"{"hits":[],"nbHits":0,"nbPages":0}"#)
         let collector = HackerNewsCollector(session: session)
-        let data = try await collector.collect(since: nil, credentials: credentials)
+        let data = try await collector.collect(since: .distantPast, credentials: credentials)
 
         #expect(data.metrics["mention_count"] == .int(0))
         #expect(data.metrics["total_points"] == .int(0))
@@ -122,7 +122,7 @@ struct HackerNewsCollectorTests {
             ]
         ])
         let data = try await HackerNewsCollector(session: session)
-            .collect(since: nil, credentials: credentials)
+            .collect(since: .distantPast, credentials: credentials)
 
         #expect(session.requests(path: "/api/v1/search").count == 3)
         #expect(data.intMetric("mention_count") == 250)
@@ -139,7 +139,7 @@ struct HackerNewsCollectorTests {
             ]
         ])
         _ = try await HackerNewsCollector(session: session)
-            .collect(since: nil, credentials: credentials)
+            .collect(since: .distantPast, credentials: credentials)
         #expect(session.queryValues("page", path: "/api/v1/search") == ["0", "1"])
     }
 
@@ -156,7 +156,7 @@ struct HackerNewsCollectorTests {
             ]
         ])
         let data = try await HackerNewsCollector(session: session)
-            .collect(since: nil, credentials: credentials)
+            .collect(since: .distantPast, credentials: credentials)
 
         #expect(session.requests(path: "/api/v1/search").count == 10)
         #expect(data.intMetric("mention_count") == 369_830)
@@ -172,14 +172,14 @@ struct HackerNewsCollectorTests {
             "/api/v1/search": [.init(Self.hnPage(hits: 4, nbHits: 4, nbPages: 1, idBase: 0))]
         ])
         _ = try await HackerNewsCollector(session: session)
-            .collect(since: nil, credentials: credentials)
+            .collect(since: .distantPast, credentials: credentials)
         #expect(session.requests(path: "/api/v1/search").count == 1)
     }
 
     @Test("Searches for the configured domain, restricted to URL attributes")
     func requestsTheRightSearch() async throws {
         let session = makeSession()
-        _ = try await HackerNewsCollector(session: session).collect(since: nil, credentials: credentials)
+        _ = try await HackerNewsCollector(session: session).collect(since: .distantPast, credentials: credentials)
 
         #expect(session.queryValue("query", path: "/api/v1/search") == "example.com")
         // Without the restriction the search matches the domain appearing in
@@ -200,17 +200,25 @@ struct HackerNewsCollectorTests {
                 == "created_at_i>1767225600")
     }
 
-    @Test("No since defaults to a 28-day window rather than all time")
-    func defaultsToRecentWindow() async throws {
+    @Test("All time is clamped to the epoch, not sent as a negative timestamp")
+    func allTimeIsClampedToTheEpoch() async throws {
+        // This used to assert that no `since` meant 28 days. That contract is
+        // gone: `since` is required now, because nil meant 28 days here, 30 in
+        // GoatCounter and Jetpack, one page in Bluesky and Mastodon, and no
+        // filter at all in Buttondown and Calendly — so "All time" in the Run
+        // screen produced a different window per platform (#96).
+        //
+        // The replacement contract is that .distantPast reaches the wire as 0.
+        // The filter is `created_at_i > Int(timeIntervalSince1970)`, and
+        // .distantPast makes that about -62135596800. Hacker News began in
+        // 2007, so the epoch is "everything" without sending a live API a
+        // value nobody has tried.
         let session = makeSession()
-        _ = try await HackerNewsCollector(session: session).collect(since: nil, credentials: credentials)
+        _ = try await HackerNewsCollector(session: session)
+            .collect(since: .distantPast, credentials: credentials)
 
-        let filter = try #require(session.queryValue("numericFilters", path: "/api/v1/search"))
-        let timestamp = try #require(Int(filter.replacingOccurrences(of: "created_at_i>", with: "")))
-        let daysAgo = Date().timeIntervalSince1970 - Double(timestamp)
-
-        #expect(daysAgo > 27 * 86_400)
-        #expect(daysAgo < 29 * 86_400)
+        #expect(session.queryValue("numericFilters", path: "/api/v1/search")
+                == "created_at_i>0")
     }
 
     // MARK: - Failures
@@ -220,7 +228,7 @@ struct HackerNewsCollectorTests {
         let collector = HackerNewsCollector(session: makeSession())
 
         let error = await #expect(throws: CollectorError.self) {
-            _ = try await collector.collect(since: nil, credentials: Credentials([:]))
+            _ = try await collector.collect(since: .distantPast, credentials: Credentials([:]))
         }
         #expect(error?.localizedDescription.contains("site_code") == true)
     }
@@ -230,7 +238,7 @@ struct HackerNewsCollectorTests {
         let collector = HackerNewsCollector(session: makeSession())
 
         await #expect(throws: CollectorError.self) {
-            _ = try await collector.collect(since: nil, credentials: Credentials(["site_code": ""]))
+            _ = try await collector.collect(since: .distantPast, credentials: Credentials(["site_code": ""]))
         }
     }
 
@@ -239,7 +247,7 @@ struct HackerNewsCollectorTests {
         let collector = HackerNewsCollector(session: makeSession(#"{"error":"nope"}"#, status: 503))
 
         await #expect(throws: CollectorError.self) {
-            _ = try await collector.collect(since: nil, credentials: credentials)
+            _ = try await collector.collect(since: .distantPast, credentials: credentials)
         }
     }
 

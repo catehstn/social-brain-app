@@ -37,7 +37,7 @@ struct MastodonCollector: Collector {
         return "@\(acct.username)@\(host)"
     }
 
-    func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
+    func collect(since: Date, credentials: Credentials) async throws -> PlatformData {
         guard let token = credentials.accessToken else {
             throw CollectorError.missingCredential("access_token")
         }
@@ -129,7 +129,7 @@ struct MastodonCollector: Collector {
         instanceURL: URL,
         accountID: String,
         token: String,
-        since: Date?
+        since: Date
     ) async throws -> (statuses: [Status], truncated: Bool) {
         let decoder = makeDecoder()
         var collected: [Status] = []
@@ -155,10 +155,11 @@ struct MastodonCollector: Collector {
             guard page.count == Self.pageSize, let oldest = page.last else {
                 return (filter(collected, since: since), false)
             }
-            // `nil` is not "no window asked for" — it is the **All time**
-            // button (`RunView` maps `.distantPast` to nil), and the default
-            // for a background refresh. So it walks to the page cap like any
-            // other request; there is simply no boundary to stop early at.
+            // `.distantPast` is not "no window asked for" — it is the **All
+            // time** button, passed straight through since #96. So it walks to
+            // the page cap like any other request; there is simply no boundary
+            // to stop early at. (The background refresh asks for an explicit 30
+            // days and does have one.)
             //
             // An earlier version returned after one page here, on the reasoning
             // that an unbounded request has nothing to walk to. That reported
@@ -166,7 +167,7 @@ struct MastodonCollector: Collector {
             // `statuses_count` of several thousand from the same response —
             // the exact undercount this change exists to remove, on the one
             // path a user actually clicks.
-            if let since, oldest.createdAt < since {
+            if oldest.createdAt < since {
                 // The page already reaches past the window; nothing older helps.
                 return (filter(collected, since: since), false)
             }
@@ -176,9 +177,10 @@ struct MastodonCollector: Collector {
         return (filter(collected, since: since), true)
     }
 
-    private func filter(_ statuses: [Status], since: Date?) -> [Status] {
-        guard let since else { return statuses }
-        return statuses.filter { $0.createdAt >= since }
+    private func filter(_ statuses: [Status], since: Date) -> [Status] {
+        // Date.distantPast keeps everything; the walk is bounded by
+        // maximumPages rather than by the window.
+        statuses.filter { $0.createdAt >= since }
     }
 
     private func makeDecoder() -> JSONDecoder {

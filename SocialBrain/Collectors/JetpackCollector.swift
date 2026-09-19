@@ -31,7 +31,7 @@ struct JetpackCollector: Collector {
         credentials.siteCode
     }
 
-    func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
+    func collect(since: Date, credentials: Credentials) async throws -> PlatformData {
         guard let token = credentials.accessToken else {
             throw CollectorError.missingCredential("access_token")
         }
@@ -40,7 +40,16 @@ struct JetpackCollector: Collector {
         }
 
         let end   = Date()
-        let start = since ?? Calendar.current.date(byAdding: .day, value: -30, to: end)!
+        // No clamp here: fetchVisits already caps `quantity` at maximumDays and
+        // records views_window saying what it covered, which is the behaviour
+        // the rest of the collectors still lack. Date.distantPast simply lands
+        // on that cap.
+        //
+        // Note daysRequested keeps the *user's* calendar rather than UTC, on
+        // purpose — see its own doc comment. #96 normalises the boundary dates
+        // sent to APIs, which is a different thing from how many days the user
+        // asked for.
+        let start = since
 
         // Fetch summary stats and visit history concurrently.
         async let summary = fetchSummary(siteID: siteID, token: token)
@@ -65,8 +74,17 @@ struct JetpackCollector: Collector {
         // a year-long request at 90 days makes a busy year look like a quiet
         // quarter.
         if visitResult.daysCovered < visitResult.daysRequested {
-            metrics["views_window"] = .string(
-                "views and visitors cover the last \(visitResult.daysCovered) days, not the \(visitResult.daysRequested) requested")
+            // The whole clause branches, not just the noun: `.distantPast`
+            // makes daysRequested about 739,879, and "not the 739879 requested"
+            // is nonsense to read in a prompt (#96).
+            //
+            // Tested with the same sentinel the rest of the codebase uses
+            // rather than a day threshold. A threshold would be a second,
+            // fuzzier encoding of "all time" for no gain.
+            let note = CollectionWindow.lowerBound(since) == nil
+                ? "views and visitors cover the last \(visitResult.daysCovered) days, not all time as requested"
+                : "views and visitors cover the last \(visitResult.daysCovered) days, not the \(visitResult.daysRequested) requested"
+            metrics["views_window"] = .string(note)
         }
 
         return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)
@@ -100,6 +118,7 @@ struct JetpackCollector: Collector {
     /// out to be ours rather than theirs, this becomes a page walk over `date`
     /// offsets.
     static let maximumDays = 90
+
 
     /// How many days a window covers.
     ///

@@ -65,12 +65,16 @@ actor CollectionEngine {
     /// - Parameters:
     ///   - collectors: The platform collectors to run (typically one per configured instance).
     ///   - credentials: A function that returns stored credentials for a given `PlatformInstance`.
-    ///   - since: Optional date; collectors only fetch data since this point in time.
+    ///   - since: The start of the window to collect. Required, and with no
+    ///     default: `nil` used to mean five different windows depending on the
+    ///     collector, so "All time" produced incomparable numbers that the
+    ///     prompt then presented side by side (#96). Pass `.distantPast` for
+    ///     as far back as each platform allows.
     ///   - progress: Optional closure called after each collector completes with its result.
     func run(
         collectors: [any Collector],
         credentials: @escaping @Sendable (PlatformInstance) throws -> Credentials?,
-        since: Date? = nil,
+        since: Date,
         progress: (@Sendable (CollectionResult) async -> Void)? = nil
     ) async throws -> CollectionSummary {
         let startedAt = Date()

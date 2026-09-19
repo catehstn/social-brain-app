@@ -209,7 +209,11 @@ protocol Collector: Sendable {
     var platform: Platform { get }
     /// The instance name for this collector. Defaults to `"default"`.
     var instanceName: String { get }
-    func collect(since: Date?, credentials: Credentials) async throws -> PlatformData
+    /// `since` is required, and `.distantPast` means "as far back as this
+    /// platform allows" — each collector clamps to its own stated limit.
+    /// An optional here meant five different windows depending on the
+    /// collector, so "All time" was not comparable across platforms (#96).
+    func collect(since: Date, credentials: Credentials) async throws -> PlatformData
     /// Human-readable label for this instance (newsletter name, handle, …).
     /// Called once after credentials are saved. `nil` if none can be determined.
     func fetchLabel(credentials: Credentials) async -> String?

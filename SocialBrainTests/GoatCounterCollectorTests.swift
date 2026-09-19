@@ -36,7 +36,7 @@ struct GoatCounterCollectorTests {
             "/api/v0/stats/hits":  (Self.hitsJSON,   200)
         ])
         _ = try await GoatCounterCollector(session: session).collect(
-            since: nil,
+            since: .distantPast,
             credentials: Credentials(["api_key": "test-token", "site_code": "mysite"])
         )
 
@@ -63,7 +63,7 @@ struct GoatCounterCollectorTests {
             "api_key":   "test-token",
             "site_code": "mysite"
         ])
-        let data = try await collector.collect(since: nil, credentials: credentials)
+        let data = try await collector.collect(since: .distantPast, credentials: credentials)
 
         #expect(data.platform == .goatCounter)
         #expect(data.intMetric("total_pageviews") == 8421)
@@ -77,7 +77,7 @@ struct GoatCounterCollectorTests {
         let collector = GoatCounterCollector()
         let credentials = Credentials(["site_code": "mysite"])
         await #expect(throws: CollectorError.self) {
-            try await collector.collect(since: nil, credentials: credentials)
+            try await collector.collect(since: .distantPast, credentials: credentials)
         }
     }
 
@@ -86,7 +86,7 @@ struct GoatCounterCollectorTests {
         let collector = GoatCounterCollector()
         let credentials = Credentials(["api_key": "token"])
         await #expect(throws: CollectorError.self) {
-            try await collector.collect(since: nil, credentials: credentials)
+            try await collector.collect(since: .distantPast, credentials: credentials)
         }
     }
     @Test("since is sent as the start of the requested window")
@@ -118,6 +118,34 @@ struct GoatCounterCollectorTests {
         }
     }
 
+    @Test("All time is clamped, not sent as the year 1")
+    func allTimeIsClamped() async throws {
+        // "All time" arrives as Date.distantPast now that `since` is required
+        // (#96). Formatting that straight onto the wire would ask a live API
+        // for 0001-01-01, an untested extreme of the kind that made this very
+        // collector fail outright in #154.
+        let session = MockURLSession([
+            "/api/v0/stats/total": (Self.totalsJSON, 200),
+            "/api/v0/stats/hits":  (Self.hitsJSON,   200)
+        ])
+        _ = try await GoatCounterCollector(session: session).collect(
+            since: .distantPast,
+            credentials: Credentials(["api_key": "k", "site_code": "example"])
+        )
+
+        let start = try #require(session.queryValue("start", path: "/api/v0/stats/total"))
+        #expect(!start.hasPrefix("0001"), "sent the year 1: \(start)")
+
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withFullDate]
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        let startDate = try #require(formatter.date(from: start))
+        // A literal, not GoatCounterCollector.maximumDays: comparing the
+        // constant to itself proves only that resolve uses it, and would pass
+        // just as happily if the cap were changed to a day.
+        #expect(CollectionWindow.days(from: startDate, to: Date()) == 5 * 365)
+    }
+
     /// GoatCounter's documented query parameters, from
     /// `https://www.goatcounter.com/api.json`, checked 2026-09-18.
     private static let documentedParameters: [String: Set<String>] = [
@@ -143,7 +171,7 @@ struct GoatCounterCollectorTests {
             "/api/v0/stats/hits":  (Self.hitsJSON,   200)
         ])
         _ = try await GoatCounterCollector(session: session).collect(
-            since: nil,
+            since: .distantPast,
             credentials: Credentials(["api_key": "k", "site_code": "example"])
         )
 
@@ -183,7 +211,7 @@ struct GoatCounterCollectorTests {
             "/api/v0/stats/hits":  (Self.hitsJSON,   200)
         ])
         _ = try await GoatCounterCollector(session: session).collect(
-            since: nil,
+            since: .distantPast,
             credentials: Credentials(["api_key": "k", "site_code": "example"])
         )
 

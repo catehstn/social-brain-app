@@ -54,7 +54,7 @@ struct BufferCollector: Collector {
         return try? JSONDecoder().decode(User.self, from: data).name
     }
 
-    func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
+    func collect(since: Date, credentials: Credentials) async throws -> PlatformData {
         guard let token = credentials.apiKey else {
             throw CollectorError.missingCredential("api_key")
         }
@@ -169,7 +169,7 @@ struct BufferCollector: Collector {
     private func fetchSentUpdates(
         profileID: String,
         token: String,
-        since: Date?
+        since: Date
     ) async throws -> (updates: [Update], pageWasFull: Bool) {
         var url = Self.apiBase
             .appendingPathComponent("profiles/\(profileID)/updates/sent.json")
@@ -180,7 +180,13 @@ struct BufferCollector: Collector {
         let updates = envelope.updates
 
         let pageWasFull = updates.count >= Self.pageSize
-        guard let since else { return (updates, pageWasFull) }
+        // With no lower bound, everything counts — including updates with no
+        // sent_at, which the filter below drops. That was the behaviour when
+        // `since` was nil and it is still right: a post that cannot be placed
+        // in a window is only a problem when there is a window to place it in.
+        guard let since = CollectionWindow.lowerBound(since) else {
+            return (updates, pageWasFull)
+        }
         // A sent post without a sent_at cannot be placed in the window, so it is
         // excluded rather than silently counted as in-period.
         let filtered = updates.filter { update in

@@ -23,7 +23,7 @@ struct GoatCounterCollector: Collector {
         credentials.siteCode
     }
 
-    func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
+    func collect(since: Date, credentials: Credentials) async throws -> PlatformData {
         guard let apiKey = credentials.apiKey else {
             throw CollectorError.missingCredential("api_key")
         }
@@ -35,7 +35,14 @@ struct GoatCounterCollector: Collector {
         }
 
         let end   = Date()
-        let start = since ?? Calendar.current.date(byAdding: .day, value: -30, to: end)!
+        // GoatCounter documents no maximum range on stats/total or stats/hits,
+        // but "all time" arrives here as Date.distantPast and sending the year
+        // 1 to a live API is an untested extreme — the class of thing that made
+        // #154 fail outright. So the cap is ours, not theirs, and #75 covers
+        // checking whether a longer window works.
+        let window = CollectionWindow.resolve(since: since, end: end,
+                                              maximumDays: Self.maximumDays)
+        let start = window.start
 
         async let totals   = fetchTotals(baseURL: baseURL, apiKey: apiKey, start: start, end: end)
         async let topPages = fetchTopPages(baseURL: baseURL, apiKey: apiKey, start: start, end: end)
@@ -52,6 +59,12 @@ struct GoatCounterCollector: Collector {
 
         return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)
     }
+
+    /// The longest window this collector will request, in days.
+    ///
+    /// Five years is a choice made here, not a documented GoatCounter limit —
+    /// see the note in `collect`. #75 covers verifying it against a live site.
+    static let maximumDays = 5 * 365
 
     // MARK: - Private
 

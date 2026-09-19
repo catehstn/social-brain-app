@@ -46,7 +46,7 @@ struct JetpackCollectorTests {
 
     @Test("Parses follower count and comment subscribers")
     func parsesFollowers() async throws {
-        let data = try await JetpackCollector(session: session).collect(since: nil, credentials: credentials)
+        let data = try await JetpackCollector(session: session).collect(since: .distantPast, credentials: credentials)
         #expect(data.platform == .jetpack)
         #expect(data.intMetric("followers_blog") == 1240)
         #expect(data.intMetric("followers_comment") == 85)
@@ -54,19 +54,19 @@ struct JetpackCollectorTests {
 
     @Test("Parses total comments")
     func parsesTotalComments() async throws {
-        let data = try await JetpackCollector(session: session).collect(since: nil, credentials: credentials)
+        let data = try await JetpackCollector(session: session).collect(since: .distantPast, credentials: credentials)
         #expect(data.intMetric("total_comments") == 342)
     }
 
     @Test("Parses likes_today")
     func parsesLikes() async throws {
-        let data = try await JetpackCollector(session: session).collect(since: nil, credentials: credentials)
+        let data = try await JetpackCollector(session: session).collect(since: .distantPast, credentials: credentials)
         #expect(data.intMetric("total_likes") == 12)
     }
 
     @Test("Sums visit data across all rows")
     func sumsVisits() async throws {
-        let data = try await JetpackCollector(session: session).collect(since: nil, credentials: credentials)
+        let data = try await JetpackCollector(session: session).collect(since: .distantPast, credentials: credentials)
         // views: 156 + 143 + 201 = 500
         // visitors: 42 + 38 + 55 = 135
         #expect(data.intMetric("total_views") == 500)
@@ -82,7 +82,7 @@ struct JetpackCollectorTests {
             "/rest/v1.1/sites/\(Self.siteID)/stats":        (Self.statsJSON, 200),
             "/rest/v1.1/sites/\(Self.siteID)/stats/visits": (emptyVisits, 200)
         ])
-        let data = try await JetpackCollector(session: sess).collect(since: nil, credentials: credentials)
+        let data = try await JetpackCollector(session: sess).collect(since: .distantPast, credentials: credentials)
         #expect(data.intMetric("total_views") == 0)
         #expect(data.intMetric("total_visitors") == 0)
     }
@@ -99,7 +99,7 @@ struct JetpackCollectorTests {
         // other would pass a first-request check, and the unauthenticated half
         // would come back as an error the user reads as a broken token.
         let mock = session
-        _ = try await JetpackCollector(session: mock).collect(since: nil, credentials: credentials)
+        _ = try await JetpackCollector(session: mock).collect(since: .distantPast, credentials: credentials)
 
         let paths = Set(mock.requestedURLs.map(\.path))
         #expect(paths.count == 2)
@@ -125,7 +125,7 @@ struct JetpackCollectorTests {
             "/rest/v1.1/sites/my%20site.example.com/stats/visits": (Self.visitsJSON, 200)
         ])
         _ = try await JetpackCollector(session: mock).collect(
-            since: nil,
+            since: .distantPast,
             credentials: Credentials(["access_token": "test-token", "site_code": siteID])
         )
 
@@ -156,6 +156,23 @@ struct JetpackCollectorTests {
             .collect(since: Date().addingTimeInterval(-14 * 86_400), credentials: credentials)
 
         #expect(mock.queryValue("unit", path: Self.visitsPath) == "day")
+    }
+
+    @Test("An all-time request says so, rather than quoting 739,879 days")
+    func allTimeWindowNoteReadsAsAllTime() async throws {
+        // `.distantPast` measures about 739,879 days, and the note is rendered
+        // into the prompt verbatim — "not the 739879 requested" is nonsense to
+        // read. Before #96 this could not arise: All time arrived as nil and
+        // took a 30-day default, so the cap never bit and no note was emitted.
+        let mock = session
+        let data = try await JetpackCollector(session: mock)
+            .collect(since: .distantPast, credentials: credentials)
+
+        #expect(mock.queryValue("quantity", path: Self.visitsPath) == "90")
+        let note = try #require(data.stringMetric("views_window"))
+        #expect(note.contains("all time"))
+        #expect(!note.contains("739879"))
+        #expect(note.contains("90"))
     }
 
     // MARK: - The 90-day cap
@@ -231,7 +248,7 @@ struct JetpackCollectorTests {
     func missingToken() async throws {
         let creds = Credentials(["site_code": Self.siteID])
         await #expect(throws: CollectorError.self) {
-            try await JetpackCollector(session: session).collect(since: nil, credentials: creds)
+            try await JetpackCollector(session: session).collect(since: .distantPast, credentials: creds)
         }
     }
 
@@ -239,7 +256,7 @@ struct JetpackCollectorTests {
     func missingSiteID() async throws {
         let creds = Credentials(["access_token": "tok"])
         await #expect(throws: CollectorError.self) {
-            try await JetpackCollector(session: session).collect(since: nil, credentials: creds)
+            try await JetpackCollector(session: session).collect(since: .distantPast, credentials: creds)
         }
     }
 
@@ -249,7 +266,7 @@ struct JetpackCollectorTests {
             "/rest/v1.1/sites/\(Self.siteID)/stats": ("{\"error\":\"unauthorized\"}", 401)
         ])
         await #expect(throws: CollectorError.self) {
-            try await JetpackCollector(session: sess).collect(since: nil, credentials: credentials)
+            try await JetpackCollector(session: sess).collect(since: .distantPast, credentials: credentials)
         }
     }
 }

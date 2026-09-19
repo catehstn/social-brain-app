@@ -31,12 +31,16 @@ struct HackerNewsCollector: Collector {
         credentials.siteCode
     }
 
-    func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
+    func collect(since: Date, credentials: Credentials) async throws -> PlatformData {
         guard let domain = credentials.siteCode, !domain.isEmpty else {
             throw CollectorError.missingCredential("site_code")
         }
 
-        let cutoff = since ?? Calendar.current.date(byAdding: .day, value: -28, to: Date())!
+        // Clamped to the epoch rather than a day count: the filter goes on the
+        // wire as created_at_i > Int(timeIntervalSince1970), and Date.distantPast
+        // makes that a large negative number. Hacker News began in 2007, so
+        // 1970 is "everything" without sending a value no one has tested.
+        let cutoff = max(since, Date(timeIntervalSince1970: 0))
         let (hits, total) = try await fetchMentions(domain: domain, since: cutoff)
 
         let totalPoints   = hits.compactMap(\.points).reduce(0, +)

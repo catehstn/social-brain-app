@@ -71,7 +71,7 @@ struct BlueskyCollectorTests {
             "username": "alice.bsky.social",
             "password": "app-password-here"
         ])
-        let data = try await collector.collect(since: nil, credentials: credentials)
+        let data = try await collector.collect(since: .distantPast, credentials: credentials)
 
         #expect(data.platform == .bluesky)
         #expect(data.intMetric("followers_count") == 3800)
@@ -394,13 +394,13 @@ struct BlueskyCollectorTests {
     }
 
     @Test("An All time run walks the pages too")
-    func noSinceStillWalks() async throws {
-        // `since == nil` is the All time button, not "no window asked for".
+    func allTimeStillWalks() async throws {
+        // `.distantPast` is the All time button, not "no window asked for".
         let (collector, session) = makeCollector([
             .init(Self.feedPage(posts: 50, newest: Self.day(2026, 3, 28), cursor: "c1")),
             .init(Self.feedPage(posts: 4, newest: Self.day(2026, 2, 6), cursor: nil))
         ])
-        let data = try await collector.collect(since: nil, credentials: paginationCredentials)
+        let data = try await collector.collect(since: .distantPast, credentials: paginationCredentials)
         #expect(session.requests(path: Self.feedPath).count == 2)
         #expect(data.intMetric("recent_posts") == 54)
     }
@@ -410,7 +410,7 @@ struct BlueskyCollectorTests {
         let collector = BlueskyCollector()
         let credentials = Credentials(["password": "pw"])
         await #expect(throws: CollectorError.self) {
-            try await collector.collect(since: nil, credentials: credentials)
+            try await collector.collect(since: .distantPast, credentials: credentials)
         }
     }
 
@@ -419,7 +419,7 @@ struct BlueskyCollectorTests {
         let collector = BlueskyCollector()
         let credentials = Credentials(["username": "alice.bsky.social"])
         await #expect(throws: CollectorError.self) {
-            try await collector.collect(since: nil, credentials: credentials)
+            try await collector.collect(since: .distantPast, credentials: credentials)
         }
     }
 }

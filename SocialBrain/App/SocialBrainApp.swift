@@ -82,6 +82,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         }
     }
 
+    /// The window the unattended morning refresh asks for.
+    ///
+    /// Computed on each access, not stored: a `static let` would freeze thirty
+    /// days before launch and drift further from "the last month" every day the
+    /// app stays open.
+    ///
+    /// Named rather than written inline so what the background path requests is
+    /// stated and checkable — the point of #96 is not that it is thirty days.
+    static var backgroundRefreshWindow: Date {
+        CollectionWindow.utc.date(byAdding: .day, value: -30, to: Date()) ?? Date()
+    }
+
     /// One scheduled refresh.
     ///
     /// A named function rather than an inline closure so it can be tested. As a
@@ -97,8 +109,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         credentials: (@Sendable (PlatformInstance) throws -> Credentials?)? = nil,
         notifier: SpikeNotifier? = nil
     ) async {
-        // Run without a date filter so the background task always fetches the
-        // latest state regardless of the user's last manual run.
         let collectors = collectors ?? CollectorRegistry.configured()
             .filter { $0.platform.authType == .apiKey || $0.platform.authType == .oauthToken }
         guard !collectors.isEmpty else { return }
@@ -111,7 +121,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
                 credentials: credentials ?? { instance in
                     try KeychainStore.shared.load(for: instance)
                 },
-                since: nil,
+                // Explicit, where this used to pass `nil` and each collector
+                // read it differently — thirty days for some, twenty-eight for
+                // others, one page for the rest, so the daily refresh covered a
+                // different period per platform and nothing said so (#96).
+                // Deliberately not `.distantPast`: this runs unattended every
+                // morning, and "everything ever" is not a sensible daily ask.
+                since: Self.backgroundRefreshWindow,
                 progress: { _ in }
             )
         } catch {

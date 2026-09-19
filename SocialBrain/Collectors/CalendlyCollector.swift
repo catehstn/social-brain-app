@@ -35,7 +35,7 @@ struct CalendlyCollector: Collector {
         return try? JSONDecoder().decode(Response.self, from: data).resource.name
     }
 
-    func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
+    func collect(since: Date, credentials: Credentials) async throws -> PlatformData {
         guard let apiKey = credentials.apiKey else {
             throw CollectorError.missingCredential("api_key")
         }
@@ -80,14 +80,14 @@ struct CalendlyCollector: Collector {
         return decoded.resource.uri
     }
 
-    private func fetchEvents(apiKey: String, userURI: String, since: Date?) async throws -> [CalendlyEvent] {
+    private func fetchEvents(apiKey: String, userURI: String, since: Date) async throws -> [CalendlyEvent] {
         var items: [URLQueryItem] = [
             URLQueryItem(name: "user",  value: userURI),
             URLQueryItem(name: "count", value: "100"),
             URLQueryItem(name: "sort",  value: "start_time:desc")
         ]
-        if let since {
-            items.append(URLQueryItem(name: "min_start_time", value: iso8601DateTime(since)))
+        if let lowerBound = CollectionWindow.lowerBound(since) {
+            items.append(URLQueryItem(name: "min_start_time", value: iso8601DateTime(lowerBound)))
         }
         var url = baseURL.appendingPathComponent("scheduled_events")
         url.append(queryItems: items)

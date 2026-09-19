@@ -67,7 +67,9 @@ struct RunView: View {
 
     private var runButton: some View {
         Button {
-            Task { await viewModel.startCollection(since: since == .distantPast ? nil : since) }
+            // Passed straight through, including .distantPast. Translating it
+            // to nil here is what let each collector invent its own window.
+            Task { await viewModel.startCollection(since: since) }
         } label: {
             if isRunning {
                 ProgressView().controlSize(.small)
