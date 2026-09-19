@@ -48,7 +48,7 @@ struct SpikeDetector: Sendable {
 
     /// One metric worth watching, and how large it has to be before a
     /// percentage change in it means anything.
-    private struct Monitored {
+    struct Monitored {
         let key: String
         let label: String
         /// The floor, in the metric's own units. Zero means no floor.
@@ -146,7 +146,11 @@ struct SpikeDetector: Sendable {
 
     /// The metrics to watch per platform. Intentionally only the primary
     /// "health" metrics, to avoid noise.
-    private static func monitored(for platform: Platform) -> [Monitored] {
+    /// Internal rather than private so a test can assert the lists have no
+    /// duplicate keys. A search-and-replace produced two identical GoatCounter
+    /// entries, and every spike then fired twice — the Feed hid it by showing
+    /// only the first alert, but notifications send them all (#156).
+    static func monitored(for platform: Platform) -> [Monitored] {
         switch platform {
         case .mastodon:
             return [Monitored(key: "followers_count", label: "Followers"),

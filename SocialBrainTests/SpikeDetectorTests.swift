@@ -60,6 +60,20 @@ struct SpikeDetectorTests {
         #expect(alerts.contains { $0.summary.contains("Followers") })
     }
 
+    @Test("No platform watches the same metric twice",
+          arguments: Platform.allCases)
+    func monitoredKeysAreUnique(platform: Platform) {
+        // The GoatCounter duplicate below is the instance that happened; this
+        // is the class. A duplicated entry produces two identical alerts, and
+        // SpikeNotifier sends every one of them, so the same line arrives twice
+        // in a notification (#156). Cheap to guard for every platform at once.
+        let keys = SpikeDetector.monitored(for: platform).map(\.key)
+
+        let duplicates = keys.filter { key in keys.filter { $0 == key }.count > 1 }
+        #expect(keys.count == Set(keys).count,
+                "\(platform.rawValue) watches a metric twice: \(Set(duplicates).sorted())")
+    }
+
     @Test("A GoatCounter visits spike produces exactly one alert")
     func goatCounterVisitsSpikeIsNotDuplicated() throws {
         // There was no GoatCounter spike test at all, which is how a duplicated

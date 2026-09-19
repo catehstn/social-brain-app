@@ -54,8 +54,12 @@ struct GoatCounterCollector: Collector {
         // incremented when `FirstVisit` is set (`cron/hit_count.go`), which
         // `memstore.go` sets on the first time a *session* views a given path.
         // So it counts (session, path) first-views — one visitor reading three
-        // posts counts three. GoatCounter calls this "visits"; its 2.4.0
-        // changelog says it stopped storing pageviews at all.
+        // posts counts three.
+        //
+        // "Visits" is GoatCounter's own word for it: `tpl/_dashboard_totals.gohtml`
+        // renders this very field as "%(num-visits) visits", and
+        // `tpl/help/sessions.md` defines a visit as "the first time someone
+        // loads a page". The count includes events.
         //
         // `GetTotalCount`'s doc comment still says "pageviews" and predates
         // that change; the struct beside it and the OpenAPI description both
