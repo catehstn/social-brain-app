@@ -2,7 +2,7 @@
 
 ## Critical rules for subagents
 
-**Planning subagents:** Your ONLY job is to write a `trycycle-plan.md` file in the worktree and commit it. Do NOT implement code, open PRs, merge branches, or do anything else. Stop after writing the plan.
+**Planning subagents:** Your ONLY job is to write the plan **at the path you are given** and commit it — the trycycle skill passes it in (`IMPLEMENTATION_PLAN_PATH`, `TEST_PLAN_PATH`); do not invent a filename. Do NOT implement code, open PRs, merge branches, or do anything else. Stop after writing the plan.
 
 **Never merge to main without explicit user approval.** No subagent may run `gh pr merge`, `git merge`, or `git push` to main unless the user has explicitly said to do so in the current conversation turn.
 
@@ -34,7 +34,10 @@ analysis in Claude. It is a ground-up Swift rewrite of the original Python CLI t
 ```
 SocialBrain/
   App/                  # Entry point, background refresh, notifications
-  Collectors/           # One file per platform (MastodonCollector.swift, …)
+  Collectors/           # One file per platform (MastodonCollector.swift, …),
+                        # plus the shared pieces they use: CollectionEngine,
+                        # ExportDates, ISO8601Decoding, RateParsing,
+                        # MiniZIPReader, LinkedInXLSXParser
   Database/             # GRDB schema, migrations, query helpers
   Keychain/             # Credential storage via the Security framework
   Models/               # Shared types, feed cards, spike/reach detection
@@ -229,7 +232,7 @@ Filing an issue is not finished until it carries these:
 | Field | Rule |
 |---|---|
 | Priority | **Always.** `P0` (blocks other work) / `P1` (next) / `P2` (someday). Guess if you must — a wrong priority gets corrected, a missing one gets skipped. |
-| Area | **Always.** Exactly one of `area:build` `area:ci` `area:design` `area:collectors` `area:docs`. |
+| Area | **Always.** At least one of `area:build` `area:ci` `area:design` `area:collectors` `area:docs`. Prefer one; use two only when the work genuinely lands in both, as #46 (a UI test rewrite: `ci` + `design`) and #60 (a test that is also a docs decision: `ci` + `docs`) do. |
 | Milestone | **Always**, unless genuinely un-schedulable. `M1 — Runnable again`, `M2 — Design pass`, `M3 — Ship`. |
 | `blocked` | **Only if** waiting on something outside this repo. Then it gets no milestone. |
 
@@ -306,7 +309,10 @@ Platforms are grouped by integration difficulty for the onboarding UI:
 - All file access via `NSOpenPanel` or drag-and-drop. **Security-scoped bookmarks
   are not implemented yet** — imports read the file once during the drop. Needed
   before any feature re-reads a file across launches.
-- No network calls outside of declared domains (add to entitlements as needed).
+- The outgoing-network entitlement is all-or-nothing on macOS. There is no
+  per-domain declaration to add, so "only call declared domains" cannot be
+  enforced by entitlements — it is a code review question. (This line used to
+  say otherwise.)
 - Credentials stored in Keychain only — never in UserDefaults or on disk unencrypted.
 - Background refresh via NSBackgroundActivityScheduler (no Info.plist key needed).
 - Sandbox entitlements: outgoing network connections, read/write to user-selected files.
@@ -337,3 +343,10 @@ Include in every PR:
 - Any validation done (tested against a live API, with mock data, on real
   exported files)
 - Anything you could **not** verify, and why
+
+**A squash merge composes its commit body from *every* commit on the branch**,
+so a `Closes #N` in a commit you later reverted still fires. #91 was closed this
+way: the first commit on a branch said `Closes #91`, the second withdrew that
+change and dropped the line, and the squash carried the stale one anyway.
+Before merging, check `git log origin/main..HEAD --format=%B | grep Closes`
+against the issues you actually mean to close.

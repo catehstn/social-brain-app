@@ -1,4 +1,11 @@
 # Platforms Page Redesign — Test Plan
+
+> **Historical.** This plan was implemented in #31 and is kept as a record of
+> the reasoning, not as instructions. Two things in it are now wrong: XcodeGen
+> was removed in #44 — `project.yml` is deleted and `SocialBrain.xcodeproj` is
+> checked in and hand-edited, so **do not run `xcodegen generate`** — and the
+> Platforms screen is being redesigned again under #40.
+
 **Date:** 2026-04-14
 **Feature:** Platforms grid/card layout with push navigation, SF Symbol icons, and hide/show
 

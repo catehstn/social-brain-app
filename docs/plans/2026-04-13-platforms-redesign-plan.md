@@ -1,5 +1,11 @@
 # Platforms Page Redesign — Implementation Plan
 
+> **Historical.** This plan was implemented in #31 and is kept as a record of
+> the reasoning, not as instructions. Two things in it are now wrong: XcodeGen
+> was removed in #44 — `project.yml` is deleted and `SocialBrain.xcodeproj` is
+> checked in and hand-edited, so **do not run `xcodegen generate`** — and the
+> Platforms screen is being redesigned again under #40.
+
 ## Goal
 
 Replace the current flat-checklist `PlatformsView` with a polished grid/card layout:
@@ -467,7 +473,7 @@ enum PlatformVisibilityStore {
 
 ## project.yml
 
-`project.yml` uses directory-level source globs (`sources: - SocialBrain`). New files under `SocialBrain/Models/` and `SocialBrain/Views/Platforms/` are automatically picked up. Run `xcodegen generate` after adding new files.
+~~`project.yml` uses directory-level source globs (`sources: - SocialBrain`). New files under `SocialBrain/Models/` and `SocialBrain/Views/Platforms/` are automatically picked up. Run `xcodegen generate` after adding new files.~~ **No longer true (#44):** `project.yml` is deleted and `SocialBrain.xcodeproj` is hand-edited, so a new file needs its four `project.pbxproj` entries adding by hand.
 
 ---
 
@@ -523,7 +529,7 @@ All existing unit tests must remain green.
 4. Create `PlatformCard.swift`
 5. Create `PlatformDetailView.swift`
 6. Rewrite `PlatformsView.swift` (NavigationStack + LazyVGrid; remove `addingInstanceFor`/`editingInstance`/`newInstanceLabel` state vars)
-7. Run `xcodegen generate`
+7. ~~Run `xcodegen generate`~~ — add the files to `project.pbxproj` by hand (#44)
 8. Compilation gate + full unit test suite
 
 ---
