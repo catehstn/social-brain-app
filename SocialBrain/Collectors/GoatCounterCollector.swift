@@ -8,7 +8,6 @@ import Foundation
 ///
 /// Metrics returned:
 /// - `total_pageviews`   – total hits in the period
-/// - `unique_visitors`   – unique visitor count
 /// - `top_page_1` … `top_page_5` – paths of the top-5 pages by hits
 struct GoatCounterCollector: Collector {
     let platform: Platform = .goatCounter
@@ -49,9 +48,13 @@ struct GoatCounterCollector: Collector {
 
         let (total, pages) = try await (totals, topPages)
 
+        // `total` is a sum of `hit_counts.total` — GoatCounter's own
+        // `GetTotalCount` doc calls that "the total number of pageviews", even
+        // though the struct beside it says "visitors". Their terminology is
+        // inconsistent with itself; the SQL is the part that runs. #75 covers
+        // checking the figure against a live dashboard.
         var metrics: [String: MetricValue] = [
-            "total_pageviews": .int(total.total),
-            "unique_visitors": .int(total.totalUnique)
+            "total_pageviews": .int(total.total)
         ]
         for (index, page) in pages.prefix(5).enumerated() {
             metrics["top_page_\(index + 1)"] = .string(page.path)
@@ -111,9 +114,17 @@ struct GoatCounterCollector: Collector {
 
 // MARK: - Response models
 
+/// `/api/v0/stats/total`.
+///
+/// `total` only. The collector also required `total_unique`, which appears
+/// nowhere in GoatCounter's API — the full path list offers no unique-visitor
+/// figure at all — so the strict decoder threw `keyNotFound` on every real
+/// response and GoatCounter never collected (#156).
+///
+/// `total_events`, `total_utc` and `stats` are also returned and are not
+/// decoded, which is fine: the decoder rejects missing keys, not extra ones.
 private struct TotalsResponse: Decodable {
     let total: Int
-    let totalUnique: Int
 }
 
 private struct HitsResponse: Decodable {

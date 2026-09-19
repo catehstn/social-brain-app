@@ -30,8 +30,8 @@ struct HighReachDetectorTests {
                                     metrics: ["avg_open_rate": .double(0.55)])
         let items = HighReachDetector().detect(snapshots: [PlatformInstance(platform: .buttondown): snap])
         #expect(items.count == 1)
-        #expect(items[0].platform == .buttondown)
-        #expect(items[0].message.contains("55%"))
+        #expect(items.first?.platform == .buttondown)
+        #expect(items.first?.message.contains("55%") == true)
     }
 
     @Test("Buttondown open rate <= 40% does not trigger high reach without relative lift")
@@ -48,7 +48,7 @@ struct HighReachDetectorTests {
                                     metrics: ["avg_favourites": .double(8.0)])
         let items = HighReachDetector().detect(snapshots: [PlatformInstance(platform: .mastodon): snap])
         #expect(items.count == 1)
-        #expect(items[0].platform == .mastodon)
+        #expect(items.first?.platform == .mastodon)
     }
 
     @Test("Mastodon avg_favourites < 5 does not trigger high reach without relative lift")
@@ -65,7 +65,7 @@ struct HighReachDetectorTests {
                                     metrics: ["avg_likes": .double(10.0)])
         let items = HighReachDetector().detect(snapshots: [PlatformInstance(platform: .bluesky): snap])
         #expect(items.count == 1)
-        #expect(items[0].platform == .bluesky)
+        #expect(items.first?.platform == .bluesky)
     }
 
     @Test("Jetpack total_views >= 1000 triggers high reach")
@@ -74,7 +74,7 @@ struct HighReachDetectorTests {
                                     metrics: ["total_views": .int(1500)])
         let items = HighReachDetector().detect(snapshots: [PlatformInstance(platform: .jetpack): snap])
         #expect(items.count == 1)
-        #expect(items[0].platform == .jetpack)
+        #expect(items.first?.platform == .jetpack)
     }
 
     @Test("LinkedIn impressions >= 500 triggers high reach")
@@ -83,16 +83,18 @@ struct HighReachDetectorTests {
                                     metrics: ["total_impressions": .int(600)])
         let items = HighReachDetector().detect(snapshots: [PlatformInstance(platform: .linkedin): snap])
         #expect(items.count == 1)
-        #expect(items[0].platform == .linkedin)
+        #expect(items.first?.platform == .linkedin)
     }
 
-    @Test("GoatCounter visitors >= 500 triggers high reach")
+    @Test("GoatCounter pageviews >= 500 triggers high reach")
     func goatCounterAboveThreshold() throws {
+        // Was unique_visitors, which GoatCounter has no endpoint for — so this
+        // branch could never have run against real data (#156).
         let snap = try makeSnapshot(platform: .goatCounter,
-                                    metrics: ["unique_visitors": .int(750)])
+                                    metrics: ["total_pageviews": .int(750)])
         let items = HighReachDetector().detect(snapshots: [PlatformInstance(platform: .goatCounter): snap])
         #expect(items.count == 1)
-        #expect(items[0].platform == .goatCounter)
+        #expect(items.first?.platform == .goatCounter)
     }
 
     // MARK: - Relative lift tests
@@ -137,7 +139,7 @@ struct HighReachDetectorTests {
 
         // Both should be present; buttondown first (higher score)
         #expect(items.count == 2)
-        #expect(items[0].platform == .buttondown)
+        #expect(items.first?.platform == .buttondown)
         #expect(items[1].platform == .mastodon)
     }
 
@@ -158,7 +160,7 @@ struct HighReachDetectorTests {
         let cards = FeedCardBuilder.build(snapshots: [PlatformInstance(platform: .buttondown): snap], visibility: noneHidden)
         let highReachCards = cards.filter { $0.cardType == .highReach }
         #expect(highReachCards.count == 1)
-        #expect(highReachCards[0].platform == .buttondown)
+        #expect(highReachCards.first?.platform == .buttondown)
     }
 
     @Test("No high-reach card when platform has a spike card")

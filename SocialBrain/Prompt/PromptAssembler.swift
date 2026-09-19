@@ -168,7 +168,7 @@ struct PromptAssembler {
     private func goatCounterLines(_ data: PlatformData) -> [String] {
         var lines: [String] = []
         if let v = data.intMetric("total_pageviews") { lines.append("Pageviews: \(formatted(v))") }
-        if let v = data.intMetric("unique_visitors")  { lines.append("Unique visitors: \(formatted(v))") }
+
         var topPages: [String] = []
         for i in 1...5 {
             if let page = data.stringMetric("top_page_\(i)") {

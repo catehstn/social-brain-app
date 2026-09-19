@@ -134,7 +134,6 @@ struct PromptAssemblerTests {
             platform: .goatCounter,
             metrics: [
                 "total_pageviews": .int(8421),
-                "unique_visitors": .int(3102),
                 "top_page_1":      .string("/blog/swift-tips"),
                 "top_page_2":      .string("/blog/grdb-guide")
             ]

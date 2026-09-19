@@ -118,8 +118,9 @@ final class DashboardViewModel {
                     ("avg_open_rate", "Open Rate"),
                     ("avg_click_rate", "Click Rate")]
         case .goatCounter:
-            return [("total_pageviews", "Pageviews"),
-                    ("unique_visitors", "Visitors")]
+            // One series, not two: GoatCounter offers no unique-visitor figure,
+            // and the second entry read a metric the collector invented (#156).
+            return [("total_pageviews", "Pageviews")]
         case .calendly:
             return [("events_count", "Events"),
                     ("unique_invitees", "Invitees")]

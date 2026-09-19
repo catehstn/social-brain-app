@@ -5,10 +5,17 @@ import Foundation
 @Suite("GoatCounter Collector Tests")
 struct GoatCounterCollectorTests {
 
+    /// The real shape of `/api/v0/stats/total`: `total`, `total_events`,
+    /// `total_utc` and `stats`. The old fixture invented `total_unique`, so a
+    /// response the API never produces looked identical to one it does — and
+    /// the collector required that field, failing to decode every real
+    /// response (#156).
     private static let totalsJSON = """
     {
       "total": 8421,
-      "total_unique": 3102
+      "total_events": 12,
+      "total_utc": 8420,
+      "stats": []
     }
     """
 
@@ -52,7 +59,7 @@ struct GoatCounterCollectorTests {
         }
     }
 
-    @Test("Parses total pageviews, unique visitors, and top pages")
+    @Test("Parses total pageviews and top pages")
     func collectMetrics() async throws {
         let session = MockURLSession([
             "/api/v0/stats/total": (GoatCounterCollectorTests.totalsJSON, 200),
@@ -67,7 +74,7 @@ struct GoatCounterCollectorTests {
 
         #expect(data.platform == .goatCounter)
         #expect(data.intMetric("total_pageviews") == 8421)
-        #expect(data.intMetric("unique_visitors")  == 3102)
+
         #expect(data.stringMetric("top_page_1")   == "/blog/swift-tips")
         #expect(data.stringMetric("top_page_5")   == "/blog/swiftui-tips")
     }

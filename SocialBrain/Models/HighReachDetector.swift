@@ -224,13 +224,17 @@ struct HighReachDetector: Sendable {
         )
     }
 
-    /// GoatCounter: unique_visitors >500 or notably above previous.
+    /// GoatCounter: total_pageviews >500 or notably above previous.
+    ///
+    /// Was `unique_visitors`, which GoatCounter has no endpoint for — the
+    /// collector invented it and failed to decode, so this branch never ran at
+    /// all (#156). Pageviews is the only traffic figure the API offers.
     private func evaluateGoatCounter(
         currentMetrics: [String: MetricValue],
         previousMetrics: [String: MetricValue]
     ) -> HighReachItem? {
-        guard let visitors = currentMetrics["unique_visitors"]?.numberValue else { return nil }
-        let prevVisitors = previousMetrics["unique_visitors"]?.numberValue
+        guard let visitors = currentMetrics["total_pageviews"]?.numberValue else { return nil }
+        let prevVisitors = previousMetrics["total_pageviews"]?.numberValue
 
         let absoluteHit = visitors >= 500.0
         let relativeHit = prevVisitors.map { visitors > $0 * (1 + relativeLiftThreshold) } ?? false
@@ -241,7 +245,7 @@ struct HighReachDetector: Sendable {
         let formatted = visitors >= 1000 ? String(format: "%.1fK", visitors / 1000) : String(Int(visitors))
         return HighReachItem(
             platform: .goatCounter,
-            message: "\(formatted) unique visitors — good traffic, check which pages are driving it.",
+            message: "\(formatted) pageviews — good traffic, check which pages are driving it.",
             score: score
         )
     }

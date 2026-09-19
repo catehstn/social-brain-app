@@ -162,7 +162,7 @@ struct SpikeDetector: Sendable {
                     Monitored(key: "avg_click_rate", label: "Click Rate", floor: rateFloor)]
         case .goatCounter:
             return [Monitored(key: "total_pageviews", label: "Pageviews"),
-                    Monitored(key: "unique_visitors", label: "Visitors")]
+                    Monitored(key: "total_pageviews", label: "Pageviews")]
         case .calendly:
             return [Monitored(key: "events_count", label: "Events"),
                     Monitored(key: "unique_invitees", label: "Invitees")]
