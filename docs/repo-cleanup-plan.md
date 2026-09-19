@@ -146,11 +146,9 @@ Labels created: `P0` `P1` `P2`, `area:build` `area:ci` `area:design`
 Milestones created and populated:
 
 **M1 — Runnable again** *(clone, build, test, ship a change with confidence)*
-- #47 P1 — Wire up SocialBrainMCP as a real target, or remove it
-- #48 P1 — Tests for the Google Search Console, Hacker News and Buffer collectors
-- #49 P1 — Tests for LinkedInXLSXParser and MiniZIPReader
-- #55 P1 — LinkedIn XLSX import fails on string-typed metric cells
-- #43 P2 — Retire the Vercel collector
+
+~~#47, #48, #49, #55, #43~~ and #51 are closed. Left open:
+
 - #58 P2 — Make test isolation structural rather than order-dependent
 - #59 P2 — CI and project-file housekeeping
 - #60 P2 — Decide what to do with SetupURLTests (it has never passed)
@@ -183,14 +181,18 @@ merged branches stop accumulating.
 
 ### Suggested order
 
-1. **#47** — decide the MCP question. It's the last piece of the repo that
-   claims to be buildable and isn't.
-2. **#48, #49** — backfill collector and parser tests, restoring the guarantee
-   CLAUDE.md already states. #49 first: `MiniZIPReader` parses untrusted binary
-   input with no tests at all.
-3. **#43** — clear dead weight. (#51 settled the toolchain question: the gap
-   is kept deliberately, and both CLAUDE.md and the README now record it.)
-4. *Then* M2. The design pass is the interesting work, and it lands on a repo
+Items 1-3 of the original order — #47, then #48 and #49, then #43 and #51 — are
+done. #47 wired the MCP server up as a real target, which found two bugs that
+could only exist in code nothing compiles. #51 kept the CI/local Xcode gap
+deliberately.
+
+1. **#58, #90** — finish test isolation. Both are now roughly half done: the
+   `static var defaults` races they describe are fixed, and what remains is
+   `InstanceLabels` and `AnalyticsGoal`, which still write `UserDefaults`
+   directly. Audits on both issues say what is actually left.
+2. **#63** — the orphan detector landed; deriving its emitted-key table from the
+   collectors (#173) is the other half.
+3. *Then* M2. The design pass is the interesting work, and it lands on a repo
    that can actually verify itself.
 
 ## 6. Repo settings and branches — done

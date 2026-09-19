@@ -25,9 +25,9 @@ GitHub macOS runner default — currently Xcode 16.4 (16F6) — while local
 development is on 26.6. The gap is kept on purpose: newer swift-foundation is
 more lenient, and the older one is closer to what a stricter runtime does. It
 has already earned its keep once, catching that `JSONDecoder`'s `.iso8601`
-strategy rejects fractional seconds — the Mastodon and Bluesky collectors passed
-locally and failed on CI, which is how we learned they would fail against their
-**live APIs**. See `ISO8601Decoding.swift`.
+strategy rejects fractional seconds — the Mastodon, Bluesky and Calendly
+collectors passed locally and failed on CI, which is how we learned they would
+fail against their **live APIs**. See `ISO8601Decoding.swift`.
 
 The cost is a round-trip when a failure doesn't reproduce locally. If that
 happens, suspect the toolchain gap before suspecting your change.

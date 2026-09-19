@@ -167,10 +167,14 @@ instead. Everywhere else the table applies.
   — or merging it — confirm all four jobs (**Unit Tests**, **UI Tests**,
   **MCP Server**, **Release Build**) have *concluded* green, not just started,
   and that they ran against the current head commit.
-- **CI minutes are free, and arguments that assume otherwise are wrong.** The
-  repo is public, so standard GitHub-hosted runners are unmetered: every run
-  reports `billable.MACOS.total_ms = 0`. Verify with
+- **CI minutes are free *while this repo is public*.** Standard GitHub-hosted
+  runners are unmetered on public repos: every run reports
+  `billable.MACOS.total_ms = 0`. Verify with
   `gh api repos/catehstn/social-brain-app/actions/runs/<id>/timing`.
+
+  **If the repo ever goes private this bullet becomes wrong**, and so do two
+  comments in `ci.yml` (the concurrency group and `release-build`). Re-check
+  with that endpoint before trusting any of the three.
 
   This has now caused the same mistake twice. The audit and #91 were written
   while the repo was private and the allowance was genuinely exhausted; that
@@ -202,12 +206,18 @@ instead. Everywhere else the table applies.
   check, and it has already caught a real bug: `JSONDecoder`'s `.iso8601`
   strategy rejects fractional seconds, so the Mastodon and Bluesky collectors
   passed locally and failed on CI, which is how we learned they would fail
-  against their **live APIs** (see `ISO8601Decoding.swift`).
+  against their **live APIs**. `ISO8601Decoding.swift` names Mastodon, Bluesky
+  and Calendly.
 
   The cost is a round-trip when a failure doesn't reproduce locally — suspect
-  the toolchain before suspecting the change. A matrix over both versions was
-  rejected for the wall-clock and maintenance cost of a second full pass, not
-  for billed minutes — there are none.
+  the toolchain before suspecting the change.
+
+  A matrix over both versions is **not** ruled out on cost — there is none. It
+  is not being done because eight macOS jobs would queue against the free
+  tier's concurrency cap, so the wall-clock cost is real even though the bill is
+  not. That is a judgement made here, not measured: #51 rejected the matrix on
+  the billed-minutes grounds that turned out to be false, so if anyone wants the
+  matrix, the wall-clock claim is the one to test.
 
   **The README's stated minimum must match what CI actually verifies.** It said
   16.3 while CI ran 16.4; if the runner image moves, update both.
