@@ -5,17 +5,20 @@ import Foundation
 /// Every metric a collector emits should be read by something, for the platform
 /// that emitted it.
 ///
-/// Metric keys are plain strings duplicated across four consumers with nothing
+/// Metric keys are plain strings duplicated across five consumers with nothing
 /// tying them to the collectors (#63), so a platform can be renamed into
 /// invisibility: the import reports success and contributes nothing to the
-/// prompt, the charts or spike detection. That has happened twice —
-/// `LinkedInXLSXParser` wrote four metrics nothing read (#114), and
+/// prompt, the charts, the Feed or spike detection. That has happened three
+/// times: `LinkedInXLSXParser` wrote four metrics nothing read (#114),
 /// `LinkedInImporter` still writes `total_clicks`, which only *Buffer's*
-/// consumers read (#163).
+/// consumers read (#163), and this test found two more on its first run (#170).
 ///
 /// #163 is the reason this checks per platform rather than globally. Grepping
 /// for `total_clicks` finds two consumers and looks reassuring; both are in the
 /// `.buffer` branch. "Is this key read anywhere?" is the wrong question.
+///
+/// One direction only. A consumer reading a key no collector emits is the
+/// mirror image, is not caught here, and has also happened — #171.
 @Suite("Metric key orphans")
 struct MetricKeyOrphanTests {
 
@@ -31,7 +34,7 @@ struct MetricKeyOrphanTests {
     ///
     /// Hand-maintained, and that is this test's weak point: a key added to a
     /// collector without being added here is invisible to the detector, which
-    /// is the same shape as the bug. #170 covers deriving it from the
+    /// is the same shape as the bug. #173 covers deriving it from the
     /// collectors instead. It still catches the case that has actually
     /// occurred — a key that is emitted and read by nobody — which it did on
     /// its first run, finding #170.
@@ -189,7 +192,6 @@ struct MetricKeyOrphanTests {
     /// 900% in the prompt; the probe only cares whether the output changes.
     private static func sample(for key: String) -> MetricValue {
         if key.hasPrefix("avg_") || key == "ctr" { return .double(9.0) }
-        if key == "avg_position" { return .double(3.5) }
         if numberedFamilies.contains(where: { key.hasPrefix($0) }) { return .string("/sample") }
         if key.hasSuffix("_truncated") || key.hasSuffix("_sampled") || key.hasSuffix("_window") {
             return .string("a note")

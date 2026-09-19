@@ -129,8 +129,11 @@ app, and a documented test command that silently skipped and exited 0.
 **A metric nothing reads is a bug, and `MetricKeyOrphanTests` fails the build
 for it.** Keys are plain strings spread across five consumers, so a platform can
 be renamed into invisibility: the import succeeds and contributes nothing to the
-prompt, the charts, the Feed or spike detection. That has happened four times —
-#114, #163, #170 and #171.
+prompt, the charts, the Feed or spike detection. That has happened three times —
+#114, #163 and #170.
+
+It checks **one direction only**. A consumer reading a key that no collector
+emits is the mirror image, is not caught, and has also happened — #171.
 
 The check is **per platform**, which is the whole point: grepping for
 `total_clicks` finds two consumers and looks fine, and both are Buffer's while
@@ -138,9 +141,9 @@ LinkedIn is what emits it. "Is this key read anywhere?" is the wrong question.
 
 Its `emitted` table is hand-maintained, so **adding a key without adding it
 there makes it invisible to the detector** — the same shape as the bug. Hence
-the table rows above. An orphan you mean to keep goes in `knownOrphans` with an
-issue number; a second test asserts each listed orphan is still both emitted and
-unread, so the list shrinks rather than rots.
+the table rows above; #173 is about removing the need for them. An orphan you mean to keep goes in `knownOrphans` with an
+issue number; two further tests assert each listed orphan is still emitted and
+still unread, so the list shrinks rather than rots.
 
 "Add tests for every collector" was both **under-enforced and under-scoped**.
 Under-enforced: three collectors shipped with no tests at all
