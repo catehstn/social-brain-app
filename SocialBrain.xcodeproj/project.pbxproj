@@ -21,6 +21,7 @@
 		07EB2774970E7FDB3EAC6E83 /* SubstackImporterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2505C743A6696B343E4774E /* SubstackImporterTests.swift */; };
 		3F8A21C74B0D95E6A1730C42 /* DecodeJSONTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C21D9E05A47B8132FE60D91 /* DecodeJSONTests.swift */; };
 		D96D2D38F74745ACAB00F019 /* CollectionWindowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA74496BEC934B60B8E14D97 /* CollectionWindowTests.swift */; };
+		0F090E4DE3624237B1B7F76A /* MetricKeyOrphanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1265E95E74F468190C38815 /* MetricKeyOrphanTests.swift */; };
 		1D86C01E16BF444AA0E9BF2E /* ExportDatesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CBAECD0EA794231A38F73DC /* ExportDatesTests.swift */; };
 		0A7B04861D3AE5517A3BE706 /* RunViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84DDBF32B4FAE2B22DCB45DE /* RunViewModel.swift */; };
 		12F8C303A457D94149ABCAB9 /* SetupGuideSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C09881FED06F6E5629D17E0D /* SetupGuideSheet.swift */; };
@@ -243,6 +244,7 @@
 		D2505C743A6696B343E4774E /* SubstackImporterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubstackImporterTests.swift; sourceTree = "<group>"; };
 		6C21D9E05A47B8132FE60D91 /* DecodeJSONTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecodeJSONTests.swift; sourceTree = "<group>"; };
 		FA74496BEC934B60B8E14D97 /* CollectionWindowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionWindowTests.swift; sourceTree = "<group>"; };
+		D1265E95E74F468190C38815 /* MetricKeyOrphanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetricKeyOrphanTests.swift; sourceTree = "<group>"; };
 		4CBAECD0EA794231A38F73DC /* ExportDatesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportDatesTests.swift; sourceTree = "<group>"; };
 		D2B324A06DBC07D1138FA417 /* PlatformSFSymbolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformSFSymbolTests.swift; sourceTree = "<group>"; };
 		DEBCB0E4185241B9816883CE /* RetiredPlatformDataTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RetiredPlatformDataTests.swift; sourceTree = "<group>"; };
@@ -521,6 +523,7 @@
 				D2505C743A6696B343E4774E /* SubstackImporterTests.swift */,
 				6C21D9E05A47B8132FE60D91 /* DecodeJSONTests.swift */,
 				FA74496BEC934B60B8E14D97 /* CollectionWindowTests.swift */,
+				D1265E95E74F468190C38815 /* MetricKeyOrphanTests.swift */,
 				4CBAECD0EA794231A38F73DC /* ExportDatesTests.swift */,
 				887C88E6C71E01161679B3B2 /* VercelCollectorTests.swift */,
 			);
@@ -786,6 +789,7 @@
 				07EB2774970E7FDB3EAC6E83 /* SubstackImporterTests.swift in Sources */,
 				3F8A21C74B0D95E6A1730C42 /* DecodeJSONTests.swift in Sources */,
 				D96D2D38F74745ACAB00F019 /* CollectionWindowTests.swift in Sources */,
+				0F090E4DE3624237B1B7F76A /* MetricKeyOrphanTests.swift in Sources */,
 				1D86C01E16BF444AA0E9BF2E /* ExportDatesTests.swift in Sources */,
 				9354A382ADCA63501A491527 /* VercelCollectorTests.swift in Sources */,
 			);
