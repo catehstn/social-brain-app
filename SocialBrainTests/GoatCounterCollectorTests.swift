@@ -59,7 +59,7 @@ struct GoatCounterCollectorTests {
         }
     }
 
-    @Test("Parses total pageviews and top pages")
+    @Test("Parses visits and top pages")
     func collectMetrics() async throws {
         let session = MockURLSession([
             "/api/v0/stats/total": (GoatCounterCollectorTests.totalsJSON, 200),
@@ -73,7 +73,7 @@ struct GoatCounterCollectorTests {
         let data = try await collector.collect(since: .distantPast, credentials: credentials)
 
         #expect(data.platform == .goatCounter)
-        #expect(data.intMetric("total_pageviews") == 8421)
+        #expect(data.intMetric("total_visits") == 8421)
 
         #expect(data.stringMetric("top_page_1")   == "/blog/swift-tips")
         #expect(data.stringMetric("top_page_5")   == "/blog/swiftui-tips")

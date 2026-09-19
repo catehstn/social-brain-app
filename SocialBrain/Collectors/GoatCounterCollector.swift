@@ -7,7 +7,7 @@ import Foundation
 /// - `"site_code"` – subdomain (e.g. `"mysite"` for `mysite.goatcounter.com`)
 ///
 /// Metrics returned:
-/// - `total_pageviews`   – total hits in the period
+/// - `total_visits`      – visits in the period (session-first views per path)
 /// - `top_page_1` … `top_page_5` – paths of the top-5 pages by hits
 struct GoatCounterCollector: Collector {
     let platform: Platform = .goatCounter
@@ -48,13 +48,20 @@ struct GoatCounterCollector: Collector {
 
         let (total, pages) = try await (totals, topPages)
 
-        // `total` is a sum of `hit_counts.total` — GoatCounter's own
-        // `GetTotalCount` doc calls that "the total number of pageviews", even
-        // though the struct beside it says "visitors". Their terminology is
-        // inconsistent with itself; the SQL is the part that runs. #75 covers
-        // checking the figure against a live dashboard.
+        // `total_visits`, not pageviews, and not site-wide unique visitors.
+        //
+        // The number is a sum of `hit_counts.total`, and that column is only
+        // incremented when `FirstVisit` is set (`cron/hit_count.go`), which
+        // `memstore.go` sets on the first time a *session* views a given path.
+        // So it counts (session, path) first-views — one visitor reading three
+        // posts counts three. GoatCounter calls this "visits"; its 2.4.0
+        // changelog says it stopped storing pageviews at all.
+        //
+        // `GetTotalCount`'s doc comment still says "pageviews" and predates
+        // that change; the struct beside it and the OpenAPI description both
+        // say visitors. Believe the increment, not the prose.
         var metrics: [String: MetricValue] = [
-            "total_pageviews": .int(total.total)
+            "total_visits": .int(total.total)
         ]
         for (index, page) in pages.prefix(5).enumerated() {
             metrics["top_page_\(index + 1)"] = .string(page.path)

@@ -86,12 +86,13 @@ struct HighReachDetectorTests {
         #expect(items.first?.platform == .linkedin)
     }
 
-    @Test("GoatCounter pageviews >= 500 triggers high reach")
+    @Test("GoatCounter visits >= 500 triggers high reach")
     func goatCounterAboveThreshold() throws {
         // Was unique_visitors, which GoatCounter has no endpoint for — so this
-        // branch could never have run against real data (#156).
+        // branch could never have run against real data (#156). The figure is
+        // visits: session-first views per path.
         let snap = try makeSnapshot(platform: .goatCounter,
-                                    metrics: ["total_pageviews": .int(750)])
+                                    metrics: ["total_visits": .int(750)])
         let items = HighReachDetector().detect(snapshots: [PlatformInstance(platform: .goatCounter): snap])
         #expect(items.count == 1)
         #expect(items.first?.platform == .goatCounter)
@@ -140,7 +141,7 @@ struct HighReachDetectorTests {
         // Both should be present; buttondown first (higher score)
         #expect(items.count == 2)
         #expect(items.first?.platform == .buttondown)
-        #expect(items[1].platform == .mastodon)
+        #expect(items.dropFirst().first?.platform == .mastodon)
     }
 
     @Test("No items when snapshot is missing the tracked metric key")

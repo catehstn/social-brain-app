@@ -138,6 +138,32 @@ struct FeedDatabaseTests {
         #expect(!vm.series.isEmpty)
     }
 
+    @Test("The Dashboard charts GoatCounter visits, and nothing called Visitors")
+    @MainActor
+    func dashboardChartsGoatCounterVisits() async throws {
+        // unique_visitors was charted as "Visitors" and GoatCounter has no
+        // endpoint for it, so the series could never have had points (#156).
+        // The fixture supplies it anyway: asserting against a snapshot that
+        // omits the key would pass whether or not the series was removed.
+        let db = try makeDB()
+        let runID = try await makeRun(in: db)
+
+        let data = PlatformData(
+            platform: .goatCounter,
+            metrics: ["total_visits": .int(8421), "unique_visitors": .int(3102)]
+        )
+        var snap = try PlatformSnapshot(runID: runID, data: data)
+        try await db.saveSnapshot(&snap)
+
+        let vm = DashboardViewModel(database: db,
+                                    initialInstance: PlatformInstance(platform: .goatCounter))
+        vm.timeRange = .all
+        await vm.load()
+
+        #expect(vm.series.contains { $0.label == "Visits" })
+        #expect(!vm.series.contains { $0.label == "Visitors" })
+    }
+
     @Test("The Dashboard charts LinkedIn follower growth from an XLSX import")
     @MainActor
     func dashboardChartsLinkedInFollowers() async throws {

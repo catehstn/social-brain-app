@@ -60,6 +60,23 @@ struct SpikeDetectorTests {
         #expect(alerts.contains { $0.summary.contains("Followers") })
     }
 
+    @Test("A GoatCounter visits spike produces exactly one alert")
+    func goatCounterVisitsSpikeIsNotDuplicated() throws {
+        // There was no GoatCounter spike test at all, which is how a duplicated
+        // Monitored entry survived a search-and-replace: FeedCardBuilder shows
+        // only the first alert, but SpikeNotifier sends them all, so the user's
+        // notification carried the same line twice (#156).
+        let previous = try makeSnapshot(platform: .goatCounter,
+                                        metrics: ["total_visits": .int(1000)])
+        let current  = try makeSnapshot(platform: .goatCounter,
+                                        metrics: ["total_visits": .int(1500)])
+
+        let alerts = SpikeDetector().detect(current: current, previous: previous)
+
+        #expect(alerts.count == 1)
+        #expect(alerts.first?.metricKey == "total_visits")
+    }
+
     @Test("spike detected on 25% increase")
     func spikeDetectedOnIncrease() throws {
         let previous = try makeSnapshot(platform: .mastodon,
