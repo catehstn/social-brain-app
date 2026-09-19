@@ -74,7 +74,7 @@ final class DashboardViewModel {
     private func buildSeries(from snapshots: [PlatformSnapshot]) -> [MetricSeries] {
         guard !snapshots.isEmpty else { return [] }
 
-        let keys = metricKeys(for: selectedInstance.platform)
+        let keys = Self.metricKeys(for: selectedInstance.platform)
         var pointsPerKey: [String: [MetricPoint]] = [:]
 
         for snap in snapshots {
@@ -103,7 +103,9 @@ final class DashboardViewModel {
     }
 
     /// Returns the ordered (key, display label) pairs to chart for each platform.
-    private func metricKeys(for platform: Platform) -> [(key: String, label: String)] {
+    /// Internal, not private, so the orphan detector can ask what this charts
+    /// for a platform without duplicating the list (#63).
+    nonisolated static func metricKeys(for platform: Platform) -> [(key: String, label: String)] {
         switch platform {
         case .mastodon:
             return [("followers_count", "Followers"),
