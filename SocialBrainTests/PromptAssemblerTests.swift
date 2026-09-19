@@ -286,7 +286,16 @@ struct PromptAssemblerTests {
         #expect(prompt.contains("Total engagements: 512"))
         #expect(prompt.contains("Unique members reached: 19,300"))
         // The headline metric, which an XLSX import was dropping entirely.
-        #expect(prompt.contains("107 impressions"))
+        // Labelled, because this shape has no posts count to hang it off.
+        #expect(prompt.contains("Impressions: 107"))
+    }
+
+    /// The "## LinkedIn" section of an assembled prompt, up to the next header.
+    private func linkedinSection(of prompt: String) -> String? {
+        guard let start = prompt.range(of: "## LinkedIn") else { return nil }
+        let rest = prompt[start.upperBound...]
+        let end = rest.range(of: "\n## ")?.lowerBound ?? rest.endIndex
+        return String(rest[..<end])
     }
 
     @Test("A CSV-only LinkedIn import gains no empty lines from the XLSX metrics")
@@ -301,13 +310,17 @@ struct PromptAssemblerTests {
         let prompt = assembler.assemble(makeInput(snapshots: try snaps(data)))
 
         #expect(prompt.contains("Posts: 5, 4,200 impressions"))
-        // "total" and "new this period" rather than a bare "Followers:" —
-        // Mastodon and Jetpack emit that too, so the loose version would
-        // false-fail the first time this test is given a second snapshot.
-        #expect(!prompt.contains("total, "))
-        #expect(!prompt.contains("new this period"))
-        #expect(!prompt.contains("Total engagements"))
-        #expect(!prompt.contains("Unique members reached"))
+
+        // Scoped to this platform's own section rather than the whole prompt.
+        // Asserting on the whole prompt has to be either loose — "Followers:"
+        // is emitted by Mastodon and Jetpack too, so it would false-fail the
+        // first time this test gained a second snapshot — or so narrow it stops
+        // checking the thing it is named for. A bare "- Followers: " with
+        // nothing after it passed both earlier versions.
+        let section = try #require(linkedinSection(of: prompt))
+        #expect(!section.contains("Followers"))
+        #expect(!section.contains("Total engagements"))
+        #expect(!section.contains("Unique members reached"))
     }
 
     @Test("One follower metric without the other still reads correctly")

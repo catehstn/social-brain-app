@@ -223,7 +223,15 @@ struct PromptAssembler {
         // "Posts: 5, 4,200 impressions".
         var posting: [String] = []
         if let posts = data.intMetric("posts_published") { posting.append("Posts: \(posts)") }
-        if let imp = data.intMetric("total_impressions") { posting.append("\(formatted(imp)) impressions") }
+        if let imp = data.intMetric("total_impressions") {
+            // Labelled when it stands alone, so the XLSX shape does not produce
+            // the assembler's only unlabelled line. Joined to the posts count
+            // when both exist, which is the CSV shape and what pins the string
+            // "Posts: 5, 4,200 impressions".
+            posting.append(posting.isEmpty
+                           ? "Impressions: \(formatted(imp))"
+                           : "\(formatted(imp)) impressions")
+        }
         if !posting.isEmpty { lines.append(posting.joined(separator: ", ")) }
         var engagement: [String] = []
         if let v = data.intMetric("total_likes")    { engagement.append("\(formatted(v)) likes") }
