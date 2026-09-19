@@ -63,7 +63,7 @@ struct GoogleSearchConsoleCollector: Collector {
         // older, so a longer request is not an error — it just silently covers
         // less than it looks like it does.
         let window = CollectionWindow.resolve(since: since, end: end,
-                                              maximumDays: Self.maximumDays)
+                                              maximumDays: Self.maximumDays(endingAt: end))
         let start = window.start
 
         let dateFormatter = DateFormatter()
@@ -130,8 +130,10 @@ struct GoogleSearchConsoleCollector: Collector {
     /// which is why it is sixteen *months* measured back from now, not a
     /// rounded 16 × 30. Those differ by about a week, and the rounding erred
     /// towards collecting less than Google will serve.
-    static var maximumDays: Int {
-        let end = Date()
+    /// Takes the window's end rather than reading its own `Date()`, so a
+    /// `collect` spanning midnight cannot measure the cap against a different
+    /// day than it measures the request against.
+    static func maximumDays(endingAt end: Date) -> Int {
         let start = CollectionWindow.utc.date(byAdding: .month, value: -16, to: end) ?? end
         return CollectionWindow.days(from: start, to: end)
     }

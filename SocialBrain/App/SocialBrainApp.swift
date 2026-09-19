@@ -109,14 +109,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         credentials: (@Sendable (PlatformInstance) throws -> Credentials?)? = nil,
         notifier: SpikeNotifier? = nil
     ) async {
-        // An explicit window, stated here rather than implied. This used to
-        // pass `nil`, which each collector read differently — thirty days for
-        // some, twenty-eight for others, one page for the rest — so the daily
-        // refresh covered a different period per platform and nothing said so
-        // (#96). Thirty days is what the majority already did.
-        //
-        // Deliberately not `.distantPast`: this runs unattended every morning,
-        // and "everything ever" is not a sensible daily request.
         let collectors = collectors ?? CollectorRegistry.configured()
             .filter { $0.platform.authType == .apiKey || $0.platform.authType == .oauthToken }
         guard !collectors.isEmpty else { return }
@@ -129,6 +121,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
                 credentials: credentials ?? { instance in
                     try KeychainStore.shared.load(for: instance)
                 },
+                // Explicit, where this used to pass `nil` and each collector
+                // read it differently — thirty days for some, twenty-eight for
+                // others, one page for the rest, so the daily refresh covered a
+                // different period per platform and nothing said so (#96).
+                // Deliberately not `.distantPast`: this runs unattended every
+                // morning, and "everything ever" is not a sensible daily ask.
                 since: Self.backgroundRefreshWindow,
                 progress: { _ in }
             )

@@ -248,7 +248,8 @@ private actor WindowRecorder {
     func record(_ date: Date) { since = date }
 }
 
-/// Returns a fixed snapshot so the background run has something to compare.
+/// Records the window it was handed, so a test can assert what the background
+/// path asks for.
 private struct WindowRecordingCollector: Collector {
     let platform: Platform
     let recorder: WindowRecorder
@@ -261,6 +262,7 @@ private struct WindowRecordingCollector: Collector {
     func fetchLabel(credentials: Credentials) async -> String? { nil }
 }
 
+/// Returns a fixed snapshot so the background run has something to compare.
 private struct StubSpikeCollector: Collector {
     let platform: Platform
     var instanceName: String = "default"

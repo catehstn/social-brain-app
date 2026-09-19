@@ -74,14 +74,17 @@ struct JetpackCollector: Collector {
         // a year-long request at 90 days makes a busy year look like a quiet
         // quarter.
         if visitResult.daysCovered < visitResult.daysRequested {
-            // "all time" rather than a day count when the request had no lower
-            // bound: `.distantPast` makes daysRequested about 739,879, and
-            // "not the 739879 requested" is nonsense in a prompt (#96).
-            let asked = visitResult.daysRequested >= Self.allTimeThreshold
-                ? "all time"
-                : "\(visitResult.daysRequested) days"
-            metrics["views_window"] = .string(
-                "views and visitors cover the last \(visitResult.daysCovered) days, not the \(asked) requested")
+            // The whole clause branches, not just the noun: `.distantPast`
+            // makes daysRequested about 739,879, and "not the 739879 requested"
+            // is nonsense to read in a prompt (#96).
+            //
+            // Tested with the same sentinel the rest of the codebase uses
+            // rather than a day threshold. A threshold would be a second,
+            // fuzzier encoding of "all time" for no gain.
+            let note = CollectionWindow.lowerBound(since) == nil
+                ? "views and visitors cover the last \(visitResult.daysCovered) days, not all time as requested"
+                : "views and visitors cover the last \(visitResult.daysCovered) days, not the \(visitResult.daysRequested) requested"
+            metrics["views_window"] = .string(note)
         }
 
         return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)
@@ -116,10 +119,6 @@ struct JetpackCollector: Collector {
     /// offsets.
     static let maximumDays = 90
 
-    /// Above this many days, a request is reported as "all time" rather than a
-    /// number. `.distantPast` measures about 739,879 days; a century is beyond
-    /// anything a real window could be and well under that.
-    static let allTimeThreshold = 100 * 365
 
     /// How many days a window covers.
     ///

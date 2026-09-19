@@ -58,14 +58,35 @@ struct CollectionWindowTests {
 
     // MARK: - days
 
-    @Test("Days are counted in UTC, not the machine's zone")
-    func daysAreCountedInUTC() {
-        // Same instant, one day apart in UTC. A local calendar would agree here
-        // only by luck of the runner's offset.
-        let start = Date(timeIntervalSince1970: 1_767_225_600)  // 2026-01-01 00:00 UTC
-        let later = Date(timeIntervalSince1970: 1_767_312_000)  // 2026-01-02 00:00 UTC
+    @Test("The shared calendar is UTC")
+    func sharedCalendarIsUTC() {
+        // Asserted on the calendar itself, because no arithmetic fixture can
+        // stand in for it. An earlier version of this test used two instants
+        // exactly 24 hours apart and claimed a local calendar "would agree only
+        // by luck" — but dateComponents returns 1 for that pair in *every*
+        // fixed-offset zone, so repointing this calendar at +13:00 left the
+        // whole suite green. Zone only changes a day count across a DST
+        // transition, which is the one thing UTC does not have.
+        #expect(CollectionWindow.utc.timeZone.secondsFromGMT() == 0)
+        #expect(CollectionWindow.utc.identifier == .gregorian)
+    }
 
-        #expect(CollectionWindow.days(from: start, to: later) == 1)
+    @Test("A span across a DST transition counts elapsed days, not wall-clock ones")
+    func dstTransitionCountsElapsedDays() {
+        // 2026-03-28T12:00Z to 47 hours later. Europe/Berlin springs forward in
+        // between, so its wall clock reads exactly two days while only 1 day and
+        // 23 hours have elapsed. UTC says 1, which is what a cap should compare
+        // against — a clamp is about how much data exists, not what a calendar
+        // on a wall says.
+        let start = Date(timeIntervalSince1970: 1_774_699_200)
+        let end   = start.addingTimeInterval(47 * 3600)
+
+        #expect(CollectionWindow.days(from: start, to: end) == 1)
+
+        var berlin = Calendar(identifier: .gregorian)
+        berlin.timeZone = TimeZone(identifier: "Europe/Berlin")!
+        #expect(berlin.dateComponents([.day], from: start, to: end).day == 2,
+                "fixture no longer straddles the transition it was chosen for")
     }
 
     @Test("A backwards range is zero days, not negative")
@@ -73,8 +94,6 @@ struct CollectionWindowTests {
         let later = end.addingTimeInterval(86_400)
         #expect(CollectionWindow.days(from: later, to: end) == 0)
     }
-
-    // MARK: - lowerBound
 
     // MARK: - The label the prompt header carries
 
