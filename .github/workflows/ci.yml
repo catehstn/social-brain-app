@@ -31,13 +31,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
-          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
-          restore-keys: ${{ runner.os }}-spm-
+          key: ${{ runner.os }}-spm-app-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-app-
 
       - name: Resolve packages
         run: xcodebuild -resolvePackageDependencies -scheme SocialBrain
 
-      # `shell: bash -eo pipefail` is load-bearing. Without pipefail, piping
+      # `shell: bash --noprofile --norc -eo pipefail {0}` is load-bearing — the
+      # `pipefail` half especially. Without it, piping
       # xcodebuild into a formatter reports the FORMATTER's exit code, so a
       # failed build shows up as a green run — which is exactly how a broken
       # build sat unnoticed on main. Do not remove it.
@@ -81,8 +82,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
-          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
-          restore-keys: ${{ runner.os }}-spm-
+          key: ${{ runner.os }}-spm-app-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-app-
 
       - name: Resolve packages
         run: xcodebuild -resolvePackageDependencies -scheme SocialBrain-UITests
@@ -205,8 +206,8 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
-          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
-          restore-keys: ${{ runner.os }}-spm-
+          key: ${{ runner.os }}-spm-app-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-app-
 
       - name: Build Release configuration
         shell: bash --noprofile --norc -eo pipefail {0}
