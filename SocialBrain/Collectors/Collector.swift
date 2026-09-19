@@ -22,9 +22,10 @@ protocol Collector: Sendable {
     /// **`since` is not optional, and that is the point.** It used to be, and
     /// `nil` meant five different things: thirty days in `GoatCounterCollector`
     /// and `JetpackCollector`, twenty-eight in `GoogleSearchConsoleCollector`
-    /// and `HackerNewsCollector`, "the first page and no further" in
-    /// `BlueskyCollector`, `BufferCollector` and `MastodonCollector`, and "no
-    /// filter at all" in `ButtondownCollector` and `CalendlyCollector`. So
+    /// and `HackerNewsCollector`, "every page, unfiltered" in `BlueskyCollector`
+    /// and `MastodonCollector`, "the single page Buffer returns" in
+    /// `BufferCollector`, and "no filter at all" in `ButtondownCollector` and
+    /// `CalendlyCollector`. So
     /// "All time" in the Run screen produced a different window per platform
     /// and the prompt presented them side by side as comparable (#96).
     ///
@@ -70,6 +71,11 @@ enum CollectionWindow {
     }()
 
     /// Whole days between two instants, floored at zero.
+    ///
+    /// The floor stops a backwards range reporting a negative count; it does
+    /// not make a future `since` safe. `resolve` would return such a date
+    /// unclamped, which no caller can currently produce — `RunView` offers only
+    /// 7, 30, 90 and All time.
     static func days(from start: Date, to end: Date) -> Int {
         max(0, utc.dateComponents([.day], from: start, to: end).day ?? 0)
     }

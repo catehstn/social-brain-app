@@ -126,8 +126,15 @@ struct GoogleSearchConsoleCollector: Collector {
     /// The longest window this collector will request, in days.
     ///
     /// Search Console keeps about 16 months of performance data. Asking for
-    /// more returns the same rows, so this cap is theirs rather than ours.
-    static let maximumDays = 16 * 30
+    /// more returns the same rows, so this cap is theirs rather than ours —
+    /// which is why it is sixteen *months* measured back from now, not a
+    /// rounded 16 × 30. Those differ by about a week, and the rounding erred
+    /// towards collecting less than Google will serve.
+    static var maximumDays: Int {
+        let end = Date()
+        let start = CollectionWindow.utc.date(byAdding: .month, value: -16, to: end) ?? end
+        return CollectionWindow.days(from: start, to: end)
+    }
 
     // MARK: - Token refresh
 

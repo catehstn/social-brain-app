@@ -74,8 +74,14 @@ struct JetpackCollector: Collector {
         // a year-long request at 90 days makes a busy year look like a quiet
         // quarter.
         if visitResult.daysCovered < visitResult.daysRequested {
+            // "all time" rather than a day count when the request had no lower
+            // bound: `.distantPast` makes daysRequested about 739,879, and
+            // "not the 739879 requested" is nonsense in a prompt (#96).
+            let asked = visitResult.daysRequested >= Self.allTimeThreshold
+                ? "all time"
+                : "\(visitResult.daysRequested) days"
             metrics["views_window"] = .string(
-                "views and visitors cover the last \(visitResult.daysCovered) days, not the \(visitResult.daysRequested) requested")
+                "views and visitors cover the last \(visitResult.daysCovered) days, not the \(asked) requested")
         }
 
         return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)
@@ -109,6 +115,11 @@ struct JetpackCollector: Collector {
     /// out to be ours rather than theirs, this becomes a page walk over `date`
     /// offsets.
     static let maximumDays = 90
+
+    /// Above this many days, a request is reported as "all time" rather than a
+    /// number. `.distantPast` measures about 739,879 days; a century is beyond
+    /// anything a real window could be and well under that.
+    static let allTimeThreshold = 100 * 365
 
     /// How many days a window covers.
     ///

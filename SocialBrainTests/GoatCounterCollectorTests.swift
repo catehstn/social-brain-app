@@ -140,8 +140,10 @@ struct GoatCounterCollectorTests {
         formatter.formatOptions = [.withFullDate]
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         let startDate = try #require(formatter.date(from: start))
-        #expect(CollectionWindow.days(from: startDate, to: Date())
-                == GoatCounterCollector.maximumDays)
+        // A literal, not GoatCounterCollector.maximumDays: comparing the
+        // constant to itself proves only that resolve uses it, and would pass
+        // just as happily if the cap were changed to a day.
+        #expect(CollectionWindow.days(from: startDate, to: Date()) == 5 * 365)
     }
 
     /// GoatCounter's documented query parameters, from

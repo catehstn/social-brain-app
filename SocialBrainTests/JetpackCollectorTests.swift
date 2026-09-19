@@ -158,6 +158,23 @@ struct JetpackCollectorTests {
         #expect(mock.queryValue("unit", path: Self.visitsPath) == "day")
     }
 
+    @Test("An all-time request says so, rather than quoting 739,879 days")
+    func allTimeWindowNoteReadsAsAllTime() async throws {
+        // `.distantPast` measures about 739,879 days, and the note is rendered
+        // into the prompt verbatim — "not the 739879 requested" is nonsense to
+        // read. Before #96 this could not arise: All time arrived as nil and
+        // took a 30-day default, so the cap never bit and no note was emitted.
+        let mock = session
+        let data = try await JetpackCollector(session: mock)
+            .collect(since: .distantPast, credentials: credentials)
+
+        #expect(mock.queryValue("quantity", path: Self.visitsPath) == "90")
+        let note = try #require(data.stringMetric("views_window"))
+        #expect(note.contains("all time"))
+        #expect(!note.contains("739879"))
+        #expect(note.contains("90"))
+    }
+
     // MARK: - The 90-day cap
 
     @Test("A window longer than the cap says so instead of looking complete")

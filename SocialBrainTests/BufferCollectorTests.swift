@@ -39,6 +39,13 @@ struct BufferCollectorTests {
         {"updates":[{"id":"u3"},{"id":"u4"},{"id":"u5"}]}
         """
 
+    /// A sent update with no `sent_at`, which Buffer does return.
+    private static let sentNoDateJSON = """
+        {"updates":[
+          {"id":"u9","statistics":{"clicks":2,"reach":20,"likes":1}}
+        ]}
+        """
+
     private func makeSession() -> MockURLSession {
         MockURLSession([
             "/1/profiles.json": (Self.profilesJSON, 200),
@@ -372,5 +379,45 @@ struct BufferCollectorTests {
         await #expect(throws: CollectorError.self) {
             _ = try await collector.collect(since: .distantPast, credentials: credentials)
         }
+    }
+    // MARK: - What "no lower bound" means for an undated post (#96)
+
+    @Test("An update with no sent_at counts when there is no lower bound")
+    func undatedUpdateCountsForAllTime() async throws {
+        // A post that cannot be placed in a window is only a problem when there
+        // is a window to place it in. This was the behaviour when `since` was
+        // nil, and dropping the optional had to preserve it rather than start
+        // silently discarding undated posts from an all-time run.
+        let session = MockURLSession([
+            "/1/profiles.json": (Self.profilesJSON, 200),
+            "/1/profiles/p1/updates/sent.json": (Self.sentNoDateJSON, 200),
+            "/1/profiles/p2/updates/sent.json": (Self.sentNoDateJSON, 200),
+            "/1/profiles/p1/updates/pending.json": (Self.pendingJSON, 200),
+            "/1/profiles/p2/updates/pending.json": (Self.pendingJSON, 200)
+        ])
+
+        let data = try await BufferCollector(session: session)
+            .collect(since: .distantPast, credentials: credentials)
+
+        #expect(data.intMetric("sent_updates") == 2)
+    }
+
+    @Test("An update with no sent_at is excluded once a window exists")
+    func undatedUpdateIsExcludedWithinAWindow() async throws {
+        // The other half of the same rule: with a real lower bound, an undated
+        // post cannot be shown to fall inside it, so counting it would inflate
+        // the period.
+        let session = MockURLSession([
+            "/1/profiles.json": (Self.profilesJSON, 200),
+            "/1/profiles/p1/updates/sent.json": (Self.sentNoDateJSON, 200),
+            "/1/profiles/p2/updates/sent.json": (Self.sentNoDateJSON, 200),
+            "/1/profiles/p1/updates/pending.json": (Self.pendingJSON, 200),
+            "/1/profiles/p2/updates/pending.json": (Self.pendingJSON, 200)
+        ])
+
+        let data = try await BufferCollector(session: session)
+            .collect(since: Date(timeIntervalSince1970: 1_767_225_600), credentials: credentials)
+
+        #expect(data.intMetric("sent_updates") == 0)
     }
 }

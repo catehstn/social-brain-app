@@ -155,10 +155,11 @@ struct MastodonCollector: Collector {
             guard page.count == Self.pageSize, let oldest = page.last else {
                 return (filter(collected, since: since), false)
             }
-            // `nil` is not "no window asked for" — it is the **All time**
-            // button (`RunView` maps `.distantPast` to nil), and the default
-            // for a background refresh. So it walks to the page cap like any
-            // other request; there is simply no boundary to stop early at.
+            // `.distantPast` is not "no window asked for" — it is the **All
+            // time** button, passed straight through since #96. So it walks to
+            // the page cap like any other request; there is simply no boundary
+            // to stop early at. (The background refresh asks for an explicit 30
+            // days and does have one.)
             //
             // An earlier version returned after one page here, on the reasoning
             // that an unbounded request has nothing to walk to. That reported

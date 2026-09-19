@@ -115,7 +115,7 @@ final class RunViewModel {
         guard !visibleSnapshots.isEmpty else { return }
 
         let input = PromptAssembler.Input(
-            periodLabel: periodLabel(since: lastSince),
+            periodLabel: Self.periodLabel(since: lastSince),
             reportDate: summary.completedAt,
             snapshots: visibleSnapshots,
             goal: AnalyticsGoal.current,
@@ -124,8 +124,16 @@ final class RunViewModel {
         generatedPrompt = assembler.assemble(input)
     }
 
-    private func periodLabel(since: Date?) -> String {
-        guard let since else { return "All time" }
+    /// The prompt header's period line.
+    ///
+    /// Static and non-private so it can be tested: `RunViewModel` has no test
+    /// coverage, and this is a pure function of a date that had a user-visible
+    /// bug in it (#96).
+    nonisolated static func periodLabel(since: Date) -> String {
+        // `.distantPast` is the All time button. This used to arrive as nil and
+        // the guard caught it; once `since` became non-optional the branch went
+        // dead and the header read "Last 739879 days" (#96).
+        guard since != .distantPast else { return "All time" }
         let days = Int(Date().timeIntervalSince(since) / 86400)
         switch days {
         case 0...1:   return "Last 24 hours"

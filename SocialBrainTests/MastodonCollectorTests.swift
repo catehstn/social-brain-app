@@ -303,10 +303,9 @@ struct MastodonCollectorTests {
     }
 
     @Test("An All time run walks the pages too")
-    func noSinceStillWalks() async throws {
-        // `since == nil` is not "no window asked for" — RunView maps the
-        // **All time** button to it, and it is the default for a background
-        // refresh. An earlier version of this returned after one page on the
+    func allTimeStillWalks() async throws {
+        // `.distantPast` is not "no window asked for" — it is the **All time**
+        // button, passed straight through since #96. An earlier version of this returned after one page on the
         // reasoning that an unbounded request has no boundary to walk to, which
         // reported 40 posts as the complete all-time figure right next to a
         // statuses_count of 4,100 from the same response.

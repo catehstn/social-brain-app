@@ -215,9 +215,52 @@ struct SpikeNotifierTests {
             callCount += 1
         }
     }
+
+    @Test("The background refresh asks for an explicit thirty days")
+    @MainActor
+    func backgroundRefreshRequestsAnExplicitWindow() async throws {
+        // It used to pass nil and describe itself as running "without a date
+        // filter", which was never true of any collector — nil meant 30 days
+        // for some, 28 for others, one page for the rest (#96). Nothing
+        // asserted the replacement, so changing 30 to 300 left the suite green.
+        let db = try AppDatabase.makeInMemory()
+        let recorder = WindowRecorder()
+        let collector = WindowRecordingCollector(platform: .mastodon, recorder: recorder)
+
+        await AppDelegate.runBackgroundRefresh(
+            database: db,
+            collectors: [collector],
+            credentials: { _ in Credentials(["api_key": "k"]) },
+            notifier: nil
+        )
+
+        let since = try #require(await recorder.since)
+        #expect(CollectionWindow.days(from: since, to: Date()) == 30)
+        // Emphatically not "everything ever", on an unattended daily job.
+        #expect(since != .distantPast)
+    }
+}
+
+/// Records the `since` it was handed, so a test can assert what the background
+/// path actually asks for.
+private actor WindowRecorder {
+    private(set) var since: Date?
+    func record(_ date: Date) { since = date }
 }
 
 /// Returns a fixed snapshot so the background run has something to compare.
+private struct WindowRecordingCollector: Collector {
+    let platform: Platform
+    let recorder: WindowRecorder
+
+    func collect(since: Date, credentials: Credentials) async throws -> PlatformData {
+        await recorder.record(since)
+        return PlatformData(platform: platform, metrics: ["followers_count": .int(1500)])
+    }
+
+    func fetchLabel(credentials: Credentials) async -> String? { nil }
+}
+
 private struct StubSpikeCollector: Collector {
     let platform: Platform
     var instanceName: String = "default"

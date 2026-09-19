@@ -394,8 +394,8 @@ struct BlueskyCollectorTests {
     }
 
     @Test("An All time run walks the pages too")
-    func noSinceStillWalks() async throws {
-        // `since == nil` is the All time button, not "no window asked for".
+    func allTimeStillWalks() async throws {
+        // `.distantPast` is the All time button, not "no window asked for".
         let (collector, session) = makeCollector([
             .init(Self.feedPage(posts: 50, newest: Self.day(2026, 3, 28), cursor: "c1")),
             .init(Self.feedPage(posts: 4, newest: Self.day(2026, 2, 6), cursor: nil))

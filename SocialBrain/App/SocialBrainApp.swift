@@ -82,6 +82,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         }
     }
 
+    /// The window the unattended morning refresh asks for.
+    ///
+    /// Computed on each access, not stored: a `static let` would freeze thirty
+    /// days before launch and drift further from "the last month" every day the
+    /// app stays open.
+    ///
+    /// Named rather than written inline so what the background path requests is
+    /// stated and checkable — the point of #96 is not that it is thirty days.
+    static var backgroundRefreshWindow: Date {
+        CollectionWindow.utc.date(byAdding: .day, value: -30, to: Date()) ?? Date()
+    }
+
     /// One scheduled refresh.
     ///
     /// A named function rather than an inline closure so it can be tested. As a
@@ -91,15 +103,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
     /// - Parameters:
     ///   - collectors: defaults to the configured API-backed platforms.
     ///   - notifier: defaults to the real one, which posts a system notification.
-    /// The window the unattended morning refresh asks for.
-    ///
-    /// A stored property rather than a literal at the call site so a test can
-    /// assert what the background path requests — the point of #96 is that the
-    /// window is stated and checkable, not that it is thirty days.
-    static var backgroundRefreshWindow: Date {
-        CollectionWindow.utc.date(byAdding: .day, value: -30, to: Date()) ?? Date()
-    }
-
     static func runBackgroundRefresh(
         database: AppDatabase,
         collectors: [any Collector]? = nil,

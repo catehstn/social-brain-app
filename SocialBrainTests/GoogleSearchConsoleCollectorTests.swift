@@ -209,8 +209,13 @@ struct GoogleSearchConsoleCollectorTests {
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
         formatter.dateFormat = "yyyy-MM-dd"
         let startDate = try #require(formatter.date(from: start))
-        let daysBack = CollectionWindow.days(from: startDate, to: Date())
-        #expect(daysBack == GoogleSearchConsoleCollector.maximumDays)
+        // Sixteen calendar months back, computed here independently rather than
+        // read off the collector's own constant — comparing that to itself
+        // would pass whatever the cap were changed to.
+        let expected = Calendar(identifier: .gregorian).date(byAdding: .month, value: -16, to: Date())
+        let expectedDate = try #require(expected)
+        #expect(abs(startDate.timeIntervalSince(expectedDate)) < 2 * 86_400,
+                "start should be ~16 months back, was \(start)")
     }
 
     @Test("The window is formatted in UTC, not the machine's time zone")
