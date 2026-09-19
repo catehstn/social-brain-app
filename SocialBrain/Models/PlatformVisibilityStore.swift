@@ -31,6 +31,19 @@ struct PlatformVisibilityStore: @unchecked Sendable {
         defaults.removeObject(forKey: key(for: platform))
     }
 
+    /// Drops entries whose platform is hidden.
+    ///
+    /// Generic over the value so the caller's dictionary type is preserved:
+    /// snapshots at the prompt, but nothing about this is snapshot-specific.
+    /// It exists so that filtering is available somewhere unit-testable —
+    /// `RunViewModel`, the caller this was written for, has no tests, and
+    /// putting the rule inline there would have made it unverifiable (#80).
+    func visible<Value>(
+        _ byInstance: [PlatformInstance: Value]
+    ) -> [PlatformInstance: Value] {
+        byInstance.filter { !isHidden($0.key.platform) }
+    }
+
     /// Removes all hidden-platform keys. Used in tests and for a "reset" action.
     func resetAll() {
         Platform.allCases.forEach { defaults.removeObject(forKey: key(for: $0)) }

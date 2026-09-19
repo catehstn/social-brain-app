@@ -94,7 +94,10 @@ This is the chart-heavy screen. Not the home briefing.
   - Lists configured instances
   - "Set Up" (first instance) or "+ Add another *[Platform]*" (subsequent)
   - Per-instance "Edit" button → opens `PlatformCredentialSheet` modal
-  - "Hide *[Platform]*" affordance (removes from grid; eye-icon toolbar reveals hidden)
+  - "Hide *[Platform]*" affordance (eye-icon toolbar reveals hidden). Hiding
+    removes the platform from the grid, from the Feed's cards, and from the
+    assembled prompt — it means "don't put this in front of me", not "stop
+    collecting it", so history keeps accruing and unhiding leaves no gap.
 - Credential sheet includes: auth-type-appropriate fields, per-platform setup URL (opens in browser), test-connection, and for file-export platforms a **drag-and-drop zone**.
 
 ### Onboarding *(first-run modal)*
@@ -126,7 +129,7 @@ its provider (#118). The controls below are proposed — see
 3. **Mid-week spike:** notification fires → open app → Feed has a `spikeAlert` card at the top → tap → Dashboard filtered to that platform + short window.
 4. **Platform fails during Run:** row goes red inline; hover for error; retry-just-this-one button; the rest of the run still completes.
 5. **Manual drop refresh:** in Platforms → LinkedIn → drag XLSX onto the drop zone → validation → green tick with "5 posts new since last week."
-6. **Hide a platform I don't use:** in Platforms → detail → "Hide" → card leaves the grid; eye-icon in toolbar to restore.
+6. **Hide a platform I don't use:** in Platforms → detail → "Hide" → card leaves the grid, its Feed cards stop appearing, and it drops out of the assembled prompt; eye-icon in toolbar to restore. Collection is unaffected, so history keeps accruing and restoring leaves no gap. (Scheduled stale-export *notifications* are not yet cancelled — see #162.)
 
 ## Non-goals (skip these)
 

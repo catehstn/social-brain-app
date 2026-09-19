@@ -5,6 +5,12 @@ import Foundation
 @Suite("Spike Detector Tests")
 struct SpikeDetectorTests {
 
+    /// Nothing hidden, and backed by memory rather than UserDefaults.standard.
+    /// Without this the suite reads the developer's own hidden-platform
+    /// settings, so hiding LinkedIn in the real app would fail these tests
+    /// (#80) — the same non-hermeticity #127 fixed for the Keychain.
+    private let noneHidden = ScratchVisibility.make()
+
     // MARK: - Helpers
 
     /// Creates a PlatformSnapshot with the given metrics for test purposes.
@@ -172,8 +178,8 @@ struct SpikeDetectorTests {
 
         let cards = FeedCardBuilder.build(
             snapshots: [PlatformInstance(platform: .mastodon): newer],
-            previousSnapshots: [PlatformInstance(platform: .mastodon): older]
-        )
+            previousSnapshots: [PlatformInstance(platform: .mastodon): older],
+            visibility: noneHidden)
         let spikes = cards.filter { $0.cardType == .spikeAlert }
         #expect(spikes.count == 1)
         #expect(spikes[0].platform == .mastodon)
@@ -188,8 +194,8 @@ struct SpikeDetectorTests {
 
         let cards = FeedCardBuilder.build(
             snapshots: [PlatformInstance(platform: .mastodon): newer],
-            previousSnapshots: [PlatformInstance(platform: .mastodon): older]
-        )
+            previousSnapshots: [PlatformInstance(platform: .mastodon): older],
+            visibility: noneHidden)
         let spikes = cards.filter { $0.cardType == .spikeAlert }
         #expect(spikes.isEmpty)
     }
@@ -201,8 +207,8 @@ struct SpikeDetectorTests {
 
         let cards = FeedCardBuilder.build(
             snapshots: [PlatformInstance(platform: .mastodon): newer],
-            previousSnapshots: [:]
-        )
+            previousSnapshots: [:],
+            visibility: noneHidden)
         let spikes = cards.filter { $0.cardType == .spikeAlert }
         #expect(spikes.isEmpty)
     }

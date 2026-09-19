@@ -22,11 +22,35 @@ struct FeedCardBuilder {
     // NOTE: This function does NOT throw — all JSON decoding is done
     // with `try?` internally.  The signature is non-throwing so callers don't
     // need spurious `try` and tests don't need `throws`.
+    /// - Parameter visibility: consulted at the point of use. Hiding a platform
+    ///   used to change only the Platforms grid, so the feed went on nagging
+    ///   about a platform the user had said they don't use — worst of all for
+    ///   the stale-export reminders, whose whole message is "go and do
+    ///   something about this" (#80).
     static func build(
         snapshots: [PlatformInstance: PlatformSnapshot],
         previousSnapshots: [PlatformInstance: PlatformSnapshot] = [:],
-        now: Date = Date()
+        now: Date = Date(),
+        visibility: PlatformVisibilityStore = .shared
     ) -> [FeedCard] {
+        // Filtered on the way in *and* on the way out, and both are needed.
+        //
+        // On the way in, because two blocks below aggregate across platforms
+        // rather than emitting one card each: the metric highlight picks a
+        // single winner with `max`, and the high-reach block de-duplicates
+        // against the spike cards already built. Filtering only at the exit
+        // lets a hidden platform win the highlight and then be dropped, so
+        // "your best this period" disappears altogether instead of going to the
+        // best *visible* platform.
+        //
+        // On the way out, because the stale-reminder block iterates a fixed
+        // list of file-export platforms rather than the snapshots, so a hidden
+        // platform with no snapshot at all still reaches it.
+        // Only the current snapshots need filtering. Every use of
+        // `previousSnapshots` is a lookup keyed by an instance that came from
+        // `snapshots`, so a hidden platform cannot reach a card through it.
+        let snapshots = visibility.visible(snapshots)
+
         var cards: [FeedCard] = []
 
         // 0. Spike alerts (highest priority after stale — notable changes need attention)
@@ -138,7 +162,10 @@ struct FeedCardBuilder {
             ))
         }
 
-        return cards
+        // Catches the blocks that work from a fixed platform list rather than
+        // from `snapshots` — the stale reminders — and anything added later
+        // that does the same.
+        return cards.filter { !visibility.isHidden($0.platform) }
     }
 
     // MARK: - Private helpers
