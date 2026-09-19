@@ -54,6 +54,12 @@ xcodebuild test -scheme SocialBrain -destination 'platform=macOS' \
   -only-testing:SocialBrainTests
 ```
 
+The MCP server has its own target and its own suite:
+
+```sh
+xcodebuild test -scheme SocialBrainMCP -destination 'platform=macOS'
+```
+
 One suite is opt-in: `SetupURLTests` checks the platform setup links against
 the live web, so it's skipped by default to keep the suite hermetic. Run it
 deliberately when you change a setup URL. The `TEST_RUNNER_` prefix is required —
@@ -67,12 +73,13 @@ TEST_RUNNER_RUN_NETWORK_TESTS=1 xcodebuild test -scheme SocialBrain \
 
 ### Schemes
 
-There are two, deliberately:
+There are three:
 
 | Scheme | Contains | Use |
 |---|---|---|
 | `SocialBrain` | app + `SocialBrainTests` | Everyday work. ⌘U is safe. |
 | `SocialBrain-UITests` | app + `SocialBrainUITests` | CI only. |
+| `SocialBrainMCP` | MCP tool + `SocialBrainMCPTests` | The MCP server, below. |
 
 UI tests launch the full app and take over your screen, so they're kept out of
 the default scheme rather than merely discouraged. CI runs them on every push

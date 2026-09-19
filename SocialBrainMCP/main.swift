@@ -24,8 +24,11 @@
 ///     -derivedDataPath build
 ///   # Binary at: build/Build/Products/Release/SocialBrainMCP
 ///
-/// The server reads from the same SQLite database that the Social Brain app writes to:
-///   ~/Library/Application Support/SocialBrain/analytics.sqlite
+/// The server reads from the same SQLite database that the Social Brain app
+/// writes to. The app is sandboxed, so that is inside its container:
+///   ~/Library/Containers/com.catehuston.SocialBrain/Data/Library/Application Support/SocialBrain/analytics.sqlite
+/// `DatabaseProxy` falls back to the unsandboxed location if the app is ever
+/// shipped without the sandbox.
 /// Run a collection in the app before querying via MCP.
 
 import Foundation

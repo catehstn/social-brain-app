@@ -312,3 +312,49 @@ struct MCPServerTests {
         #expect(text?.contains("No platforms have data") == true)
     }
 }
+
+// MARK: - Where the database is looked for (#47)
+
+@Suite("Database location")
+struct DatabaseLocationTests {
+
+    private let home = URL(fileURLWithPath: "/Users/someone")
+    private var appSupport: URL { home.appendingPathComponent("Library/Application Support") }
+
+    @Test("The sandboxed container is searched first")
+    func containerPathComesFirst() throws {
+        // The app sets com.apple.security.app-sandbox, so its
+        // .applicationSupportDirectory resolves inside its container. This
+        // server is an unsandboxed command-line tool, where the identical call
+        // returns ~/Library/Application Support — a directory the app never
+        // writes to. DatabaseProxy used to say it "mirrors the path logic in
+        // AppDatabase.makeDefault()", and that mirroring was the bug: matching
+        // code, different paths, so the database could never be found.
+        let candidates = DatabaseProxy.databaseCandidates(home: home, appSupport: appSupport)
+
+        let first = try #require(candidates.first).path
+        #expect(first == "/Users/someone/Library/Containers/com.catehuston.SocialBrain"
+                       + "/Data/Library/Application Support/SocialBrain/analytics.sqlite")
+    }
+
+    @Test("The unsandboxed location is still searched, second")
+    func plainPathIsTheFallback() throws {
+        // So this keeps working if the app is ever shipped without the sandbox.
+        let candidates = DatabaseProxy.databaseCandidates(home: home, appSupport: appSupport)
+
+        #expect(candidates.count == 2)
+        let second = try #require(candidates.dropFirst().first).path
+        #expect(second == "/Users/someone/Library/Application Support/SocialBrain/analytics.sqlite")
+    }
+
+    @Test("The container is named by the app's bundle identifier")
+    func containerUsesTheBundleIdentifier() throws {
+        // If this ever stops matching the app, the server fails loudly with
+        // both searched paths rather than silently reading nothing.
+        #expect(DatabaseProxy.bundleIdentifier == "com.catehuston.SocialBrain")
+
+        let candidates = DatabaseProxy.databaseCandidates(home: home, appSupport: appSupport)
+        let first = try #require(candidates.first).path
+        #expect(first.contains("/Containers/" + DatabaseProxy.bundleIdentifier + "/"))
+    }
+}

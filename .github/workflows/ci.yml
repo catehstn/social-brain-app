@@ -122,7 +122,13 @@ jobs:
       - name: Cache SPM dependencies
         uses: actions/cache@v4
         with:
-          path: ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
+          # Two paths: the Release step below uses -derivedDataPath build to run
+          # the exact command the README gives people, which puts SourcePackages
+          # under build/ rather than the default location. Without the second
+          # line CI re-cloned and rebuilt GRDB on every run.
+          path: |
+            ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
+            build/SourcePackages
           key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
           restore-keys: ${{ runner.os }}-spm-
 
@@ -135,6 +141,7 @@ jobs:
           xcodebuild test \
             -scheme SocialBrainMCP \
             -destination 'platform=macOS' \
+            -resultBundlePath TestResults-mcp.xcresult \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY=- \
             DEVELOPMENT_TEAM= \
@@ -152,6 +159,14 @@ jobs:
             DEVELOPMENT_TEAM= \
             | xcbeautify --renderer github-actions
           test -x build/Build/Products/Release/SocialBrainMCP
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.job }}-xcresult
+          path: '*.xcresult'
+          retention-days: 7
 
   release-build:
     name: Release Build

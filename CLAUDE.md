@@ -82,6 +82,8 @@ app, and a documented test command that silently skipped and exited 0.
 
 - Run unit tests locally before and after every change:
   `xcodebuild test -scheme SocialBrain -destination 'platform=macOS' -only-testing:SocialBrainTests`
+- The MCP server is a separate target with its own suite, not covered by the
+  above: `xcodebuild test -scheme SocialBrainMCP -destination 'platform=macOS'`
 - **Do NOT run `SocialBrainUITests` locally** — they launch the full macOS app and
   take over the screen. They are kept out of the default `SocialBrain` scheme for
   this reason, so ⌘U and a bare `xcodebuild test -scheme SocialBrain` are safe.
