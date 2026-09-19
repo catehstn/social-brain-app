@@ -80,7 +80,7 @@ struct SpikeDetector: Sendable {
 
     /// One metric worth watching, and how large it has to be before a
     /// percentage change in it means anything.
-    private struct Monitored {
+    struct Monitored {
         let key: String
         let label: String
         /// Defaults to a percentage; `avg_position` is the one rank so far.
@@ -181,7 +181,11 @@ struct SpikeDetector: Sendable {
 
     /// The metrics to watch per platform. Intentionally only the primary
     /// "health" metrics, to avoid noise.
-    private static func monitored(for platform: Platform) -> [Monitored] {
+    /// Internal rather than private so a test can assert the lists have no
+    /// duplicate keys. A search-and-replace produced two identical GoatCounter
+    /// entries, and every spike then fired twice — the Feed hid it by showing
+    /// only the first alert, but notifications send them all (#156).
+    static func monitored(for platform: Platform) -> [Monitored] {
         switch platform {
         case .mastodon:
             return [Monitored(key: "followers_count", label: "Followers"),
@@ -196,8 +200,7 @@ struct SpikeDetector: Sendable {
                     Monitored(key: "avg_open_rate", label: "Open Rate", floor: rateFloor),
                     Monitored(key: "avg_click_rate", label: "Click Rate", floor: rateFloor)]
         case .goatCounter:
-            return [Monitored(key: "total_pageviews", label: "Pageviews"),
-                    Monitored(key: "unique_visitors", label: "Visitors")]
+            return [Monitored(key: "total_visits", label: "Visits")]
         case .calendly:
             return [Monitored(key: "events_count", label: "Events"),
                     Monitored(key: "unique_invitees", label: "Invitees")]

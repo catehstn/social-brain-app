@@ -7,8 +7,7 @@ import Foundation
 /// - `"site_code"` – subdomain (e.g. `"mysite"` for `mysite.goatcounter.com`)
 ///
 /// Metrics returned:
-/// - `total_pageviews`   – total hits in the period
-/// - `unique_visitors`   – unique visitor count
+/// - `total_visits`      – visits in the period (session-first views per path)
 /// - `top_page_1` … `top_page_5` – paths of the top-5 pages by hits
 struct GoatCounterCollector: Collector {
     let platform: Platform = .goatCounter
@@ -49,9 +48,24 @@ struct GoatCounterCollector: Collector {
 
         let (total, pages) = try await (totals, topPages)
 
+        // `total_visits`, not pageviews, and not site-wide unique visitors.
+        //
+        // The number is a sum of `hit_counts.total`, and that column is only
+        // incremented when `FirstVisit` is set (`cron/hit_count.go`), which
+        // `memstore.go` sets on the first time a *session* views a given path.
+        // So it counts (session, path) first-views — one visitor reading three
+        // posts counts three.
+        //
+        // "Visits" is GoatCounter's own word for it: `tpl/_dashboard_totals.gohtml`
+        // renders this very field as "%(num-visits) visits", and
+        // `tpl/help/sessions.md` defines a visit as "the first time someone
+        // loads a page". The count includes events.
+        //
+        // `GetTotalCount`'s doc comment still says "pageviews" and predates
+        // that change; the struct beside it and the OpenAPI description both
+        // say visitors. Believe the increment, not the prose.
         var metrics: [String: MetricValue] = [
-            "total_pageviews": .int(total.total),
-            "unique_visitors": .int(total.totalUnique)
+            "total_visits": .int(total.total)
         ]
         for (index, page) in pages.prefix(5).enumerated() {
             metrics["top_page_\(index + 1)"] = .string(page.path)
@@ -111,9 +125,17 @@ struct GoatCounterCollector: Collector {
 
 // MARK: - Response models
 
+/// `/api/v0/stats/total`.
+///
+/// `total` only. The collector also required `total_unique`, which appears
+/// nowhere in GoatCounter's API — the full path list offers no unique-visitor
+/// figure at all — so the strict decoder threw `keyNotFound` on every real
+/// response and GoatCounter never collected (#156).
+///
+/// `total_events`, `total_utc` and `stats` are also returned and are not
+/// decoded, which is fine: the decoder rejects missing keys, not extra ones.
 private struct TotalsResponse: Decodable {
     let total: Int
-    let totalUnique: Int
 }
 
 private struct HitsResponse: Decodable {

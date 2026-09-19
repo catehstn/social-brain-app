@@ -133,16 +133,24 @@ struct PromptAssemblerTests {
         let data = PlatformData(
             platform: .goatCounter,
             metrics: [
-                "total_pageviews": .int(8421),
+                "total_visits": .int(8421),
+                // Supplied on purpose. A negative assertion against a fixture
+                // that omits the key proves nothing — the line could still be
+                // there, reading a metric nothing happens to provide.
                 "unique_visitors": .int(3102),
-                "top_page_1":      .string("/blog/swift-tips"),
-                "top_page_2":      .string("/blog/grdb-guide")
+                "top_page_1":   .string("/blog/swift-tips"),
+                "top_page_2":   .string("/blog/grdb-guide")
             ]
         )
         let prompt = assembler.assemble(makeInput(snapshots: try snaps(data)))
         #expect(prompt.contains("## GoatCounter"))
-        #expect(prompt.contains("Pageviews: 8,421"))
+        #expect(prompt.contains("Visits: 8,421"))
         #expect(prompt.contains("/blog/swift-tips"))
+        // GoatCounter has no unique-visitor endpoint, so even a snapshot
+        // carrying the invented key must not render one (#156).
+        #expect(!prompt.contains("Unique visitors"))
+        #expect(!prompt.contains("3,102"))
+        #expect(!prompt.contains("Pageviews"))
     }
 
     @Test("Bluesky section formats engagement per post")

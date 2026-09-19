@@ -173,7 +173,7 @@ struct DatabaseMigrationTests {
 
         let data = PlatformData(
             platform: .goatCounter, collectedAt: Date(),
-            metrics: ["total_pageviews": .int(999)]
+            metrics: ["total_visits": .int(999)]
         )
         var snap = try PlatformSnapshot(runID: runID, data: data)
         try await db.saveSnapshot(&snap)
