@@ -70,7 +70,7 @@ struct ButtondownCollectorTests {
             session: session,
             baseURL: URL(string: "https://api.buttondown.email/v1")!
         )
-        _ = try await collector.collect(since: nil, credentials: Credentials(["api_key": "test-key"]))
+        _ = try await collector.collect(since: .distantPast, credentials: Credentials(["api_key": "test-key"]))
 
         let paths = Set(session.requestedURLs.map(\.path))
         #expect(paths == ["/v1/subscribers", "/v1/emails"])
@@ -103,7 +103,7 @@ struct ButtondownCollectorTests {
             baseURL: URL(string: "https://api.buttondown.email/v1")!
         )
         let credentials = Credentials(["api_key": "test-key"])
-        let data = try await collector.collect(since: nil, credentials: credentials)
+        let data = try await collector.collect(since: .distantPast, credentials: credentials)
 
         #expect(data.platform == .buttondown)
         #expect(data.intMetric("subscriber_count") == 1500)
@@ -129,7 +129,7 @@ struct ButtondownCollectorTests {
         let collector = ButtondownCollector()
         let credentials = Credentials([:])
         await #expect(throws: CollectorError.self) {
-            try await collector.collect(since: nil, credentials: credentials)
+            try await collector.collect(since: .distantPast, credentials: credentials)
         }
     }
 
@@ -144,7 +144,7 @@ struct ButtondownCollectorTests {
         )
         let credentials = Credentials(["api_key": "bad-key"])
         await #expect(throws: CollectorError.self) {
-            try await collector.collect(since: nil, credentials: credentials)
+            try await collector.collect(since: .distantPast, credentials: credentials)
         }
     }
     @Test("since is sent as a documented date filter on both endpoints")
@@ -182,8 +182,13 @@ struct ButtondownCollectorTests {
         #expect(session.queryValues("publish_date__gte", path: "/v1/emails").isEmpty)
     }
 
-    @Test("No since means no date filter is sent")
-    func noSinceMeansNoFilter() async throws {
+    @Test("All time means no date filter is sent, rather than the year 1")
+    func allTimeMeansNoFilter() async throws {
+        // `since` is required now, so this used to be `nil` and is
+        // `.distantPast` (#96). For an API whose date filter can simply be
+        // omitted, omitting it *is* the encoding of "no lower bound" — and it
+        // keeps 0001-01-01 off the wire, which is the untested extreme that
+        // made GoatCounter fail outright in #154.
         let session = MockURLSession([
             "/v1/subscribers": (ButtondownCollectorTests.subscribersJSON, 200),
             "/v1/emails":      (ButtondownCollectorTests.emailsJSON, 200)
@@ -193,7 +198,7 @@ struct ButtondownCollectorTests {
             baseURL: URL(string: "https://api.buttondown.email/v1")!
         )
 
-        _ = try await collector.collect(since: nil, credentials: Credentials(["api_key": "k"]))
+        _ = try await collector.collect(since: .distantPast, credentials: Credentials(["api_key": "k"]))
 
         #expect(session.queryValues("date__start", path: "/v1/subscribers").isEmpty)
         #expect(session.queryValues("publish_date__start", path: "/v1/emails").isEmpty)
@@ -240,7 +245,7 @@ struct ButtondownCollectorTests {
             .init(Self.emailPage(count: 5, rows: 1, next: nil, openRate: 0.5))
         ])
         let data = try await makePaginatingCollector(session)
-            .collect(since: nil, credentials: Credentials(["api_key": "k"]))
+            .collect(since: .distantPast, credentials: Credentials(["api_key": "k"]))
 
         #expect(session.requests(path: "/v1/emails").count == 3)
         #expect(data.intMetric("emails_sent") == 5)
@@ -257,7 +262,7 @@ struct ButtondownCollectorTests {
             .init(Self.emailPage(count: 3, rows: 1, next: nil, openRate: 0.4))
         ])
         _ = try await makePaginatingCollector(session)
-            .collect(since: nil, credentials: Credentials(["api_key": "k"]))
+            .collect(since: .distantPast, credentials: Credentials(["api_key": "k"]))
 
         #expect(session.queryValues("page", path: "/v1/emails") == ["1", "2"])
         // Newest first. The API default is creation_date ascending, so a
@@ -275,7 +280,7 @@ struct ButtondownCollectorTests {
             .init(Self.emailPage(count: 99, rows: 2, next: nil, openRate: 0.4))
         ])
         let data = try await makePaginatingCollector(session)
-            .collect(since: nil, credentials: Credentials(["api_key": "k"]))
+            .collect(since: .distantPast, credentials: Credentials(["api_key": "k"]))
 
         #expect(session.requests(path: "/v1/emails").count == 1)
         #expect(data.intMetric("emails_sent") == 99)
@@ -311,7 +316,7 @@ struct ButtondownCollectorTests {
             .init(Self.emailPage(count: 9, rows: 0, next: "…?page=3", openRate: 0.4))
         ])
         let data = try await makePaginatingCollector(session)
-            .collect(since: nil, credentials: Credentials(["api_key": "k"]))
+            .collect(since: .distantPast, credentials: Credentials(["api_key": "k"]))
 
         #expect(session.requests(path: "/v1/emails").count == 2)
         #expect(data.metrics["emails_sampled"] == nil)
@@ -323,7 +328,7 @@ struct ButtondownCollectorTests {
             .init(Self.emailPage(count: 500, rows: 2, next: "…?page=n", openRate: 0.4))
         ])
         let data = try await makePaginatingCollector(session)
-            .collect(since: nil, credentials: Credentials(["api_key": "k"]))
+            .collect(since: .distantPast, credentials: Credentials(["api_key": "k"]))
 
         #expect(session.requests(path: "/v1/emails").count == ButtondownCollector.maximumEmailPages)
         let note = try #require(data.stringMetric("emails_sampled"))
@@ -403,7 +408,7 @@ struct ButtondownCollectorTests {
             baseURL: URL(string: "https://api.buttondown.email/v1")!
         )
 
-        let data = try await collector.collect(since: nil, credentials: Credentials(["api_key": "k"]))
+        let data = try await collector.collect(since: .distantPast, credentials: Credentials(["api_key": "k"]))
 
         for (key, value) in data.metrics {
             if case .double(let d) = value {
@@ -439,7 +444,7 @@ struct ButtondownCollectorTests {
             baseURL: URL(string: "https://api.buttondown.email/v1")!
         )
 
-        let data = try await collector.collect(since: nil, credentials: Credentials(["api_key": "k"]))
+        let data = try await collector.collect(since: .distantPast, credentials: Credentials(["api_key": "k"]))
 
         // Asserting !isNaN alone would not catch a different unencodable value;
         // this is the operation that actually failed in production.

@@ -31,7 +31,7 @@ struct JetpackCollector: Collector {
         credentials.siteCode
     }
 
-    func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
+    func collect(since: Date, credentials: Credentials) async throws -> PlatformData {
         guard let token = credentials.accessToken else {
             throw CollectorError.missingCredential("access_token")
         }
@@ -40,7 +40,16 @@ struct JetpackCollector: Collector {
         }
 
         let end   = Date()
-        let start = since ?? Calendar.current.date(byAdding: .day, value: -30, to: end)!
+        // No clamp here: fetchVisits already caps `quantity` at maximumDays and
+        // records views_window saying what it covered, which is the behaviour
+        // the rest of the collectors still lack. Date.distantPast simply lands
+        // on that cap.
+        //
+        // Note daysRequested keeps the *user's* calendar rather than UTC, on
+        // purpose — see its own doc comment. #96 normalises the boundary dates
+        // sent to APIs, which is a different thing from how many days the user
+        // asked for.
+        let start = since
 
         // Fetch summary stats and visit history concurrently.
         async let summary = fetchSummary(siteID: siteID, token: token)

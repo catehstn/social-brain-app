@@ -35,7 +35,7 @@ struct GoogleSearchConsoleCollector: Collector {
         return URL(string: siteURL)?.host ?? siteURL
     }
 
-    func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
+    func collect(since: Date, credentials: Credentials) async throws -> PlatformData {
         guard let refreshToken = credentials["refresh_token"] else {
             throw CollectorError.missingCredential("refresh_token")
         }
@@ -59,13 +59,22 @@ struct GoogleSearchConsoleCollector: Collector {
         )
 
         let end   = Date()
-        let start = since ?? Calendar.current.date(byAdding: .day, value: -28, to: end)!
+        // Search Console serves roughly the last 16 months and returns nothing
+        // older, so a longer request is not an error — it just silently covers
+        // less than it looks like it does.
+        let window = CollectionWindow.resolve(since: since, end: end,
+                                              maximumDays: Self.maximumDays)
+        let start = window.start
 
         let dateFormatter = DateFormatter()
         // en_US_POSIX or the user's calendar leaks in: th_TH renders 2026 as the
         // Buddhist year 2569, ar_SA uses Arabic-Indic digits. Search Console
         // rejects both, so the collector was broken outright for those users.
         dateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        // UTC, like every other collector. This formatter used the machine's
+        // zone, so a run near midnight asked Search Console for a different
+        // day's data than it asked GoatCounter and Jetpack for (#96).
+        dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
         dateFormatter.dateFormat = "yyyy-MM-dd"
         let startStr = dateFormatter.string(from: start)
         let endStr   = dateFormatter.string(from: end)
@@ -113,6 +122,12 @@ struct GoogleSearchConsoleCollector: Collector {
 
         return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)
     }
+
+    /// The longest window this collector will request, in days.
+    ///
+    /// Search Console keeps about 16 months of performance data. Asking for
+    /// more returns the same rows, so this cap is theirs rather than ours.
+    static let maximumDays = 16 * 30
 
     // MARK: - Token refresh
 

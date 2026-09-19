@@ -91,14 +91,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
     /// - Parameters:
     ///   - collectors: defaults to the configured API-backed platforms.
     ///   - notifier: defaults to the real one, which posts a system notification.
+    /// The window the unattended morning refresh asks for.
+    ///
+    /// A stored property rather than a literal at the call site so a test can
+    /// assert what the background path requests — the point of #96 is that the
+    /// window is stated and checkable, not that it is thirty days.
+    static var backgroundRefreshWindow: Date {
+        CollectionWindow.utc.date(byAdding: .day, value: -30, to: Date()) ?? Date()
+    }
+
     static func runBackgroundRefresh(
         database: AppDatabase,
         collectors: [any Collector]? = nil,
         credentials: (@Sendable (PlatformInstance) throws -> Credentials?)? = nil,
         notifier: SpikeNotifier? = nil
     ) async {
-        // Run without a date filter so the background task always fetches the
-        // latest state regardless of the user's last manual run.
+        // An explicit window, stated here rather than implied. This used to
+        // pass `nil`, which each collector read differently — thirty days for
+        // some, twenty-eight for others, one page for the rest — so the daily
+        // refresh covered a different period per platform and nothing said so
+        // (#96). Thirty days is what the majority already did.
+        //
+        // Deliberately not `.distantPast`: this runs unattended every morning,
+        // and "everything ever" is not a sensible daily request.
         let collectors = collectors ?? CollectorRegistry.configured()
             .filter { $0.platform.authType == .apiKey || $0.platform.authType == .oauthToken }
         guard !collectors.isEmpty else { return }
@@ -111,7 +126,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
                 credentials: credentials ?? { instance in
                     try KeychainStore.shared.load(for: instance)
                 },
-                since: nil,
+                since: Self.backgroundRefreshWindow,
                 progress: { _ in }
             )
         } catch {

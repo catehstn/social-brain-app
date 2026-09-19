@@ -9,7 +9,7 @@ private struct InstanceStubCollector: Collector {
     var instanceName: String
     let metricsValue: MetricValue
 
-    func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
+    func collect(since: Date, credentials: Credentials) async throws -> PlatformData {
         PlatformData(platform: platform, instanceName: instanceName,
                      metrics: ["followers_count": metricsValue])
     }
@@ -108,7 +108,7 @@ struct MultiInstanceCollectorRegistryTests {
             return Credentials(["api_key": "test"])
         }
 
-        _ = try await engine.run(collectors: collectors, credentials: creds)
+        _ = try await engine.run(collectors: collectors, credentials: creds, since: .distantPast)
 
         #expect(box.ids.contains("buttondown:nl-a"))
         #expect(box.ids.contains("buttondown:nl-b"))
@@ -125,7 +125,7 @@ struct MultiInstanceCollectorRegistryTests {
             Credentials(["api_key": "test"])
         }
 
-        let summary = try await engine.run(collectors: [collector], credentials: creds)
+        let summary = try await engine.run(collectors: [collector], credentials: creds, since: .distantPast)
         let successData = summary.results.compactMap(\.platformData).first
         #expect(successData?.instanceName == "site-b")
     }
@@ -145,7 +145,7 @@ struct MultiInstanceCollectorRegistryTests {
             Credentials(["api_key": "test"])
         }
 
-        let summary = try await engine.run(collectors: collectors, credentials: creds)
+        let summary = try await engine.run(collectors: collectors, credentials: creds, since: .distantPast)
         let snapshots = try await db.snapshots(forRunID: summary.runID)
         let instanceNames = Set(snapshots.map(\.instanceName))
         #expect(instanceNames == ["btn-1", "btn-2"])

@@ -24,7 +24,7 @@ final class RunViewModel {
     private let engine: CollectionEngine
     private let assembler: PromptAssembler
     private let visibility: PlatformVisibilityStore
-    private var lastSince: Date?
+    private var lastSince: Date = .distantPast
 
     init(database: AppDatabase, visibility: PlatformVisibilityStore = .shared) {
         self.database = database
@@ -35,7 +35,10 @@ final class RunViewModel {
 
     // MARK: - Actions
 
-    func startCollection(since: Date? = nil) async {
+    /// - Parameter since: the start of the window. `.distantPast` means as far
+    ///   back as each platform allows; there is no longer a `nil` that means
+    ///   something different per collector (#96).
+    func startCollection(since: Date) async {
         let collectors = CollectorRegistry.configured()
         guard !collectors.isEmpty else {
             state = .idle

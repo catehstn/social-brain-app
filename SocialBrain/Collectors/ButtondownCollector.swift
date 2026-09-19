@@ -34,7 +34,7 @@ struct ButtondownCollector: Collector {
         return try? JSONDecoder().decode(Metadata.self, from: data).username
     }
 
-    func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
+    func collect(since: Date, credentials: Credentials) async throws -> PlatformData {
         guard let apiKey = credentials.apiKey else {
             throw CollectorError.missingCredential("api_key")
         }
@@ -99,10 +99,10 @@ struct ButtondownCollector: Collector {
     /// one, and this returned the *total* subscriber count for every collection
     /// ever run. See #142 — the consequence is unconfirmed without a live key,
     /// but the parameter name is wrong either way.
-    private func fetchNewSubscriberCount(apiKey: String, since: Date?) async throws -> Int {
+    private func fetchNewSubscriberCount(apiKey: String, since: Date) async throws -> Int {
         var items: [URLQueryItem] = []
-        if let since {
-            items.append(URLQueryItem(name: "date__start", value: iso8601Date(since)))
+        if let lowerBound = CollectionWindow.lowerBound(since) {
+            items.append(URLQueryItem(name: "date__start", value: iso8601Date(lowerBound)))
         }
         var url = baseURL.appendingPathComponent("subscribers")
         if !items.isEmpty { url.append(queryItems: items) }
@@ -145,7 +145,7 @@ struct ButtondownCollector: Collector {
     /// analytics described the beginning of the archive rather than the
     /// requested window, which is a stranger failure than averaging everything
     /// and worth naming precisely.
-    private func fetchEmailStats(apiKey: String, since: Date?) async throws -> EmailStatsAccumulator {
+    private func fetchEmailStats(apiKey: String, since: Date) async throws -> EmailStatsAccumulator {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
 
@@ -161,8 +161,8 @@ struct ButtondownCollector: Collector {
                 // truncated read still covers the most recent newsletters.
                 URLQueryItem(name: "ordering", value: "-publish_date")
             ]
-            if let since {
-                items.append(URLQueryItem(name: "publish_date__start", value: iso8601Date(since)))
+            if let lowerBound = CollectionWindow.lowerBound(since) {
+                items.append(URLQueryItem(name: "publish_date__start", value: iso8601Date(lowerBound)))
             }
             var url = baseURL.appendingPathComponent("emails")
             url.append(queryItems: items)

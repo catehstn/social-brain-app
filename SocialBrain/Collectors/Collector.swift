@@ -17,11 +17,87 @@ protocol Collector: Sendable {
     var platform: Platform { get }
     /// The instance name for this collector. Defaults to `"default"`.
     var instanceName: String { get }
-    func collect(since: Date?, credentials: Credentials) async throws -> PlatformData
+    /// Collects the window starting at `since` and ending now.
+    ///
+    /// **`since` is not optional, and that is the point.** It used to be, and
+    /// `nil` meant five different things: thirty days in `GoatCounterCollector`
+    /// and `JetpackCollector`, twenty-eight in `GoogleSearchConsoleCollector`
+    /// and `HackerNewsCollector`, "the first page and no further" in
+    /// `BlueskyCollector`, `BufferCollector` and `MastodonCollector`, and "no
+    /// filter at all" in `ButtondownCollector` and `CalendlyCollector`. So
+    /// "All time" in the Run screen produced a different window per platform
+    /// and the prompt presented them side by side as comparable (#96).
+    ///
+    /// `Date.distantPast` means "as far back as this platform allows". Each
+    /// collector clamps it to its own limit, stated on the collector and
+    /// sourced where the platform documents one.
+    ///
+    /// Clamping is currently *silent* everywhere except `JetpackCollector`,
+    /// which records a `views_window` note. A request for a year that quietly
+    /// yields ninety days makes a busy year look like a quiet quarter, so the
+    /// rest should say so too — tracked separately, because a note nothing
+    /// renders is just another unread metric (#114).
+    ///
+    /// Windows are computed in UTC. `GoogleSearchConsoleCollector` formatted
+    /// its range in the machine's local zone while the others used UTC, so a
+    /// run near midnight covered different days depending on the platform.
+    func collect(since: Date, credentials: Credentials) async throws -> PlatformData
     /// Returns a human-readable label for this instance (e.g. newsletter name,
     /// site name, handle). Called once after credentials are saved.
     /// Returns `nil` if no label can be determined.
     func fetchLabel(credentials: Credentials) async -> String?
+}
+
+/// Resolves the window a collector will actually request.
+///
+/// Exists because `since` can be `Date.distantPast` — "as far back as this
+/// platform allows" — and a date-range API cannot be handed the year 1. Each
+/// collector states its own limit; this clamps to it and says whether it had
+/// to, so a collector can report the shortfall rather than returning less than
+/// was asked for in silence (#96).
+enum CollectionWindow {
+
+    /// UTC, always.
+    ///
+    /// `Calendar.current` carries the machine's time zone, so the same request
+    /// covered different days depending on where the user was and what time it
+    /// was locally — `GoogleSearchConsoleCollector` formatted its range in
+    /// local time while the others used UTC, which is half of #96.
+    static let utc: Calendar = {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }()
+
+    /// Whole days between two instants, floored at zero.
+    static func days(from start: Date, to end: Date) -> Int {
+        max(0, utc.dateComponents([.day], from: start, to: end).day ?? 0)
+    }
+
+    /// The lower bound to put on the wire, or `nil` when the request has none.
+    ///
+    /// For an API whose date filter can simply be omitted, omitting it *is* the
+    /// encoding of "no lower bound" — and it avoids sending the year 1 to a
+    /// live endpoint, which is an untested extreme of exactly the kind that
+    /// made GoatCounter fail outright in #154.
+    static func lowerBound(_ since: Date) -> Date? {
+        since == .distantPast ? nil : since
+    }
+
+    /// The start date to send, and the window either side of the clamp.
+    ///
+    /// `requested` is what the caller asked for and `covered` what the platform
+    /// will serve. They differ whenever the request runs past `maximumDays`,
+    /// which is always true of `.distantPast`.
+    static func resolve(
+        since: Date, end: Date, maximumDays: Int
+    ) -> (start: Date, requested: Int, covered: Int) {
+        let requested = days(from: since, to: end)
+        let covered = min(requested, maximumDays)
+        guard covered < requested else { return (since, requested, covered) }
+        let clamped = utc.date(byAdding: .day, value: -covered, to: end) ?? since
+        return (clamped, requested, covered)
+    }
 }
 
 extension Collector {

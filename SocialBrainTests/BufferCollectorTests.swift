@@ -56,7 +56,7 @@ struct BufferCollectorTests {
     @Test("Counts profiles and aggregates sent-post statistics across them")
     func aggregatesAcrossProfiles() async throws {
         let data = try await BufferCollector(session: makeSession())
-            .collect(since: nil, credentials: credentials)
+            .collect(since: .distantPast, credentials: credentials)
 
         #expect(data.metrics["profiles_count"] == .int(2))
         #expect(data.metrics["sent_updates"] == .int(3))
@@ -72,7 +72,7 @@ struct BufferCollectorTests {
         // pending.json threw and the surrounding try? swallowed it, so this
         // metric reported 0 for every user who has ever run a collection.
         let data = try await BufferCollector(session: makeSession())
-            .collect(since: nil, credentials: credentials)
+            .collect(since: .distantPast, credentials: credentials)
 
         #expect(data.metrics["scheduled_updates"] == .int(6))
     }
@@ -95,7 +95,7 @@ struct BufferCollectorTests {
         // path passes too, because MockURLSessionError.noFixture also satisfies
         // it — so a broken mock would read as a working test.
         let error = await #expect(throws: CollectorError.self) {
-            try await BufferCollector(session: session).collect(since: nil, credentials: credentials)
+            try await BufferCollector(session: session).collect(since: .distantPast, credentials: credentials)
         }
         #expect(error?.localizedDescription.contains("HTTP 500") == true)
     }
@@ -114,7 +114,7 @@ struct BufferCollectorTests {
         ])
 
         let error = await #expect(throws: CollectorError.self) {
-            try await BufferCollector(session: session).collect(since: nil, credentials: credentials)
+            try await BufferCollector(session: session).collect(since: .distantPast, credentials: credentials)
         }
         #expect(error?.localizedDescription.contains("Failed to decode") == true)
     }
@@ -145,7 +145,7 @@ struct BufferCollectorTests {
             "/1/profiles/p2/updates/pending.json": (Self.pendingJSON, 200)
         ])
         let data = try await BufferCollector(session: session)
-            .collect(since: nil, credentials: credentials)
+            .collect(since: .distantPast, credentials: credentials)
 
         #expect(data.metrics["sent_updates"] == .int(103))
         let note = try #require(data.stringMetric("posts_sampled"))
@@ -164,7 +164,7 @@ struct BufferCollectorTests {
             "/1/profiles/p2/updates/pending.json": (Self.pendingJSON, 200)
         ])
         let data = try await BufferCollector(session: session)
-            .collect(since: nil, credentials: credentials)
+            .collect(since: .distantPast, credentials: credentials)
 
         #expect(data.metrics["sent_updates"] == .int(7))
         #expect(data.metrics["posts_sampled"] == nil)
@@ -231,7 +231,7 @@ struct BufferCollectorTests {
             """)
         await #expect(throws: CollectorError.self) {
             try await BufferCollector(session: session).collect(
-                since: nil, credentials: credentials)
+                since: .distantPast, credentials: credentials)
         }
     }
 
@@ -242,7 +242,7 @@ struct BufferCollectorTests {
         // on any row, and scheduled_updates has to keep counting.
         let session = makeSession()
         let data = try await BufferCollector(session: session)
-            .collect(since: nil, credentials: credentials)
+            .collect(since: .distantPast, credentials: credentials)
         #expect(data.metrics["scheduled_updates"] == .int(6))
     }
 
@@ -254,7 +254,7 @@ struct BufferCollectorTests {
             {"updates":[{"id":"u1","sent_at":1767312000}]}
             """)
         let data = try await BufferCollector(session: session)
-            .collect(since: nil, credentials: credentials)
+            .collect(since: .distantPast, credentials: credentials)
         #expect(data.metrics["sent_updates"] == .int(2))
         // p2's single post contributes; p1's contributes nothing but is counted.
         #expect(data.metrics["total_clicks"] == .int(7))
@@ -266,7 +266,7 @@ struct BufferCollectorTests {
         // ordering was nondeterministic, so this could only assert non-nil —
         // and replacing the whole label with a constant left it passing.
         let data = try await BufferCollector(session: makeSession())
-            .collect(since: nil, credentials: credentials)
+            .collect(since: .distantPast, credentials: credentials)
 
         // Exact strings, not "contains": replacing the whole label with a
         // constant left a contains-check passing, so the service name and
@@ -278,7 +278,7 @@ struct BufferCollectorTests {
 
     @Test("since filters sent posts to the window")
     func sinceFiltersSentPosts() async throws {
-        // Every other test collects with since: nil, so the whole filtering
+        // Every other test collects with since: .distantPast, so the whole filtering
         // branch was dead in the suite — replacing it with `return updates`
         // left them all green.
         let sent = """
@@ -308,7 +308,7 @@ struct BufferCollectorTests {
     func handlesNoProfiles() async throws {
         let session = MockURLSession(["/1/profiles.json": ("[]", 200)])
         let data = try await BufferCollector(session: session)
-            .collect(since: nil, credentials: credentials)
+            .collect(since: .distantPast, credentials: credentials)
 
         #expect(data.metrics["profiles_count"] == .int(0))
         #expect(data.metrics["sent_updates"] == .int(0))
@@ -319,7 +319,7 @@ struct BufferCollectorTests {
     @Test("Every request carries the access token")
     func everyRequestIsAuthorised() async throws {
         let session = makeSession()
-        _ = try await BufferCollector(session: session).collect(since: nil, credentials: credentials)
+        _ = try await BufferCollector(session: session).collect(since: .distantPast, credentials: credentials)
 
         let tokens = session.requestedURLs.compactMap { url -> String? in
             URLComponents(url: url, resolvingAgainstBaseURL: false)?
@@ -332,7 +332,7 @@ struct BufferCollectorTests {
     @Test("Records where the token currently travels, so #85 is a visible change")
     func recordsCurrentTokenPlacement() async throws {
         let session = makeSession()
-        _ = try await BufferCollector(session: session).collect(since: nil, credentials: credentials)
+        _ = try await BufferCollector(session: session).collect(since: .distantPast, credentials: credentials)
 
         // Asserting today's behaviour, not endorsing it. When #85 moves the
         // token to a header this test should flip rather than be deleted.
@@ -343,7 +343,7 @@ struct BufferCollectorTests {
     @Test("Each connected profile is queried for both sent and pending posts")
     func queriesEachProfile() async throws {
         let session = makeSession()
-        _ = try await BufferCollector(session: session).collect(since: nil, credentials: credentials)
+        _ = try await BufferCollector(session: session).collect(since: .distantPast, credentials: credentials)
 
         let paths = Set(session.requestedURLs.map(\.path))
         #expect(paths.contains("/1/profiles/p1/updates/sent.json"))
@@ -359,7 +359,7 @@ struct BufferCollectorTests {
         let collector = BufferCollector(session: makeSession())
 
         let error = await #expect(throws: CollectorError.self) {
-            _ = try await collector.collect(since: nil, credentials: Credentials([:]))
+            _ = try await collector.collect(since: .distantPast, credentials: Credentials([:]))
         }
         #expect(error?.localizedDescription.contains("api_key") == true)
     }
@@ -370,7 +370,7 @@ struct BufferCollectorTests {
         let collector = BufferCollector(session: session)
 
         await #expect(throws: CollectorError.self) {
-            _ = try await collector.collect(since: nil, credentials: credentials)
+            _ = try await collector.collect(since: .distantPast, credentials: credentials)
         }
     }
 }

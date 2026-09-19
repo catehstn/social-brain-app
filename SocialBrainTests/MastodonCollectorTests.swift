@@ -45,7 +45,7 @@ struct MastodonCollectorTests {
             "access_token": "test-token",
             "instance_url": "https://mastodon.social"
         ])
-        let data = try await collector.collect(since: nil, credentials: credentials)
+        let data = try await collector.collect(since: .distantPast, credentials: credentials)
 
         #expect(data.platform == .mastodon)
         #expect(data.intMetric("followers_count") == 2500)
@@ -323,7 +323,7 @@ struct MastodonCollectorTests {
         ])
         let collector = MastodonCollector(session: session)
         let data = try await collector.collect(
-            since: nil,
+            since: .distantPast,
             credentials: Credentials(["access_token": "t", "instance_url": "https://mastodon.social"])
         )
         #expect(session.requests(path: "/api/v1/accounts/109876543/statuses").count == 3)
@@ -336,7 +336,7 @@ struct MastodonCollectorTests {
         let collector = MastodonCollector()
         let credentials = Credentials(["instance_url": "https://mastodon.social"])
         await #expect(throws: CollectorError.self) {
-            try await collector.collect(since: nil, credentials: credentials)
+            try await collector.collect(since: .distantPast, credentials: credentials)
         }
     }
 
@@ -345,7 +345,7 @@ struct MastodonCollectorTests {
         let collector = MastodonCollector()
         let credentials = Credentials(["access_token": "tok"])
         await #expect(throws: CollectorError.self) {
-            try await collector.collect(since: nil, credentials: credentials)
+            try await collector.collect(since: .distantPast, credentials: credentials)
         }
     }
 }

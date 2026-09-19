@@ -37,7 +37,7 @@ struct MastodonCollector: Collector {
         return "@\(acct.username)@\(host)"
     }
 
-    func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
+    func collect(since: Date, credentials: Credentials) async throws -> PlatformData {
         guard let token = credentials.accessToken else {
             throw CollectorError.missingCredential("access_token")
         }
@@ -129,7 +129,7 @@ struct MastodonCollector: Collector {
         instanceURL: URL,
         accountID: String,
         token: String,
-        since: Date?
+        since: Date
     ) async throws -> (statuses: [Status], truncated: Bool) {
         let decoder = makeDecoder()
         var collected: [Status] = []
@@ -166,7 +166,7 @@ struct MastodonCollector: Collector {
             // `statuses_count` of several thousand from the same response —
             // the exact undercount this change exists to remove, on the one
             // path a user actually clicks.
-            if let since, oldest.createdAt < since {
+            if oldest.createdAt < since {
                 // The page already reaches past the window; nothing older helps.
                 return (filter(collected, since: since), false)
             }
@@ -176,9 +176,10 @@ struct MastodonCollector: Collector {
         return (filter(collected, since: since), true)
     }
 
-    private func filter(_ statuses: [Status], since: Date?) -> [Status] {
-        guard let since else { return statuses }
-        return statuses.filter { $0.createdAt >= since }
+    private func filter(_ statuses: [Status], since: Date) -> [Status] {
+        // Date.distantPast keeps everything; the walk is bounded by
+        // maximumPages rather than by the window.
+        statuses.filter { $0.createdAt >= since }
     }
 
     private func makeDecoder() -> JSONDecoder {

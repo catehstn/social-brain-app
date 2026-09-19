@@ -9,7 +9,7 @@ private struct StubCollector: Collector {
     var instanceName: String = "default"
     let result: Result<PlatformData, Error>
 
-    func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
+    func collect(since: Date, credentials: Credentials) async throws -> PlatformData {
         try result.get()
     }
 }
@@ -51,8 +51,8 @@ struct CollectionEngineTests {
 
         let summary = try await engine.run(
             collectors: collectors,
-            credentials: makeCredentials()
-        )
+            credentials: makeCredentials(),
+            since: .distantPast)
 
         #expect(summary.platformCount == 2)
         #expect(summary.successCount  == 2)
@@ -91,8 +91,8 @@ struct CollectionEngineTests {
 
         let summary = try await engine.run(
             collectors: collectors,
-            credentials: makeCredentials()
-        )
+            credentials: makeCredentials(),
+            since: .distantPast)
 
         #expect(summary.platformCount == 2)
         #expect(summary.successCount  == 1)
@@ -120,7 +120,7 @@ struct CollectionEngineTests {
         ]
 
         let noCredentials: @Sendable (PlatformInstance) throws -> Credentials? = { _ in nil }
-        let summary = try await engine.run(collectors: collectors, credentials: noCredentials)
+        let summary = try await engine.run(collectors: collectors, credentials: noCredentials, since: .distantPast)
 
         // No credentials → failure result, not a thrown error
         #expect(summary.errorCount == 1)
@@ -141,8 +141,8 @@ struct CollectionEngineTests {
         try await engine.run(
             collectors: collectors,
             credentials: makeCredentials(),
-            progress: { _ in await counter.increment() }
-        )
+            since: .distantPast,
+            progress: { _ in await counter.increment() })
 
         let count = await counter.value
         #expect(count == 2)
@@ -153,7 +153,7 @@ struct CollectionEngineTests {
         let db = try makeDB()
         let engine = CollectionEngine(database: db)
 
-        let summary = try await engine.run(collectors: [], credentials: makeCredentials())
+        let summary = try await engine.run(collectors: [], credentials: makeCredentials(), since: .distantPast)
 
         #expect(summary.platformCount == 0)
         #expect(summary.successCount  == 0)
@@ -190,7 +190,7 @@ struct CollectionEngineTests {
             )
         ]
 
-        let summary = try await engine.run(collectors: collectors, credentials: makeCredentials())
+        let summary = try await engine.run(collectors: collectors, credentials: makeCredentials(), since: .distantPast)
         #expect(summary.successCount == 2)
         #expect(summary.errorCount == 0)
 
@@ -235,7 +235,7 @@ struct CollectionEngineTests {
         let summary = try await engine.run(
             collectors: collectors,
             credentials: makeCredentials(),
-            since: nil,
+            since: .distantPast,
             progress: nil
         )
 
@@ -282,7 +282,7 @@ struct CollectionEngineTests {
         let summary = try await engine.run(
             collectors: collectors,
             credentials: makeCredentials(),
-            since: nil,
+            since: .distantPast,
             progress: nil
         )
 

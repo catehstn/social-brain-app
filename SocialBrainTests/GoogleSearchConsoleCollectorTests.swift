@@ -92,7 +92,7 @@ struct GoogleSearchConsoleCollectorTests {
         let session = makeSession()
         let collector = GoogleSearchConsoleCollector(session: session)
 
-        _ = try await collector.collect(since: nil, credentials: credentials)
+        _ = try await collector.collect(since: .distantPast, credentials: credentials)
 
         let analytics = session.requestedURLs
             .map(\.absoluteString)
@@ -108,7 +108,7 @@ struct GoogleSearchConsoleCollectorTests {
         let session = makeSession()
         let collector = GoogleSearchConsoleCollector(session: session)
 
-        _ = try await collector.collect(since: nil, credentials: credentials)
+        _ = try await collector.collect(since: .distantPast, credentials: credentials)
 
         let path = "/webmasters/v3/sites/https%3A%2F%2Fexample.com%2F/searchAnalytics/query"
         // allSatisfy is true of an empty array, so pin the count as well.
@@ -124,7 +124,7 @@ struct GoogleSearchConsoleCollectorTests {
         let session = makeSession()
         let collector = GoogleSearchConsoleCollector(session: session)
 
-        let data = try await collector.collect(since: nil, credentials: credentials)
+        let data = try await collector.collect(since: .distantPast, credentials: credentials)
 
         #expect(data.metrics["clicks"] == .int(420))
         #expect(data.metrics["impressions"] == .int(9001))
@@ -135,7 +135,7 @@ struct GoogleSearchConsoleCollectorTests {
         let collector = GoogleSearchConsoleCollector(session: makeSession())
 
         let error = await #expect(throws: CollectorError.self) {
-            _ = try await collector.collect(since: nil, credentials: Credentials(["client_id": "cid"]))
+            _ = try await collector.collect(since: .distantPast, credentials: Credentials(["client_id": "cid"]))
         }
         // Asserting only the error type would pass for any case and would not
         // test what the test's name claims.
@@ -183,13 +183,84 @@ struct GoogleSearchConsoleCollectorTests {
         #expect(bodies.allSatisfy { ($0["endDate"] as? String)?.count == 10 })
     }
 
+    @Test("All time is clamped to the 16 months Search Console actually serves")
+    func allTimeIsClampedToSixteenMonths() async throws {
+        // Search Console keeps about 16 months and returns nothing older, so an
+        // unclamped request covers less than it looks like it does — silently.
+        // Before #96 this path could not arise at all: nil meant 28 days here
+        // and something different in every other collector.
+        let session = makeSession()
+        _ = try await GoogleSearchConsoleCollector(session: session)
+            .collect(since: .distantPast, credentials: credentials)
+
+        let path = "/webmasters/v3/sites/https%3A%2F%2Fexample.com%2F/searchAnalytics/query"
+        let bodies = session.requests(path: path)
+            .compactMap(\.httpBody)
+            .compactMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+        let starts = Set(bodies.compactMap { $0["startDate"] as? String })
+        #expect(starts.count == 1)
+
+        let start = try #require(starts.first)
+        // Not the year 1, which is what .distantPast would send unclamped.
+        #expect(!start.hasPrefix("0001"))
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        let startDate = try #require(formatter.date(from: start))
+        let daysBack = CollectionWindow.days(from: startDate, to: Date())
+        #expect(daysBack == GoogleSearchConsoleCollector.maximumDays)
+    }
+
+    @Test("The window is formatted in UTC, not the machine's time zone")
+    func windowIsFormattedInUTC() async throws {
+        // This formatter carried no time zone, so it used the machine's. A run
+        // near midnight therefore asked Search Console for a different day than
+        // it asked GoatCounter and Jetpack for, and the prompt presented the
+        // two side by side (#96).
+        //
+        // Four cases, and all four are needed. Both ends of a UTC day, because
+        // one alone is vacuous in half the world: 00:30Z falls on the previous
+        // local day only at a negative offset, 23:30Z on the next local day
+        // only at a positive one. And both halves of the year, because a
+        // formatter converts each instant using the zone's offset *at that
+        // instant* — Europe/Dublin is +01:00 today but +00:00 in January, so a
+        // winter-only case cannot drift here no matter what the zone is now.
+        // The first version of this test had exactly that hole and passed with
+        // the fix removed.
+        //
+        // CI runs in UTC, where neither can differ, so this test cannot fail
+        // there — it earns its keep on a developer machine. That is the nature
+        // of the bug: it is invisible in the zone CI happens to use.
+        let cases: [(stamp: TimeInterval, expected: String)] = [
+            (1_767_227_400, "2026-01-01"),  // 2026-01-01 00:30 UTC — winter
+            (1_767_310_200, "2026-01-01"),  // 2026-01-01 23:30 UTC — winter
+            (1_782_865_800, "2026-07-01"),  // 2026-07-01 00:30 UTC — summer
+            (1_782_948_600, "2026-07-01")   // 2026-07-01 23:30 UTC — summer
+        ]
+
+        for (stamp, expected) in cases {
+            let session = makeSession()
+            _ = try await GoogleSearchConsoleCollector(session: session)
+                .collect(since: Date(timeIntervalSince1970: stamp), credentials: credentials)
+
+            let path = "/webmasters/v3/sites/https%3A%2F%2Fexample.com%2F/searchAnalytics/query"
+            let bodies = session.requests(path: path)
+                .compactMap(\.httpBody)
+                .compactMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            #expect(Set(bodies.compactMap { $0["startDate"] as? String }) == [expected],
+                    "startDate drifted for \(expected) — formatter is not in UTC")
+        }
+    }
+
     @Test("Propagates an HTTP error from the token endpoint")
     func propagatesTokenError() async throws {
         let session = MockURLSession(["/token": ("{\"error\":\"invalid_grant\"}", 400)])
         let collector = GoogleSearchConsoleCollector(session: session)
 
         await #expect(throws: CollectorError.self) {
-            _ = try await collector.collect(since: nil, credentials: credentials)
+            _ = try await collector.collect(since: .distantPast, credentials: credentials)
         }
     }
 }

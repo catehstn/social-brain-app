@@ -49,7 +49,7 @@ struct CalendlyCollectorTests {
             baseURL: URL(string: "https://api.calendly.com")!
         )
         let credentials = Credentials(["api_key": "test-token"])
-        let data = try await collector.collect(since: nil, credentials: credentials)
+        let data = try await collector.collect(since: .distantPast, credentials: credentials)
 
         #expect(data.platform == .calendly)
         #expect(data.intMetric("events_count")    == 3)
@@ -85,7 +85,7 @@ struct CalendlyCollectorTests {
         // Not "the first request": both endpoints need it, and a collector that
         // authenticated one and not the other would pass a first-request check.
         let session = makeSession()
-        _ = try await makeCollector(session).collect(since: nil, credentials: apiCredentials)
+        _ = try await makeCollector(session).collect(since: .distantPast, credentials: apiCredentials)
 
         let paths = Set(session.requestedURLs.map(\.path))
         #expect(paths == ["/users/me", "/scheduled_events"])
@@ -101,7 +101,7 @@ struct CalendlyCollectorTests {
         // asks Calendly for every event it will show us, and the metrics would
         // look plausible.
         let session = makeSession()
-        _ = try await makeCollector(session).collect(since: nil, credentials: apiCredentials)
+        _ = try await makeCollector(session).collect(since: .distantPast, credentials: apiCredentials)
 
         #expect(session.queryValue("user", path: "/scheduled_events")
                 == "https://api.calendly.com/users/TESTUSER")
@@ -139,12 +139,12 @@ struct CalendlyCollectorTests {
         // can be justified: the right instant, as a UTC date-time.
     }
 
-    @Test("No since means no min_start_time at all")
+    @Test("All time means no min_start_time at all, rather than the year 1")
     func noSinceSendsNoWindow() async throws {
         // The negative half. Without it, a collector that always sent some
         // default window would pass the test above.
         let session = makeSession()
-        _ = try await makeCollector(session).collect(since: nil, credentials: apiCredentials)
+        _ = try await makeCollector(session).collect(since: .distantPast, credentials: apiCredentials)
 
         #expect(session.queryValue("min_start_time", path: "/scheduled_events") == nil)
     }
@@ -155,7 +155,7 @@ struct CalendlyCollectorTests {
         // queryItems both decode, so an encoding bug is invisible through them —
         // which is exactly how #68 stayed hidden.
         let session = makeSession()
-        _ = try await makeCollector(session).collect(since: nil, credentials: apiCredentials)
+        _ = try await makeCollector(session).collect(since: .distantPast, credentials: apiCredentials)
 
         let url = try #require(session.requestedURLs.first { $0.path == "/scheduled_events" })
         let text = url.absoluteString
@@ -182,7 +182,7 @@ struct CalendlyCollectorTests {
     func missingAPIKey() async throws {
         let collector = CalendlyCollector()
         await #expect(throws: CollectorError.self) {
-            try await collector.collect(since: nil, credentials: Credentials([:]))
+            try await collector.collect(since: .distantPast, credentials: Credentials([:]))
         }
     }
 }

@@ -222,7 +222,7 @@ private struct StubSpikeCollector: Collector {
     let platform: Platform
     var instanceName: String = "default"
 
-    func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
+    func collect(since: Date, credentials: Credentials) async throws -> PlatformData {
         PlatformData(platform: platform,
                      instanceName: instanceName,
                      metrics: ["followers_count": .int(1500)])

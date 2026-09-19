@@ -33,7 +33,7 @@ struct BlueskyCollector: Collector {
         credentials.username
     }
 
-    func collect(since: Date?, credentials: Credentials) async throws -> PlatformData {
+    func collect(since: Date, credentials: Credentials) async throws -> PlatformData {
         guard let handle = credentials.username else {
             throw CollectorError.missingCredential("username")
         }
@@ -135,7 +135,7 @@ struct BlueskyCollector: Collector {
     /// yields `nil` and the walk *continues*, costing at most one extra request,
     /// rather than stopping short.
     private func fetchFeed(
-        did: String, token: String, since: Date?
+        did: String, token: String, since: Date
     ) async throws -> (posts: [PostMetrics], truncated: Bool) {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -174,8 +174,7 @@ struct BlueskyCollector: Collector {
                 return (filter(collected, since: since), false)
             }
             // Reached past the window; nothing older can be in it.
-            if let since,
-               let oldest = page.feed.last(where: { $0.reason == nil })?.post.indexedAt,
+            if let oldest = page.feed.last(where: { $0.reason == nil })?.post.indexedAt,
                oldest < since {
                 return (filter(collected, since: since), false)
             }
@@ -184,9 +183,10 @@ struct BlueskyCollector: Collector {
         return (filter(collected, since: since), true)
     }
 
-    private func filter(_ posts: [PostMetrics], since: Date?) -> [PostMetrics] {
-        guard let since else { return posts }
-        return posts.filter { $0.indexedAt >= since }
+    private func filter(_ posts: [PostMetrics], since: Date) -> [PostMetrics] {
+        // Date.distantPast keeps everything, which is what "all time" means
+        // here: the walk is bounded by maximumPages rather than by the window.
+        posts.filter { $0.indexedAt >= since }
     }
 }
 
