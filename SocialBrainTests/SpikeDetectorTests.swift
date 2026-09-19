@@ -34,6 +34,26 @@ struct SpikeDetectorTests {
         #expect(alerts.isEmpty)
     }
 
+    @Test("LinkedIn follower growth is detected, as it is for every other platform")
+    func linkedinFollowerSpike() throws {
+        // Spike alerts are the only route by which a LinkedIn metric becomes a
+        // Feed card. Mastodon and Bluesky are monitored on followers_count and
+        // Jetpack on followers_blog, but LinkedIn was monitored only on
+        // impressions and likes — and an XLSX snapshot contains neither likes
+        // nor posts, so follower growth produced no card at all (#114).
+        //
+        // +30%, comfortably past the 20% threshold — the point here is whether
+        // the metric is watched at all, not where the boundary sits.
+        let previous = try makeSnapshot(platform: .linkedin,
+                                        metrics: ["total_followers": .int(8000)])
+        let current  = try makeSnapshot(platform: .linkedin,
+                                        metrics: ["total_followers": .int(10_400)])
+
+        let alerts = SpikeDetector().detect(current: current, previous: previous)
+
+        #expect(alerts.contains { $0.summary.contains("Followers") })
+    }
+
     @Test("spike detected on 25% increase")
     func spikeDetectedOnIncrease() throws {
         let previous = try makeSnapshot(platform: .mastodon,

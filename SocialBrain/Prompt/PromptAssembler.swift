@@ -216,11 +216,15 @@ struct PromptAssembler {
 
     private func linkedinLines(_ data: PlatformData) -> [String] {
         var lines: [String] = []
-        if let posts = data.intMetric("posts_published") {
-            var s = "Posts: \(posts)"
-            if let imp = data.intMetric("total_impressions") { s += ", \(formatted(imp)) impressions" }
-            lines.append(s)
-        }
+        // Impressions are not nested under posts_published: the XLSX export
+        // writes total_impressions and never writes posts_published, so nesting
+        // dropped LinkedIn's headline metric from the prompt for exactly the
+        // import path #114 is about. Joined so the CSV shape still reads
+        // "Posts: 5, 4,200 impressions".
+        var posting: [String] = []
+        if let posts = data.intMetric("posts_published") { posting.append("Posts: \(posts)") }
+        if let imp = data.intMetric("total_impressions") { posting.append("\(formatted(imp)) impressions") }
+        if !posting.isEmpty { lines.append(posting.joined(separator: ", ")) }
         var engagement: [String] = []
         if let v = data.intMetric("total_likes")    { engagement.append("\(formatted(v)) likes") }
         if let v = data.intMetric("total_comments") { engagement.append("\(formatted(v)) comments") }
@@ -239,12 +243,13 @@ struct PromptAssembler {
         if let v = data.intMetric("new_followers")   { followers.append("\(formatted(v)) new this period") }
         if !followers.isEmpty { lines.append("Followers: \(followers.joined(separator: ", "))") }
 
-        // Reported separately from the likes/comments/shares line above rather
-        // than folded into it: this is LinkedIn's own total, not the sum of
-        // those three, and presenting it as though it were would invite the
-        // reader to check the arithmetic and find it wrong.
+        // Not the sum of the likes/comments/shares above — it is the ENGAGEMENT
+        // sheet's own Engagements column, totalled across its daily rows. (The
+        // two cannot appear together anyway: LinkedInImporter branches on ZIP
+        // magic bytes and delegates wholesale, so a snapshot is XLSX-shaped or
+        // CSV-shaped, never both.)
         if let v = data.intMetric("total_engagements") {
-            lines.append("Total engagements (LinkedIn's own count): \(formatted(v))")
+            lines.append("Total engagements: \(formatted(v))")
         }
         if let v = data.intMetric("members_reached") {
             lines.append("Unique members reached: \(formatted(v))")

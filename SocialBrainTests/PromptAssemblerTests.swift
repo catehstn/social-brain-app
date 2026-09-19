@@ -269,8 +269,11 @@ struct PromptAssemblerTests {
         // XLSX import produced nothing a CSV import would not have (#114).
         let data = PlatformData(
             platform: .linkedin,
+            // Exactly what LinkedInXLSXParser writes — no posts_published,
+            // which is what hid the missing impressions line: it used to render
+            // only inside a posts_published guard this shape never satisfies.
             metrics: [
-                "posts_published":   .int(5),
+                "total_impressions": .int(107),
                 "total_followers":   .int(8420),
                 "new_followers":     .int(137),
                 "total_engagements": .int(512),
@@ -280,8 +283,10 @@ struct PromptAssemblerTests {
         let prompt = assembler.assemble(makeInput(snapshots: try snaps(data)))
 
         #expect(prompt.contains("Followers: 8,420 total, 137 new this period"))
-        #expect(prompt.contains("Total engagements (LinkedIn's own count): 512"))
+        #expect(prompt.contains("Total engagements: 512"))
         #expect(prompt.contains("Unique members reached: 19,300"))
+        // The headline metric, which an XLSX import was dropping entirely.
+        #expect(prompt.contains("107 impressions"))
     }
 
     @Test("A CSV-only LinkedIn import gains no empty lines from the XLSX metrics")
@@ -296,7 +301,11 @@ struct PromptAssemblerTests {
         let prompt = assembler.assemble(makeInput(snapshots: try snaps(data)))
 
         #expect(prompt.contains("Posts: 5, 4,200 impressions"))
-        #expect(!prompt.contains("Followers:"))
+        // "total" and "new this period" rather than a bare "Followers:" —
+        // Mastodon and Jetpack emit that too, so the loose version would
+        // false-fail the first time this test is given a second snapshot.
+        #expect(!prompt.contains("total, "))
+        #expect(!prompt.contains("new this period"))
         #expect(!prompt.contains("Total engagements"))
         #expect(!prompt.contains("Unique members reached"))
     }

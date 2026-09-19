@@ -128,15 +128,18 @@ final class DashboardViewModel {
                     ("total_views", "Views"),
                     ("total_visitors", "Visitors")]
         case .linkedin:
-            // total_followers is charted and the other three XLSX-only metrics
-            // are not, because this is a time series and they are period
-            // totals already carried by the prompt. It mirrors Jetpack's
-            // followers_blog above; nothing else in the app reported LinkedIn
+            // Both follower metrics: total_followers is the cumulative level,
+            // new_followers the per-period growth, and the growth is the more
+            // informative line — a cumulative series only steps when an export
+            // lands. members_reached is left off as a judgment call about
+            // crowding, not shape; it is the same shape as total_impressions,
+            // which is charted. Nothing else in the app reported LinkedIn
             // follower growth at all (#114).
             return [("total_impressions", "Impressions"),
                     ("total_likes", "Likes"),
                     ("total_comments", "Comments"),
-                    ("total_followers", "Followers")]
+                    ("total_followers", "Followers"),
+                    ("new_followers", "New Followers")]
         case .oreilly:
             return [("total_page_views", "Page Views"),
                     ("total_unique_users", "Unique Users")]

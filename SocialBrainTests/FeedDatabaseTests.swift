@@ -149,7 +149,8 @@ struct FeedDatabaseTests {
 
         let data = PlatformData(
             platform: .linkedin,
-            metrics: ["total_followers": .int(8420), "total_impressions": .int(4200)]
+            metrics: ["total_followers": .int(8420), "new_followers": .int(137),
+                      "total_impressions": .int(4200)]
         )
         var snap = try PlatformSnapshot(runID: runID, data: data)
         try await db.saveSnapshot(&snap)
@@ -160,6 +161,9 @@ struct FeedDatabaseTests {
         await vm.load()
 
         #expect(vm.series.contains { $0.label == "Followers" })
+        // The growth line as well as the cumulative one — a cumulative series
+        // only steps when an export lands, so it is the less informative half.
+        #expect(vm.series.contains { $0.label == "New Followers" })
         // Not vacuous: an already-charted metric is still there beside it.
         #expect(vm.series.contains { $0.label == "Impressions" })
     }
