@@ -36,7 +36,7 @@ struct DatabaseMigrationTests {
 
         let fetched = try await db.allRuns()
         #expect(fetched.count == 1)
-        #expect(fetched[0].platformCount == 3)
+        #expect(fetched.first?.platformCount == 3)
     }
 
     @Test("Complete a run sets completedAt and errorCount")
@@ -56,8 +56,8 @@ struct DatabaseMigrationTests {
         try await db.completeRun(id: runID, errorCount: 1)
 
         let fetched = try await db.allRuns()
-        #expect(fetched[0].completedAt != nil)
-        #expect(fetched[0].errorCount == 1)
+        #expect(fetched.first?.completedAt != nil)
+        #expect(fetched.first?.errorCount == 1)
     }
 
     @Test("Save and fetch a PlatformSnapshot round-trips metrics")
@@ -86,9 +86,9 @@ struct DatabaseMigrationTests {
 
         let fetched = try await db.snapshots(forRunID: runID)
         #expect(fetched.count == 1)
-        #expect(fetched[0].platformEnum == .mastodon)
+        #expect(fetched.first?.platformEnum == .mastodon)
 
-        let metrics = try fetched[0].decodedMetrics()
+        let metrics = try #require(fetched.first).decodedMetrics()
         #expect(metrics["followers_count"] == .int(1234))
         #expect(metrics["avg_favourites"]  == .double(3.5))
         #expect(metrics["top_post"]        == .string("Hello world"))

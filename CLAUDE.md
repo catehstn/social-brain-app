@@ -92,6 +92,25 @@ app, and a documented test command that silently skipped and exited 0.
 - **If a change makes existing tests fail, fix the tests to match the new correct
   behaviour** — don't revert the change to make them pass. If the old assertion
   was right, the change is wrong; decide which, don't split the difference.
+- **Never let a test trap.** A trapping test does not fail: it kills the test
+  host, and the test host **is `SocialBrain.app`** (`TEST_HOST` in the project
+  file), so it shows "SocialBrain quit unexpectedly" and writes an `.ips` instead
+  of a red test, and the runner restarts and may crash again. `#expect` does not
+  halt on failure, so a count assertion above a subscript records its issue and
+  execution walks straight into the trap.
+
+  In practice: no `xs[0]` — use `xs.first?`, `xs.dropFirst().first?` or
+  `try #require(xs.first)`; and no `!` on anything a *different* change could
+  make nil, such as `prompt.range(of:)!` or `cases.firstIndex(of:)!`. Force
+  unwrapping a genuinely infallible literal (`"…".data(using: .utf8)!`,
+  `TimeZone(identifier: "Europe/Berlin")!`) is fine and left alone.
+
+  This bit on 2026-09-19: a metric rename emptied one detector's result and
+  `items[0]` crashed the app in front of the user. #167 converted the rest.
+- **Prefer mutations that fail rather than trap** when checking a test is not
+  vacuous, for the same reason — a mutation that empties a collection crashes the
+  run instead of failing it. That is also why this class survived so long: a bare
+  subscript reads as normal, and only bites when something else empties the array.
 
 ### What needs a test
 

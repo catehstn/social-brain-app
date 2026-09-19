@@ -179,8 +179,8 @@ struct PromptAssemblerTests {
         var dict: [PlatformInstance: PlatformSnapshot] = try snaps(mastodon)
         dict.merge(try snaps(bluesky)) { a, _ in a }
         let prompt = assembler.assemble(makeInput(snapshots: dict))
-        let blueskyRange  = prompt.range(of: "## Bluesky")!
-        let mastodonRange = prompt.range(of: "## Mastodon")!
+        let blueskyRange  = try #require(prompt.range(of: "## Bluesky"))
+        let mastodonRange = try #require(prompt.range(of: "## Mastodon"))
         // Bluesky (B) comes before Mastodon (M) alphabetically
         #expect(blueskyRange.lowerBound < mastodonRange.lowerBound)
     }

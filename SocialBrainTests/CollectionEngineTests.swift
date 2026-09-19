@@ -66,8 +66,8 @@ struct CollectionEngineTests {
         #expect(platforms.contains(.bluesky))
 
         let runs = try await db.allRuns()
-        #expect(runs[0].completedAt != nil)
-        #expect(runs[0].errorCount == 0)
+        #expect(runs.first?.completedAt != nil)
+        #expect(runs.first?.errorCount == 0)
     }
 
     @Test("Partial failure still saves successful snapshots")
@@ -101,10 +101,10 @@ struct CollectionEngineTests {
         let snapshots = try await db.snapshots(forRunID: summary.runID)
         // Only the successful platform saved a snapshot
         #expect(snapshots.count == 1)
-        #expect(snapshots[0].platformEnum == .mastodon)
+        #expect(snapshots.first?.platformEnum == .mastodon)
 
         let runs = try await db.allRuns()
-        #expect(runs[0].errorCount == 1)
+        #expect(runs.first?.errorCount == 1)
     }
 
     @Test("Missing credentials results in failure, not crash")
@@ -161,7 +161,7 @@ struct CollectionEngineTests {
 
         let runs = try await db.allRuns()
         #expect(runs.count == 1)
-        #expect(runs[0].completedAt != nil)
+        #expect(runs.first?.completedAt != nil)
     }
 
     @Test("Two collectors for same platform with different instanceNames each save a snapshot")

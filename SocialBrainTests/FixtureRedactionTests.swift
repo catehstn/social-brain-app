@@ -229,7 +229,8 @@ struct FixtureRedactionTests {
     @discardableResult
     private static func run(_ arguments: [String]) throws -> Int32 {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: arguments[0])
+        let executable = try #require(arguments.first)
+        process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = Array(arguments.dropFirst())
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
