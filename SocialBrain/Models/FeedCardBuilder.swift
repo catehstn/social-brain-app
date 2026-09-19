@@ -46,8 +46,10 @@ struct FeedCardBuilder {
         // On the way out, because the stale-reminder block iterates a fixed
         // list of file-export platforms rather than the snapshots, so a hidden
         // platform with no snapshot at all still reaches it.
+        // Only the current snapshots need filtering. Every use of
+        // `previousSnapshots` is a lookup keyed by an instance that came from
+        // `snapshots`, so a hidden platform cannot reach a card through it.
         let snapshots = visibility.visible(snapshots)
-        let previousSnapshots = visibility.visible(previousSnapshots)
 
         var cards: [FeedCard] = []
 

@@ -49,8 +49,17 @@ struct PlatformVisibilitySuite {
         // Test 10: Isolation between suites — does not bleed into UserDefaults.standard
         @Test("Injected suite does not write to UserDefaults.standard")
         func testIsolationFromStandard() {
+            // Compared before and after rather than asserted to be false: a
+            // developer who has actually hidden Buffer in the shipped app would
+            // otherwise fail this test for a reason unrelated to any leak. What
+            // is under test is that the injected store changes nothing here,
+            // not what the real value happens to be.
+            let key = "hiddenPlatform_buffer"
+            let before = UserDefaults.standard.bool(forKey: key)
+
             store.hide(.buffer)
-            #expect(UserDefaults.standard.bool(forKey: "hiddenPlatform_buffer") == false)
+
+            #expect(UserDefaults.standard.bool(forKey: key) == before)
         }
     }
 

@@ -124,10 +124,11 @@ struct FeedCardBuilderTests {
 
     @Test("A hidden platform produces no card of any type, not just reminders")
     func hiddenPlatformProducesNoCardsAtAll() throws {
-        // The filter is applied once at the exit rather than inside each
-        // card-producing block, so this holds for card types added later too.
-        // A recent-post card for a platform the user has hidden is the same
-        // bug wearing a different hat.
+        // A recent-post card for a platform the user has hidden is the same bug
+        // as the stale reminder, wearing a different hat. This one is caught by
+        // the entry filter, since the block iterates the snapshots; the stale
+        // reminders are caught by the exit filter, since that block walks a
+        // fixed platform list. Neither filter covers both.
         let payload = try JSONEncoder().encode(
             LinkedInData(latestPostText: "a post that should not surface", totalImpressions: 500)
         )

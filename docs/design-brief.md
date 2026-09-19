@@ -129,7 +129,7 @@ its provider (#118). The controls below are proposed — see
 3. **Mid-week spike:** notification fires → open app → Feed has a `spikeAlert` card at the top → tap → Dashboard filtered to that platform + short window.
 4. **Platform fails during Run:** row goes red inline; hover for error; retry-just-this-one button; the rest of the run still completes.
 5. **Manual drop refresh:** in Platforms → LinkedIn → drag XLSX onto the drop zone → validation → green tick with "5 posts new since last week."
-6. **Hide a platform I don't use:** in Platforms → detail → "Hide" → card leaves the grid; eye-icon in toolbar to restore.
+6. **Hide a platform I don't use:** in Platforms → detail → "Hide" → card leaves the grid, its Feed cards stop appearing, and it drops out of the assembled prompt; eye-icon in toolbar to restore. Collection is unaffected, so history keeps accruing and restoring leaves no gap. (Scheduled stale-export *notifications* are not yet cancelled — see #162.)
 
 ## Non-goals (skip these)
 
