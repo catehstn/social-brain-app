@@ -190,7 +190,10 @@ instead. Everywhere else the table applies.
   repo reported success for months while not building at all: `xcodebuild |
   xcpretty` without `pipefail` returns the *formatter's* exit code, so the failing
   build was masked. Every step that pipes `xcodebuild` must run under
-  `shell: bash -eo pipefail {0}`. Don't remove it.
+  `shell: bash --noprofile --norc -eo pipefail {0}`. Don't remove the `pipefail`.
+  (The `--noprofile --norc` half is GitHub's own default, which a custom `shell:`
+  silently drops; it changes nothing for non-interactive bash but keeps the
+  steps from reading the runner's profile.)
 - **When you add a way to run something, verify it actually runs.** A command that
   skips everything and exits 0 looks identical to a pass. `RUN_NETWORK_TESTS=1
   xcodebuild test` did exactly that — environment variables need the

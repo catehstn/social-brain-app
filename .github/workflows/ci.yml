@@ -31,18 +31,19 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
-          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
-          restore-keys: ${{ runner.os }}-spm-
+          key: ${{ runner.os }}-spm-app-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-app-
 
       - name: Resolve packages
         run: xcodebuild -resolvePackageDependencies -scheme SocialBrain
 
-      # `shell: bash -eo pipefail` is load-bearing. Without pipefail, piping
+      # `shell: bash --noprofile --norc -eo pipefail {0}` is load-bearing — the
+      # `pipefail` half especially. Without it, piping
       # xcodebuild into a formatter reports the FORMATTER's exit code, so a
       # failed build shows up as a green run — which is exactly how a broken
       # build sat unnoticed on main. Do not remove it.
       - name: Run unit tests
-        shell: bash -eo pipefail {0}
+        shell: bash --noprofile --norc -eo pipefail {0}
         run: |
           xcodebuild test \
             -scheme SocialBrain \
@@ -75,18 +76,20 @@ jobs:
       - name: Install xcbeautify
         run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
 
-      - name: Cache SPM dependencies
-        uses: actions/cache@v4
+      # Restore only. Unit Tests owns saving this key; three jobs racing to save
+      # the same one meant two of them logged "Cache already exists" every run.
+      - name: Restore SPM dependencies
+        uses: actions/cache/restore@v4
         with:
           path: ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
-          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
-          restore-keys: ${{ runner.os }}-spm-
+          key: ${{ runner.os }}-spm-app-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-app-
 
       - name: Resolve packages
         run: xcodebuild -resolvePackageDependencies -scheme SocialBrain-UITests
 
       - name: Run UI tests
-        shell: bash -eo pipefail {0}
+        shell: bash --noprofile --norc -eo pipefail {0}
         run: |
           xcodebuild test \
             -scheme SocialBrain-UITests \
@@ -134,14 +137,18 @@ jobs:
           path: |
             ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
             build/SourcePackages
-          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
-          restore-keys: ${{ runner.os }}-spm-
+          # Its own key, not the one Unit Tests saves. actions/cache derives the
+          # cache version from the path list, so a shared key with a different
+          # path list makes a silently separate entry — which is confusing to
+          # read even though it works.
+          key: ${{ runner.os }}-spm-mcp-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-mcp-
 
       # Both actions, because they fail differently: the tests do not exercise
       # DatabaseProxy (they inject a stub store), so only a Release build of the
       # tool proves the binary the README tells people to build still links.
       - name: Run MCP tests
-        shell: bash -eo pipefail {0}
+        shell: bash --noprofile --norc -eo pipefail {0}
         run: |
           xcodebuild test \
             -scheme SocialBrainMCP \
@@ -153,7 +160,7 @@ jobs:
             | xcbeautify --renderer github-actions
 
       - name: Build the documented Release binary
-        shell: bash -eo pipefail {0}
+        shell: bash --noprofile --norc -eo pipefail {0}
         run: |
           xcodebuild build \
             -scheme SocialBrainMCP \
@@ -193,15 +200,17 @@ jobs:
       - name: Install xcbeautify
         run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
 
-      - name: Cache SPM dependencies
-        uses: actions/cache@v4
+      # Restore only. Unit Tests owns saving this key; three jobs racing to save
+      # the same one meant two of them logged "Cache already exists" every run.
+      - name: Restore SPM dependencies
+        uses: actions/cache/restore@v4
         with:
           path: ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
-          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
-          restore-keys: ${{ runner.os }}-spm-
+          key: ${{ runner.os }}-spm-app-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-app-
 
       - name: Build Release configuration
-        shell: bash -eo pipefail {0}
+        shell: bash --noprofile --norc -eo pipefail {0}
         run: |
           xcodebuild build \
             -scheme SocialBrain \
