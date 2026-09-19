@@ -14,11 +14,23 @@ It's a ground-up Swift rewrite of an earlier Python CLI tool.
 | | |
 |---|---|
 | macOS | 14.0 (Sonoma) or later |
-| Xcode | 16.3 or later |
+| Xcode | 16.4 or later (what CI verifies — see below) |
 | Swift | language mode 6.0 |
 | Dependencies | [GRDB.swift](https://github.com/groue/GRDB.swift) 7.x, via Swift Package Manager |
 
 No CocoaPods, no Carthage, no Python runtime. SPM resolves GRDB on first build.
+
+**CI deliberately runs an older Xcode than you probably are.** It floats on the
+GitHub macOS runner default — currently Xcode 16.4 (16F6) — while local
+development is on 26.6. The gap is kept on purpose: newer swift-foundation is
+more lenient, and the older one is closer to what a stricter runtime does. It
+has already earned its keep once, catching that `JSONDecoder`'s `.iso8601`
+strategy rejects fractional seconds — the Mastodon and Bluesky collectors passed
+locally and failed on CI, which is how we learned they would fail against their
+**live APIs**. See `ISO8601Decoding.swift`.
+
+The cost is a round-trip when a failure doesn't reproduce locally. If that
+happens, suspect the toolchain gap before suspecting your change.
 
 ## Getting started
 

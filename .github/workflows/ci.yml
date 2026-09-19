@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # So Release Build can be run against a branch on demand — it no longer runs
+  # on pull requests. See that job for why.
+  workflow_dispatch:
 
 # Cancel superseded runs on the same branch. macOS runners bill at a 10x
 # minute multiplier, so redundant runs are the expensive kind.
@@ -172,10 +175,22 @@ jobs:
           path: '*.xcresult'
           retention-days: 7
 
+  # Not on pull requests — on main, and on demand via workflow_dispatch.
+  #
+  # Measured: this job is ~40 of the ~130 billed macOS-minutes a full run costs,
+  # the single largest share, and macOS runners bill at a 10x multiplier against
+  # a ~200-minute monthly allowance. It compiles the same source the other jobs
+  # already compile, differing only in configuration, so the marginal thing it
+  # catches on a PR is a Release-only build failure — real, but rare, and caught
+  # on main within minutes of the merge.
+  #
+  # The trade is deliberate (#91): a Release-only break reaches main and is
+  # fixed forward, rather than every PR push paying to rule it out.
   release-build:
     name: Release Build
     runs-on: macos-15
     timeout-minutes: 30
+    if: github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v5
 

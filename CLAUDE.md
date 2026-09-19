@@ -164,9 +164,17 @@ instead. Everywhere else the table applies.
 ## CI
 
 - **Treat a single green check as provisional.** Before reporting a PR as passing
-  — or merging it — confirm all four jobs (**Unit Tests**, **UI Tests**, **MCP Server**,
-  **Release Build**) have *concluded* green, not just started, and that they ran
+  — or merging it — confirm all three PR jobs (**Unit Tests**, **UI Tests**,
+  **MCP Server**) have *concluded* green, not just started, and that they ran
   against the current head commit.
+- **Release Build does not run on pull requests** (#91). It runs on pushes to
+  `main` and on demand via `workflow_dispatch`. It was ~40 of the ~130 billed
+  macOS-minutes a full run cost — the largest single share — to compile source
+  the other jobs already compile, differing only in configuration. So a
+  Release-only break reaches `main` and is fixed forward. **If a change could
+  plausibly break only the Release configuration, run it on the branch first:**
+  `gh workflow run CI --ref <branch>`, or locally with
+  `xcodebuild build -scheme SocialBrain -configuration Release`.
 - **A green check is only worth what the pipeline can actually fail on.** This
   repo reported success for months while not building at all: `xcodebuild |
   xcpretty` without `pipefail` returns the *formatter's* exit code, so the failing
@@ -180,15 +188,26 @@ instead. Everywhere else the table applies.
 - **Run the tests locally before pushing.** macOS runners bill at a **10x** minute
   multiplier, so the ~2,000 free minutes/month are really ~200 macOS-minutes. The
   workflow triggers on pushes to `main` and on pull requests, so a feature-branch
-  push runs nothing until a PR exists — after that, all three jobs fire on every
-  push to it. Pushing to find out is not free.
+  push runs nothing until a PR exists — after that, every job except Release
+  Build fires on every push to it. Pushing to find out is not free.
 - **Every job needs `timeout-minutes`.** GitHub's default is 360. A hung macOS
   job at 6 hours x 10 = 3,600 billed minutes, which is 18x the monthly
   allowance — from one stuck step.
-- CI floats on the runner's default Xcode; local development is on a newer one.
-  That gap has already caught a real bug (see `ISO8601Decoding.swift`) and also
-  costs a round-trip when a failure doesn't reproduce locally. Policy is being
-  decided in #51.
+- **The CI/local Xcode gap is deliberate** (#51). CI floats on the runner's
+  default — Xcode 16.4 (16F6) at the time of writing — while local development
+  is on 26.6. Newer swift-foundation is more lenient, so CI is the stricter
+  check, and it has already caught a real bug: `JSONDecoder`'s `.iso8601`
+  strategy rejects fractional seconds, so the Mastodon and Bluesky collectors
+  passed locally and failed on CI, which is how we learned they would fail
+  against their **live APIs** (see `ISO8601Decoding.swift`).
+
+  The cost is a round-trip when a failure doesn't reproduce locally — suspect
+  the toolchain before suspecting the change. A matrix over both versions was
+  rejected on cost: macOS runners bill at 10x against a ~200-minute monthly
+  allowance, and it would roughly double the spend per push.
+
+  **The README's stated minimum must match what CI actually verifies.** It said
+  16.3 while CI ran 16.4; if the runner image moves, update both.
 
 ## Issue tracking
 
