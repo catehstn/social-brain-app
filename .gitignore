@@ -3,6 +3,8 @@
 *.xcuserstate
 *.xcworkspace/xcuserdata/
 DerivedData/
+# The README and CI both build the MCP tool with -derivedDataPath build
+build/
 *.ipa
 *.dSYM.zip
 *.dSYM

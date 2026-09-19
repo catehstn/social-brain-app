@@ -93,7 +93,7 @@ SocialBrain/
                 `ViewModel` (Onboarding, Settings and Sidebar have no ViewModel)
 SocialBrainTests/     Unit tests
 SocialBrainUITests/   UI tests (CI only)
-SocialBrainMCP/       MCP server — NOT currently part of any build target (#47)
+SocialBrainMCP/       MCP server — query your snapshots from Claude (see below)
 docs/                 Design brief, platform setup guide, plans
 ```
 
@@ -140,9 +140,38 @@ every collector and every migration, one PR per logical change.
 Current state of the repo and the prioritised backlog:
 [docs/repo-cleanup-plan.md](docs/repo-cleanup-plan.md).
 
+## MCP server
+
+`SocialBrainMCP` exposes the local analytics database to Claude over the Model
+Context Protocol, so you can ask about your own numbers directly. Tools:
+`list_platforms`, `get_latest_snapshot`, `get_all_snapshots`, `get_history` and
+`generate_prompt`.
+
+Build it:
+
+```sh
+xcodebuild build -scheme SocialBrainMCP -configuration Release -derivedDataPath build
+# Binary at: build/Build/Products/Release/SocialBrainMCP
+```
+
+Then add it to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "social-brain": {
+      "command": "/full/path/to/build/Build/Products/Release/SocialBrainMCP"
+    }
+  }
+}
+```
+
+It reads the database the app writes, which lives inside the app's sandbox
+container, and it opens it read-only. Run a collection in the app first — with
+no database the server exits with a message saying so.
+
 ## Known gaps
 
-- `SocialBrainMCP/` is not in any build target and has never compiled.
 - No tests for the Google Search Console, Hacker News, or Buffer collectors, the
   LinkedIn XLSX parser, the ZIP reader, or either OAuth flow.
 - The app is unsigned and not distributable.

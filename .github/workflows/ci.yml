@@ -104,6 +104,55 @@ jobs:
           path: '*.xcresult'
           retention-days: 7
 
+  # The MCP server is a separate product with its own tests, which had never
+  # run before #47 — the target did not exist.
+  mcp-server:
+    name: MCP Server
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Show toolchain
+        run: xcodebuild -version
+
+      - name: Install xcbeautify
+        run: brew list xcbeautify >/dev/null 2>&1 || brew install xcbeautify
+
+      - name: Cache SPM dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-spm-
+
+      # Both actions, because they fail differently: the tests do not exercise
+      # DatabaseProxy (they inject a stub store), so only a Release build of the
+      # tool proves the binary the README tells people to build still links.
+      - name: Run MCP tests
+        shell: bash -eo pipefail {0}
+        run: |
+          xcodebuild test \
+            -scheme SocialBrainMCP \
+            -destination 'platform=macOS' \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM= \
+            | xcbeautify --renderer github-actions
+
+      - name: Build the documented Release binary
+        shell: bash -eo pipefail {0}
+        run: |
+          xcodebuild build \
+            -scheme SocialBrainMCP \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY=- \
+            DEVELOPMENT_TEAM= \
+            | xcbeautify --renderer github-actions
+          test -x build/Build/Products/Release/SocialBrainMCP
+
   release-build:
     name: Release Build
     runs-on: macos-15

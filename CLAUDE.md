@@ -46,8 +46,8 @@ SocialBrain/
     Onboarding/ Dashboard/ Feed/ History/ Platforms/ Run/ Settings/ Sidebar/
 SocialBrainTests/       # Unit tests (Swift Testing)
 SocialBrainUITests/     # UI tests — CI only, they take over the screen
-SocialBrainMCP/         # MCP server — NOT in any build target, see #47
-SocialBrainMCPTests/    # Tests for it — also unbuilt, same decision
+SocialBrainMCP/         # MCP server — its own tool target and scheme (#47)
+SocialBrainMCPTests/    # Its tests; the SocialBrainMCP scheme runs them
 docs/                   # Design brief, setup guide, plans
 ```
 
@@ -162,7 +162,7 @@ instead. Everywhere else the table applies.
 ## CI
 
 - **Treat a single green check as provisional.** Before reporting a PR as passing
-  — or merging it — confirm all three jobs (**Unit Tests**, **UI Tests**,
+  — or merging it — confirm all four jobs (**Unit Tests**, **UI Tests**, **MCP Server**,
   **Release Build**) have *concluded* green, not just started, and that they ran
   against the current head commit.
 - **A green check is only worth what the pipeline can actually fail on.** This

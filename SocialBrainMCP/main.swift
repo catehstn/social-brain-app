@@ -33,5 +33,14 @@ import Foundation
 // MARK: - Entry point
 
 // Run the server on the main thread; async entry point keeps the run loop alive.
-let server = MCPServer()
-await server.run()
+//
+// The database is opened here rather than in a default argument so that a
+// missing one is reported instead of trapping. stdout is the JSON-RPC channel,
+// so the message goes to stderr, which Claude surfaces as server output.
+do {
+    let server = MCPServer(store: try DatabaseProxy())
+    await server.run()
+} catch {
+    FileHandle.standardError.write(Data("SocialBrainMCP: \(error.localizedDescription)\n".utf8))
+    exit(1)
+}

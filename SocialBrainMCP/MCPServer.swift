@@ -127,7 +127,9 @@ actor MCPServer {
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
-    init(store: any SnapshotStore = DatabaseProxy()) {
+    /// No default store: constructing one can fail, and a default argument
+    /// cannot throw. `main.swift` builds it and reports the failure.
+    init(store: any SnapshotStore) {
         self.store = store
     }
 
@@ -405,18 +407,18 @@ actor MCPServer {
             Calendar.current.date(byAdding: .day, value: -d, to: .now) ?? .distantPast
         }
 
-        var platformData: [PlatformData] = []
+        // Keyed by instance, which is what PromptAssembler takes. This built a
+        // [PlatformData] until #47: the target had never compiled, so the app
+        // changed the signature underneath it and nothing said so.
+        var snapshotsByInstance: [PlatformInstance: PlatformSnapshot] = [:]
         for (platform, snapshot) in allSnapshots {
             if let cutoff, snapshot.collectedAt < cutoff { continue }
-            let metrics = try snapshot.decodedMetrics()
-            platformData.append(PlatformData(
-                platform: platform,
-                collectedAt: snapshot.collectedAt,
-                metrics: metrics
-            ))
+            let instance = PlatformInstance(platform: platform,
+                                            instanceName: snapshot.instanceName)
+            snapshotsByInstance[instance] = snapshot
         }
 
-        if platformData.isEmpty {
+        if snapshotsByInstance.isEmpty {
             return "No platforms have data within the requested period."
         }
 
@@ -424,7 +426,7 @@ actor MCPServer {
         let input = PromptAssembler.Input(
             periodLabel: periodLabel,
             reportDate: .now,
-            snapshots: platformData
+            snapshots: snapshotsByInstance
         )
         return assembler.assemble(input)
     }
