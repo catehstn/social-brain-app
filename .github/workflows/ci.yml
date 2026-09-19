@@ -122,10 +122,14 @@ jobs:
       - name: Cache SPM dependencies
         uses: actions/cache@v4
         with:
-          # Two paths: the Release step below uses -derivedDataPath build to run
-          # the exact command the README gives people, which puts SourcePackages
-          # under build/ rather than the default location. Without the second
-          # line CI re-cloned and rebuilt GRDB on every run.
+          # Two paths: the Release step below uses -derivedDataPath build to
+          # run the exact command the README gives people, which puts
+          # SourcePackages under build/ rather than the default location.
+          #
+          # This caches the package *checkout*, not build products — GRDB is
+          # still compiled either way. It saves a clone, which is seconds, at
+          # the cost of a second archived copy. Kept because the alternative is
+          # not running the documented command at all.
           path: |
             ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
             build/SourcePackages
