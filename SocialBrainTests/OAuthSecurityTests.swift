@@ -145,22 +145,35 @@ struct OAuthSecurityTests {
     /// `PlatformCredentialSheet` renders `localizedDescription` straight into
     /// the credentials sheet. Bounding the length is a deliberate behaviour
     /// change, so it gets assertions rather than only a comment.
-    @Test("A long server description is clipped and marked as clipped")
+    /// Asserts the boundary exactly rather than "shorter than some slack
+    /// figure": with `< 300` here, widening the limit to 250 was still a pass.
+    @Test("A long server description is clipped to exactly 200 characters")
     func longServerDescriptionIsClipped() throws {
         let long = String(repeating: "A", count: 5_000)
         let message = try #require(OAuthError.server("access_denied", description: long)
             .errorDescription)
-        #expect(message.count < 300)
-        #expect(message.contains("\u{2026}"))
-        #expect(message.contains("access_denied"))
+        #expect(message.hasPrefix(String(repeating: "A", count: 200) + "\u{2026}"))
+        #expect(message == String(repeating: "A", count: 200) + "\u{2026} (access_denied)")
     }
 
-    @Test("A long error code is clipped too")
+    @Test("A long error code is clipped to exactly 60 characters")
     func longServerCodeIsClipped() throws {
         let message = try #require(OAuthError.server(String(repeating: "B", count: 5_000),
                                                      description: nil).errorDescription)
-        #expect(message.count < 150)
-        #expect(message.contains("\u{2026}"))
+        #expect(message == "The server refused the sign-in: "
+                + String(repeating: "B", count: 60) + "\u{2026}.")
+    }
+
+    /// The limit itself is not a clip — one character over is.
+    @Test("A description of exactly the limit is not marked as clipped")
+    func descriptionAtTheLimitIsNotClipped() throws {
+        let exact = String(repeating: "A", count: 200)
+        let atLimit = try #require(OAuthError.server("e", description: exact).errorDescription)
+        #expect(atLimit == exact + " (e)")
+
+        let overBy1 = try #require(OAuthError.server("e", description: exact + "A")
+            .errorDescription)
+        #expect(overBy1 == exact + "\u{2026} (e)")
     }
 
     /// The marker must mean "cut", so a description that fits keeps its exact
