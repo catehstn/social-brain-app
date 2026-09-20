@@ -33,11 +33,14 @@ final class RunViewModel {
     /// preferences through three separate stores. See the same note on
     /// `PlatformsViewModel`.
     ///
-    /// This is not the whole story for this type. `CollectionEngine` still
-    /// defaults `instances:` and `hasCredentials:` to the real registry and
-    /// Keychain, `KeychainStore.shared` is read directly further down, and
-    /// `SpikeNotifier` reaches `NotificationManager.shared` — so constructing
-    /// one in a test is still not safe. #184.
+    /// Constructing one is safe — the initialiser only builds a
+    /// `CollectionEngine`, which reaches nothing, and an assembler from the
+    /// store it was given. *Calling* it is not: `startCollection` uses
+    /// `CollectorRegistry.configured()`, whose `instances:` and
+    /// `hasCredentials:` default to the real registry and Keychain;
+    /// `KeychainStore.shared` is read directly at two points below; and
+    /// `SpikeNotifier` takes `NotificationManager.shared` through its own
+    /// default. #184.
     init(database: AppDatabase,
          visibility: PlatformVisibilityStore,
          goals: AnalyticsGoalStore,

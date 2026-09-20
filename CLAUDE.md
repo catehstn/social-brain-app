@@ -147,9 +147,13 @@ app, and a documented test command that silently skipped and exited 0.
   it a production default is the failure mode to watch for** — it looks like
   the fix and leaves the hazard.
 
-  **Three initialisers still default to production** and are not yet converted:
-  `FeedViewModel` and `FeedCardBuilder` (`visibility:`), and
-  `CollectionEngine` (`instances:`, `hasCredentials:`) — #184.
+  **Three declarations still default to production** and are not yet
+  converted — only one of them is an initialiser, which is why "check the
+  inits" misses two: `FeedViewModel.init` and the static `FeedCardBuilder.build`
+  (`visibility:`), and the static `CollectorRegistry.configured`
+  (`instances:`, `hasCredentials:`). That last one is *not* on
+  `CollectionEngine`, which is an actor taking only a database and reaching
+  nothing — they share a file. #184.
 
   **`@AppStorage` is the hole the grep cannot see**, since it never names
   `UserDefaults.standard`. Six uses remain, pinned key-by-key in the same test:
