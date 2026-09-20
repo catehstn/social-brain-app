@@ -221,6 +221,15 @@ enum OAuthError: LocalizedError, Equatable {
     /// credentials sheet.
     case server(String, description: String?)
 
+    /// Bounds a server-supplied string, marking it when it has been cut so a
+    /// truncated message does not read as a complete one.
+    ///
+    /// Length is the smaller half of the problem: the text still renders
+    /// verbatim, so newlines or copy imitating the app survive this (#186).
+    private static func clip(_ s: String, to limit: Int) -> String {
+        s.count <= limit ? s : s.prefix(limit) + "\u{2026}"
+    }
+
     var errorDescription: String? {
         switch self {
         case .badURL:    "Could not build the OAuth URL."
@@ -229,8 +238,8 @@ enum OAuthError: LocalizedError, Equatable {
         case .stateMismatch:
             "The sign-in response did not match the request that started it, so it was rejected. Please try signing in again."
         case let .server(code, description):
-            description.map { "\($0.prefix(200)) (\(code.prefix(60)))" }
-                ?? "The server refused the sign-in: \(code.prefix(60))."
+            description.map { "\(Self.clip($0, to: 200)) (\(Self.clip(code, to: 60)))" }
+                ?? "The server refused the sign-in: \(Self.clip(code, to: 60))."
         }
     }
 }

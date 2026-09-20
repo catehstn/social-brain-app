@@ -60,11 +60,12 @@ struct OAuthSecurity: Sendable, Equatable {
     /// code" — a denied consent screen and a malformed redirect are different
     /// problems, and the old code called both `.noCode`.
     ///
-    /// The error is read before the state check. RFC 6749 §4.1.2.1 requires the
-    /// server to echo `state` on an error response, so in theory the order does
-    /// not matter; in practice not every server does, and the only thing traded
-    /// is which message the user sees. No error-carrying callback can yield a
-    /// code either way — the single `return` below sits under the state guard.
+    /// The error is read before the state check. RFC 6749 §4.1.2.1 makes `state`
+    /// REQUIRED on an error response *if the client sent one* — which these
+    /// flows now always do — so in theory the order does not matter; in
+    /// practice not every server complies, and the only thing traded is which
+    /// message the user sees. No error-carrying callback can yield a code
+    /// either way: the single `return` below sits under the state guard.
     static func code(fromCallback url: URL?, expectedState: String) throws -> String {
         guard let url,
               let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems

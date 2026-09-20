@@ -101,9 +101,10 @@ struct OAuthSecurityTests {
         }
     }
 
-    /// RFC 6749 §4.1.2.1 requires the server to echo `state` on an error
-    /// response, but not every server does. Reading the error first means a
-    /// declined consent screen says so, rather than reporting a mismatch.
+    /// RFC 6749 §4.1.2.1 makes `state` REQUIRED on an error response only if the
+    /// client sent one. These flows always do, but not every server complies.
+    /// Reading the error first means a declined consent screen says so, rather
+    /// than reporting a mismatch.
     @Test("A server error is reported even when the callback has no state")
     func serverErrorBeatsStateCheck() {
         let url = URL(string: "socialbrain://oauth/mastodon?error=access_denied")
@@ -136,6 +137,40 @@ struct OAuthSecurityTests {
         #expect(throws: OAuthError.noCode) {
             try OAuthSecurity.code(fromCallback: url, expectedState: "STATE123")
         }
+    }
+
+    // MARK: - Error text
+
+    /// `OAuthError.server` carries two server-controlled strings, and
+    /// `PlatformCredentialSheet` renders `localizedDescription` straight into
+    /// the credentials sheet. Bounding the length is a deliberate behaviour
+    /// change, so it gets assertions rather than only a comment.
+    @Test("A long server description is clipped and marked as clipped")
+    func longServerDescriptionIsClipped() throws {
+        let long = String(repeating: "A", count: 5_000)
+        let message = try #require(OAuthError.server("access_denied", description: long)
+            .errorDescription)
+        #expect(message.count < 300)
+        #expect(message.contains("\u{2026}"))
+        #expect(message.contains("access_denied"))
+    }
+
+    @Test("A long error code is clipped too")
+    func longServerCodeIsClipped() throws {
+        let message = try #require(OAuthError.server(String(repeating: "B", count: 5_000),
+                                                     description: nil).errorDescription)
+        #expect(message.count < 150)
+        #expect(message.contains("\u{2026}"))
+    }
+
+    /// The marker must mean "cut", so a description that fits keeps its exact
+    /// text and gains nothing.
+    @Test("A short server description is passed through unchanged")
+    func shortServerDescriptionIsNotClipped() throws {
+        let message = try #require(OAuthError.server("access_denied", description: "User denied")
+            .errorDescription)
+        #expect(message == "User denied (access_denied)")
+        #expect(!message.contains("\u{2026}"))
     }
 
     // MARK: - Authorisation URLs

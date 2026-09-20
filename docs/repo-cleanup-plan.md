@@ -76,18 +76,21 @@ Either wire it up as a real target or move it out. Leaving unbuildable code that
 
 ### P1 — Test gaps against the project's own rule
 
-CLAUDE.md: *"Add tests for every collector."* Currently missing:
+CLAUDE.md: *"Add tests for every collector."* As written on 2026-09-01 this
+listed six gaps. **Five are closed** — `GoogleSearchConsoleCollector` (15
+tests), `BufferCollector` (21), `HackerNewsCollector` (16),
+`LinkedInXLSXParser` (44) and `MiniZIPReader` (12), all landed in #48 and #49.
 
-- `GoogleSearchConsoleCollector` (210 LOC) — none
-- `BufferCollector` (206 LOC) — setup-URL test only
-- `HackerNewsCollector` — none
-- `LinkedInXLSXParser` (149 LOC) — none
-- `MiniZIPReader` (168 LOC) — none
-- `MastodonOAuth` / `WordPressOAuth` — none *(partly addressed: `OAuthSecurityTests`
-  covers `state`, PKCE and the callback check; the browser flows themselves
-  still have none — #50, #84)*
+What is left:
 
-These are the three most recent collectors plus the two hairiest parsers. The discipline lapsed right before work stopped.
+- `MastodonOAuth` / `WordPressOAuth` — partly covered. `OAuthSecurityTests`
+  tests `state`, the PKCE derivation and the callback check (#84), but the
+  browser flows themselves are still unexercised end to end, which is #50.
+
+These were the three most recent collectors plus the two hairiest parsers, and
+the discipline lapsed right before work stopped. It has since been widened into
+the table in CLAUDE.md, which covers parsers and OAuth flows rather than
+collectors alone.
 
 ---
 
