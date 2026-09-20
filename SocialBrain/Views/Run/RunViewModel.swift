@@ -29,9 +29,15 @@ final class RunViewModel {
 
     /// No parameter defaults to production, and `labels` is threaded through
     /// rather than hardcoded into the assembler: a test writing
-    /// `RunViewModel(database: db)` would otherwise read and write the
-    /// developer's own preferences through three separate stores. See the same
-    /// note on `PlatformsViewModel`.
+    /// `RunViewModel(database: db)` would otherwise read the developer's own
+    /// preferences through three separate stores. See the same note on
+    /// `PlatformsViewModel`.
+    ///
+    /// This is not the whole story for this type. `CollectionEngine` still
+    /// defaults `instances:` and `hasCredentials:` to the real registry and
+    /// Keychain, `KeychainStore.shared` is read directly further down, and
+    /// `SpikeNotifier` reaches `NotificationManager.shared` — so constructing
+    /// one in a test is still not safe. #184.
     init(database: AppDatabase,
          visibility: PlatformVisibilityStore,
          goals: AnalyticsGoalStore,

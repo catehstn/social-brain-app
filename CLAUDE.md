@@ -118,14 +118,22 @@ app, and a documented test command that silently skipped and exited 0.
   thing — it passes for a suite-named store, and says nothing about any other
   file.
 
-  **That describes the stores, not every caller.** Nine call sites still read
-  the globals directly, across four files: `PlatformCredentialSheet` (three)
-  and `PlatformDetailView` (one) use `InstanceLabels.shared`, `OnboardingView`
-  uses `AnalyticsGoalStore.shared` (four), and `SocialBrainApp` calls
-  `PlatformVisibilityStore.shared.resetAll()`. Views are not under test here,
-  so this is tolerated rather than wrong — but `PlatformCredentialSheet` writes
-  labels to `.shared` while the `PlatformsViewModel` behind it writes to an
-  injected store, so a test-injected view model and the sheet will disagree.
+  **That describes the stores, not every caller.** These still read a global
+  directly: `PlatformCredentialSheet` and `PlatformDetailView`
+  (`InstanceLabels.shared`), `OnboardingView` (`AnalyticsGoalStore.shared`),
+  `SocialBrainApp` (`PlatformVisibilityStore.shared.resetAll()`),
+  `PlatformInstance.displayName` (`displayName(using: .shared)`) and
+  `MCPServer` (`PromptAssembler(labels: .shared)` — #183). Views are not under
+  test, so most of this is tolerated rather than wrong; `PlatformInstance` is
+  not a view, which is why `displayName` has a `using:` form and tests must
+  call it.
+
+  **Do not restate that as a count.** Three attempts in one PR gave three wrong
+  numbers, because `grep "InstanceLabels.shared"` cannot see `displayName(using:
+  .shared)` — the type is inferred, so the store's name never appears. Both
+  forms need grepping, and `: \.shared` also matches the *approved* pattern of
+  passing a store explicitly (`PlatformsView`, `RunView`), so the two cannot be
+  told apart mechanically. Hence a list, not a total.
 
   **`PlatformsViewModel`, `RunViewModel` and `PromptAssembler` take no
   production default**, and their call sites pass `.shared` explicitly. The
