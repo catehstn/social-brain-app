@@ -71,6 +71,9 @@
 		14559F0CE878B76315A55696 /* HighReachDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7F1E234A0DE49718BDE9022 /* HighReachDetectorTests.swift */; };
 		A97F0568846BF3C7E478F5E5 /* HistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AA5FEEB657E076A0A25BF49 /* HistoryView.swift */; };
 		1D390F32B0F40A94CDE57339 /* HistoryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB8CAC7CB7D19D22B1EFB223 /* HistoryViewModel.swift */; };
+		C0FFEE0000000000000KVS10 /* KeyValueStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE0000000000000KVS01 /* KeyValueStore.swift */; };
+		C0FFEE0000000000000KVS11 /* KeyValueStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE0000000000000KVS01 /* KeyValueStore.swift */; };
+		C0FFEE0000000000000KVS12 /* KeyValueStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FFEE0000000000000KVS01 /* KeyValueStore.swift */; };
 		44425268AADB41B2A176AE25 /* InstanceLabels.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9E765C648052F32421F1E8 /* InstanceLabels.swift */; };
 		499602CE6D7B4F2E8B03C5B8 /* InstanceLabels.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9E765C648052F32421F1E8 /* InstanceLabels.swift */; };
 		A677FE78A976F57D41C2DB79 /* InstanceLabels.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE9E765C648052F32421F1E8 /* InstanceLabels.swift */; };
@@ -233,6 +236,7 @@
 		0AA5FEEB657E076A0A25BF49 /* HistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryView.swift; sourceTree = "<group>"; };
 		BB8CAC7CB7D19D22B1EFB223 /* HistoryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViewModel.swift; sourceTree = "<group>"; };
 		1B2C0D11CC10BC41011D7105 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		C0FFEE0000000000000KVS01 /* KeyValueStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeyValueStore.swift; sourceTree = "<group>"; };
 		BE9E765C648052F32421F1E8 /* InstanceLabels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstanceLabels.swift; sourceTree = "<group>"; };
 		458B9715149EF5F17AD36E99 /* InstanceRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstanceRegistry.swift; sourceTree = "<group>"; };
 		836CA271B1BC38157EA386DB /* InstanceRegistryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstanceRegistryTests.swift; sourceTree = "<group>"; };
@@ -398,6 +402,7 @@
 				D0B539D92D98ECFBF5B56077 /* FeedCardType.swift */,
 				6627A9F277A9FD7656876707 /* FeedPlatformData.swift */,
 				3E30350A09271495B5BA3CA4 /* HighReachDetector.swift */,
+				C0FFEE0000000000000KVS01 /* KeyValueStore.swift */,
 				BE9E765C648052F32421F1E8 /* InstanceLabels.swift */,
 				458B9715149EF5F17AD36E99 /* InstanceRegistry.swift */,
 				F284E6CCC2F1782721703DDE /* Platform.swift */,
@@ -843,6 +848,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C0FFEE0000000000000KVS10 /* KeyValueStore.swift in Sources */,
 				44425268AADB41B2A176AE25 /* InstanceLabels.swift in Sources */,
 				70572612430045D9905EF9DE /* CollectionRun.swift in Sources */,
 				D5844BC305914945AF750015 /* MCPServer.swift in Sources */,
@@ -861,6 +867,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C0FFEE0000000000000KVS11 /* KeyValueStore.swift in Sources */,
 				499602CE6D7B4F2E8B03C5B8 /* InstanceLabels.swift in Sources */,
 				B7E4BF5F622E4CC797F156C5 /* CollectionRun.swift in Sources */,
 				494BCE731CD44C989B9F51E2 /* MCPServer.swift in Sources */,
@@ -980,6 +987,7 @@
 				9D5DB0E5B64D10A34FED7B92 /* HighReachDetector.swift in Sources */,
 				A97F0568846BF3C7E478F5E5 /* HistoryView.swift in Sources */,
 				1D390F32B0F40A94CDE57339 /* HistoryViewModel.swift in Sources */,
+				C0FFEE0000000000000KVS12 /* KeyValueStore.swift in Sources */,
 				A677FE78A976F57D41C2DB79 /* InstanceLabels.swift in Sources */,
 				E8019105402FB6B3F5A6C5E3 /* InstanceRegistry.swift in Sources */,
 				3DF0243C592A170BD8F961C3 /* JetpackCollector.swift in Sources */,

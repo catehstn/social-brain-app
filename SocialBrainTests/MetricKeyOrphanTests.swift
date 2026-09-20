@@ -207,7 +207,11 @@ struct MetricKeyOrphanTests {
     private static func assemble(platform: Platform, keys: Set<String>) -> String {
         let snapshot = try? PlatformSnapshot(runID: 1, data: data(platform: platform, keys: keys))
         guard let snapshot else { return "" }
-        return PromptAssembler().assemble(
+        // A throwaway label store, not `.shared`: the assembler's headers call
+        // `PlatformInstance.displayName(using:)`, so the default would read the
+        // real preferences and a stored label would change the prompt text this
+        // detector probes.
+        return PromptAssembler(labels: InstanceLabels(defaults: InMemoryKeyValueStore())).assemble(
             PromptAssembler.Input(
                 periodLabel: "Last 30 days",
                 reportDate: Date(timeIntervalSince1970: 1_767_225_600),

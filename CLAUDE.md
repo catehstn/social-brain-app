@@ -101,7 +101,10 @@ app, and a documented test command that silently skipped and exited 0.
 - **Persistent state is injected, never reached for.** Four types store things
   outside the database — `InstanceRegistry`, `PlatformVisibilityStore`,
   `InstanceLabels`, `AnalyticsGoalStore` — and each takes a `KeyValueStore`
-  through its initialiser with a `static let shared` for production.
+  through its initialiser with a `static let shared` for production. The
+  protocol lives in its own `Models/KeyValueStore.swift` because two of those
+  types compile into the MCP targets as well as the app, and it used to sit in
+  `InstanceRegistry.swift`, which does not.
   `UserDefaults.standard` appears in exactly four lines of the app, one per
   store; `KeychainStore` is the same shape with `service`. **A new store follows
   that pattern**, because a `static var` global is repointed by whichever suite
@@ -109,9 +112,23 @@ app, and a documented test command that silently skipped and exited 0.
   directly means the first test to touch it writes the developer's own
   settings (#90).
 
+  That four-line claim is enforced, not just asserted: `InjectedDefaultsTests`
+  greps the app sources, so a fifth use fails the suite and names the file. It
+  replaced two tests that checked `InstanceLabels.shared.defaults is
+  UserDefaults` while their names promised the whole claim — which passes for a
+  suite-named store and says nothing about any other file.
+
+  **`@AppStorage` is the hole the grep cannot see**, since it never names
+  `UserDefaults.standard`. Six uses remain, pinned key-by-key in the same test:
+  the analytics goal in two views (bypassing `AnalyticsGoalStore`) and
+  `hasCompletedOnboarding`, which has no store at all — and whose two
+  declarations disagree on the default (#182).
+
   Watch for the indirect path: `PlatformInstance.displayName` consults the
   label store, so `PromptAssembler` had to take one too — its prompt headers
-  were reading real preferences, and a test had been passing by luck.
+  were reading real preferences, and a test had been passing by luck. A test
+  that wants the plain string calls `displayName(using:)` with a throwaway
+  store; the bare property reads `.shared`, so a stored label breaks it.
 
   **Mutation-testing one of these seams aims the whole suite at real storage.**
   Snapshot first (`defaults read com.catehuston.SocialBrain`), or mutate a call

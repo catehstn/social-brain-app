@@ -17,7 +17,6 @@ struct PromptAssembler {
         self.labels = labels
     }
 
-
     /// A period label and the corresponding snapshots to include.
     struct Input {
         let periodLabel: String           // e.g. "Last 30 days"

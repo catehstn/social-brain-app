@@ -53,10 +53,6 @@ struct InjectedDefaultsTests {
         #expect(b.label(for: instance) == nil)
     }
 
-    @Test("The shared label store is the only thing naming UserDefaults.standard")
-    func sharedLabelsUseStandardDefaults() {
-        #expect(InstanceLabels.shared.defaults is UserDefaults)
-    }
 
     // MARK: - AnalyticsGoalStore
 
@@ -106,8 +102,87 @@ struct InjectedDefaultsTests {
         #expect(goals.currentLabel == AnalyticsGoal.traffic.displayName)
     }
 
-    @Test("The shared goal store is the only thing naming UserDefaults.standard")
-    func sharedGoalsUseStandardDefaults() {
-        #expect(AnalyticsGoalStore.shared.defaults is UserDefaults)
+    // MARK: - The four-line claim
+
+    /// `CLAUDE.md` and `docs/repo-cleanup-plan.md` both say `UserDefaults.standard`
+    /// appears in exactly four lines of the app, one per store. That claim was
+    /// previously "enforced" by two tests asserting
+    /// `InstanceLabels.shared.defaults is UserDefaults` — which passes for a
+    /// `UserDefaults(suiteName:)` store too, and says nothing about the other
+    /// files. This reads the source instead, so adding a fifth use fails here
+    /// rather than quietly making the docs wrong.
+    @Test("UserDefaults.standard appears only in the four shared stores")
+    func standardDefaultsConfinedToSharedStores() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // SocialBrainTests
+            .deletingLastPathComponent()   // repo root
+            .appendingPathComponent("SocialBrain")
+
+        let expected: Set<String> = [
+            "Models/InstanceRegistry.swift",
+            "Models/InstanceLabels.swift",
+            "Models/AnalyticsGoal.swift",
+            "Models/PlatformVisibilityStore.swift",
+        ]
+
+        var found: [String: [String]] = [:]
+        let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)
+        let paths = (files?.allObjects as? [URL] ?? []).filter { $0.pathExtension == "swift" }
+        #expect(!paths.isEmpty, "Found no Swift sources under \(root.path) — the detector would pass vacuously")
+
+        for file in paths {
+            guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
+            let relative = file.path.replacingOccurrences(of: root.path + "/", with: "")
+            for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.hasPrefix("//") else { continue }
+                if trimmed.contains("UserDefaults.standard") {
+                    found[relative, default: []].append(trimmed)
+                }
+            }
+        }
+
+        for (file, lines) in found.sorted(by: { $0.key < $1.key }) {
+            #expect(lines.count == 1, "\(file) names UserDefaults.standard \(lines.count) times: \(lines)")
+            #expect(lines.first?.hasPrefix("static let shared") == true,
+                    "\(file) names UserDefaults.standard outside a `static let shared`: \(lines)")
+        }
+
+        #expect(Set(found.keys) == expected,
+                "Files naming UserDefaults.standard: \(found.keys.sorted()); expected: \(expected.sorted())")
+    }
+
+    /// `@AppStorage` reads `UserDefaults.standard` without naming it, so the
+    /// detector above cannot see it. Two keys still reach preferences that way:
+    /// the analytics goal, which has an `AnalyticsGoalStore` it bypasses, and
+    /// `hasCompletedOnboarding`, which has no injected store at all (#58, #90).
+    /// Pinned as key/file pairs so the gap is recorded rather than implied to be
+    /// closed, and so a new one has to be added here deliberately.
+    @Test("Known gap: @AppStorage reaches preferences without an injected store")
+    func appStorageGapIsKnown() {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("SocialBrain")
+        let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)
+        let paths = (files?.allObjects as? [URL] ?? []).filter { $0.pathExtension == "swift" }
+        #expect(!paths.isEmpty, "Found no Swift sources — this detector would pass vacuously")
+
+        var uses: Set<String> = []
+        for file in paths {
+            guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
+            for line in text.split(separator: "\n") where line.contains("@AppStorage(") {
+                guard let key = line.split(separator: "\"").dropFirst().first else { continue }
+                uses.insert("\(file.lastPathComponent):\(key)")
+            }
+        }
+
+        #expect(uses == [
+            "ContentView.swift:hasCompletedOnboarding",
+            "SettingsView.swift:hasCompletedOnboarding",
+            "SettingsView.swift:analyticsGoal",
+            "SettingsView.swift:analyticsGoalCustomText",
+            "GoalBadgeView.swift:analyticsGoal",
+            "GoalBadgeView.swift:analyticsGoalCustomText",
+        ], "The @AppStorage users changed — update this test and CLAUDE.md together")
     }
 }

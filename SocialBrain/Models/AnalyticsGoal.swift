@@ -46,23 +46,23 @@ struct AnalyticsGoalStore: @unchecked Sendable {
         self.defaults = defaults
     }
 
-    private let goalKey       = "analyticsGoal"
-    private let customTextKey = "analyticsGoalCustomText"
+    private static let goalKey       = "analyticsGoal"
+    private static let customTextKey = "analyticsGoalCustomText"
 
     /// The currently saved goal. Defaults to `.growReach` if unset.
     var current: AnalyticsGoal {
         get {
-            guard let raw = defaults.string(forKey: goalKey),
+            guard let raw = defaults.string(forKey: Self.goalKey),
                   let goal = AnalyticsGoal(rawValue: raw) else { return .growReach }
             return goal
         }
-        nonmutating set { defaults.set(newValue.rawValue, forKey: goalKey) }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Self.goalKey) }
     }
 
     /// Free-text clarification for the `.other` case.
     var customText: String {
-        get { defaults.string(forKey: customTextKey) ?? "" }
-        nonmutating set { defaults.set(newValue, forKey: customTextKey) }
+        get { defaults.string(forKey: Self.customTextKey) ?? "" }
+        nonmutating set { defaults.set(newValue, forKey: Self.customTextKey) }
     }
 
     /// Human-readable label including custom text when applicable.
