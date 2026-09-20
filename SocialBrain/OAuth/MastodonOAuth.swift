@@ -30,19 +30,115 @@ enum MastodonOAuth {
     // MARK: - Public
 
     /// Authenticates with the given Mastodon instance and returns an access token.
-    static func authenticate(instanceURL: URL) async throws -> String {
+    /// Authenticates with the given Mastodon instance and returns an access token.
+    ///
+    /// Reuses the stored application registration for this server if there is
+    /// one. `POST /api/v1/apps` creates a new application on every call and the
+    /// returned `client_secret` is the only handle on it, so registering each
+    /// time left the user with applications they could not revoke (#84).
+    ///
+    /// - Parameter registrations: injected, with no production default, so a
+    ///   test cannot reach the real Keychain by omitting it.
+    static func authenticate(instanceURL: URL,
+                             registrations: MastodonAppRegistrations) async throws -> String {
         let security = OAuthSecurity.generate()
-        let reg  = try await registerApp(on: instanceURL)
+        // `try?` to match the save below: a Keychain the app cannot read is a
+        // reason to register afresh, not to refuse to sign in before the
+        // browser has even opened. Logged, because the silent version of this
+        // is the app quietly regressing to a registration per sign-in — the
+        // bug this type exists to fix — with nothing to diagnose it by.
+        let stored: MastodonAppRegistration?
+        do {
+            stored = try registrations.registration(for: instanceURL)
+        } catch {
+            collectorLog.error("""
+                Could not read the stored Mastodon app registration for \
+                \(instanceURL.host() ?? "?", privacy: .public); registering a new \
+                application instead: \(error.localizedDescription, privacy: .public)
+                """)
+            stored = nil
+        }
+        let reg: MastodonAppRegistration
+        if let stored {
+            reg = stored
+        } else {
+            reg = try await registerAndStore(on: instanceURL, in: registrations)
+        }
+
         let code = try await authorise(instanceURL: instanceURL,
                                        clientID: reg.clientID,
                                        security: security)
-        return try await exchangeCode(
-            code:         code,
-            clientID:     reg.clientID,
-            clientSecret: reg.clientSecret,
-            instanceURL:  instanceURL,
-            codeVerifier: security.codeVerifier
-        )
+        do {
+            return try await exchangeCode(
+                code:         code,
+                clientID:     reg.clientID,
+                clientSecret: reg.clientSecret,
+                instanceURL:  instanceURL,
+                codeVerifier: security.codeVerifier
+            )
+        } catch let error as CollectorError {
+            // A stored registration the instance no longer recognises: its
+            // database was reset, or an admin deleted the application record.
+            //
+            // Note what is *not* a cause. Revoking access from the instance's
+            // "Authorized apps" page calls Doorkeeper's
+            // `revoke_tokens_and_grants_for`, which leaves the application
+            // record itself intact — so the stored `client_id`/`client_secret`
+            // still authenticate and this path never fires. The user simply
+            // signs in again against the same registration, which is the
+            // behaviour we want. (An earlier version of this comment claimed
+            // revocation was the main cause; it is not.)
+            //
+            // Only reachable when the credentials came from the Keychain: a
+            // registration made seconds ago cannot be unknown, and treating a
+            // fresh one this way would loop.
+            //
+            // Matched on `invalid_client` rather than on the status alone.
+            // Doorkeeper answers a stale or replayed `code` with 400
+            // `invalid_grant`, which is ordinary — the user left the consent
+            // screen open too long — and discarding a good registration for it
+            // would cause the exact bug this change removes: one more
+            // unrevocable application on the next sign-in.
+            //
+            // Erring towards deleting on a genuine match, because there is no
+            // UI anywhere to clear a stored registration: a false negative is
+            // an unrecoverable loop, a false positive costs one duplicate app.
+            //
+            // Forgotten rather than retried inline: a retry would send the user
+            // through a second browser consent screen inside one action, with
+            // no explanation of why the first did not take.
+            guard stored != nil,
+                  case let .httpError(status, body) = error,
+                  status == 400 || status == 401,
+                  body.contains("invalid_client")
+            else { throw error }
+            // Not `try?`: if the delete fails — a locked Keychain — the next
+            // attempt loads the same bad registration and fails the same way,
+            // for ever. Better to say the Keychain could not be written.
+            try registrations.removeRegistration(for: instanceURL)
+            throw OAuthError.staleRegistration
+        }
+    }
+
+    private static func registerAndStore(
+        on instanceURL: URL, in registrations: MastodonAppRegistrations
+    ) async throws -> MastodonAppRegistration {
+        let wire = try await registerApp(on: instanceURL)
+        let reg = MastodonAppRegistration(clientID: wire.clientID,
+                                          clientSecret: wire.clientSecret)
+        // A failure to store is not a failure to sign in — it costs a duplicate
+        // application next time, which is the old behaviour, not a broken flow.
+        // Logged for the same reason as the read above.
+        do {
+            try registrations.save(reg, for: instanceURL)
+        } catch {
+            collectorLog.error("""
+                Could not store the Mastodon app registration for \
+                \(instanceURL.host() ?? "?", privacy: .public); the next sign-in will \
+                register again: \(error.localizedDescription, privacy: .public)
+                """)
+        }
+        return reg
     }
 
     /// The authorisation URL, as a pure function so a test can inspect it.
@@ -215,6 +311,9 @@ enum OAuthError: LocalizedError, Equatable {
     /// it does not belong to the sign-in the user started. Never retried
     /// automatically — a mismatch is a reason to stop, not to try again.
     case stateMismatch
+    /// The stored application registration was rejected by the instance, and
+    /// has been forgotten. Signing in again makes a new one.
+    case staleRegistration
     /// The authorisation server refused, e.g. the user declined consent.
     /// Both strings come from the server, so `errorDescription` truncates the
     /// free-text half rather than rendering unbounded remote text in a
@@ -235,6 +334,8 @@ enum OAuthError: LocalizedError, Equatable {
         case .badURL:    "Could not build the OAuth URL."
         case .noCode:    "The server did not return an authorisation code."
         case .cancelled: "Sign-in was cancelled."
+        case .staleRegistration:
+            "This Mastodon application registration is no longer recognised by the instance, so it has been discarded. Please try signing in again."
         case .stateMismatch:
             "The sign-in response did not match the request that started it, so it was rejected. Please try signing in again."
         case let .server(code, description):

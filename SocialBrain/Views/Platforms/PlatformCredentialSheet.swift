@@ -372,7 +372,8 @@ struct PlatformCredentialSheet: View {
         Task {
             defer { isConnecting = false }
             do {
-                let token = try await MastodonOAuth.authenticate(instanceURL: instanceURL)
+                let token = try await MastodonOAuth.authenticate(instanceURL: instanceURL,
+                                                                 registrations: .shared)
                 values["access_token"] = token
                 save()
             } catch OAuthError.cancelled {
