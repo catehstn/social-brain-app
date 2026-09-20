@@ -98,6 +98,24 @@ app, and a documented test command that silently skipped and exited 0.
 - **If a change makes existing tests fail, fix the tests to match the new correct
   behaviour** — don't revert the change to make them pass. If the old assertion
   was right, the change is wrong; decide which, don't split the difference.
+- **Persistent state is injected, never reached for.** Four types store things
+  outside the database — `InstanceRegistry`, `PlatformVisibilityStore`,
+  `InstanceLabels`, `AnalyticsGoalStore` — and each takes a `KeyValueStore`
+  through its initialiser with a `static let shared` for production.
+  `UserDefaults.standard` appears in exactly four lines of the app, one per
+  store; `KeychainStore` is the same shape with `service`. **A new store follows
+  that pattern**, because a `static var` global is repointed by whichever suite
+  runs first and stays repointed (#58), and a type reaching for the global
+  directly means the first test to touch it writes the developer's own
+  settings (#90).
+
+  Watch for the indirect path: `PlatformInstance.displayName` consults the
+  label store, so `PromptAssembler` had to take one too — its prompt headers
+  were reading real preferences, and a test had been passing by luck.
+
+  **Mutation-testing one of these seams aims the whole suite at real storage.**
+  Snapshot first (`defaults read com.catehuston.SocialBrain`), or mutate a call
+  site rather than the seam.
 - **Never let a test trap.** A trapping test does not fail: it kills the test
   host, and the test host **is `SocialBrain.app`** (`TEST_HOST` in the project
   file), so it shows "SocialBrain quit unexpectedly" and writes an `.ips` instead
