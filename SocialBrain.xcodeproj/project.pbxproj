@@ -89,6 +89,7 @@
 		EAB77E5F74CB489AA5241222 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AB71AD7DD2443EFB4399C2A /* main.swift */; };
 		7A53CA94A18CD0DF713D9F5F /* MastodonCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B63D76C0BF2AC6095ABE3CD /* MastodonCollector.swift */; };
 		223EF7B850879D74716F9B54 /* MastodonCollectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0578C20F0D69DC239D837C5 /* MastodonCollectorTests.swift */; };
+		49360B764E3630B8CD3B9095 /* OAuthSecurity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DFB14123F78135B75BCA79A /* OAuthSecurity.swift */; };
 		C3D4E5F6A7B8C9D0E1F2A3B4 /* MastodonOAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F2 /* MastodonOAuth.swift */; };
 		494BCE731CD44C989B9F51E2 /* MCPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A221023099745349776A4FC /* MCPServer.swift */; };
 		D5844BC305914945AF750015 /* MCPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A221023099745349776A4FC /* MCPServer.swift */; };
@@ -120,6 +121,7 @@
 		4A15387D1CA64B8C87492A37 /* PlatformInstance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DFC93798463FDD37AEEFC8B /* PlatformInstance.swift */; };
 		A1ACFFDF551C6795BF672E31 /* PlatformInstance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DFC93798463FDD37AEEFC8B /* PlatformInstance.swift */; };
 		B15950EF9FFC44F09D8297D6 /* PlatformInstance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DFC93798463FDD37AEEFC8B /* PlatformInstance.swift */; };
+		8045AEBE7CF97DE972EE879C /* OAuthSecurityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2B536A75C1A881ED924D55E /* OAuthSecurityTests.swift */; };
 		66AC68012563FDFF8CB3BE14 /* PlatformInstanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B4D35113290A97A57262F31 /* PlatformInstanceTests.swift */; };
 		794086E62E0C9BF3FD59C68B /* PlatformSFSymbolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2B324A06DBC07D1138FA417 /* PlatformSFSymbolTests.swift */; };
 		494C0A95A67C0967ACDDC47A /* PlatformSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = C15440D67BA5E83700B165BF /* PlatformSnapshot.swift */; };
@@ -248,6 +250,7 @@
 		4AB71AD7DD2443EFB4399C2A /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		1B63D76C0BF2AC6095ABE3CD /* MastodonCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonCollector.swift; sourceTree = "<group>"; };
 		A0578C20F0D69DC239D837C5 /* MastodonCollectorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonCollectorTests.swift; sourceTree = "<group>"; };
+		3DFB14123F78135B75BCA79A /* OAuthSecurity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthSecurity.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6A7B8C9D0E1F2 /* MastodonOAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MastodonOAuth.swift; sourceTree = "<group>"; };
 		7A221023099745349776A4FC /* MCPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServer.swift; sourceTree = "<group>"; };
 		DF134179E92D44AFA11F9865 /* MCPServerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPServerTests.swift; sourceTree = "<group>"; };
@@ -272,6 +275,7 @@
 		1AD4BFD9258E2AC05FFEEDC7 /* PlatformData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformData.swift; sourceTree = "<group>"; };
 		EC9DD24783A63A5FA71435EE /* PlatformDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformDetailView.swift; sourceTree = "<group>"; };
 		6DFC93798463FDD37AEEFC8B /* PlatformInstance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformInstance.swift; sourceTree = "<group>"; };
+		E2B536A75C1A881ED924D55E /* OAuthSecurityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthSecurityTests.swift; sourceTree = "<group>"; };
 		1B4D35113290A97A57262F31 /* PlatformInstanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformInstanceTests.swift; sourceTree = "<group>"; };
 		D2B324A06DBC07D1138FA417 /* PlatformSFSymbolTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformSFSymbolTests.swift; sourceTree = "<group>"; };
 		C15440D67BA5E83700B165BF /* PlatformSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformSnapshot.swift; sourceTree = "<group>"; };
@@ -572,6 +576,7 @@
 				C3C41D3F3B0270D6350F2348 /* MultiInstanceDatabaseTests.swift */,
 				499A5644F6082882C9F177E9 /* MultiInstanceKeychainTests.swift */,
 				29A48A10B64A086C99C325AE /* OReillyImporterTests.swift */,
+				E2B536A75C1A881ED924D55E /* OAuthSecurityTests.swift */,
 				1B4D35113290A97A57262F31 /* PlatformInstanceTests.swift */,
 				D2B324A06DBC07D1138FA417 /* PlatformSFSymbolTests.swift */,
 				DEBCB0E4185241B9816883CE /* RetiredPlatformDataTests.swift */,
@@ -628,6 +633,7 @@
 		E5F6A7B8C9D0E1F2A3B4C5D6 /* OAuth */ = {
 			isa = PBXGroup;
 			children = (
+				3DFB14123F78135B75BCA79A /* OAuthSecurity.swift */,
 				A1B2C3D4E5F6A7B8C9D0E1F2 /* MastodonOAuth.swift */,
 				B2C3D4E5F6A7B8C9D0E1F2A3 /* WordPressOAuth.swift */,
 			);
@@ -914,6 +920,7 @@
 				0434DB34C669B38CFF30CF6E /* MultiInstanceDatabaseTests.swift in Sources */,
 				95A8F87EADADA724096D4BB9 /* MultiInstanceKeychainTests.swift in Sources */,
 				2F55349E4EE12E2445D7A65D /* OReillyImporterTests.swift in Sources */,
+				8045AEBE7CF97DE972EE879C /* OAuthSecurityTests.swift in Sources */,
 				66AC68012563FDFF8CB3BE14 /* PlatformInstanceTests.swift in Sources */,
 				794086E62E0C9BF3FD59C68B /* PlatformSFSymbolTests.swift in Sources */,
 				7A397D7C61DD4107A2EE97BB /* RetiredPlatformDataTests.swift in Sources */,
@@ -985,6 +992,7 @@
 				A5B6C7D8E9F0A1B2C3D4E5F6 /* LinkedInXLSXParser.swift in Sources */,
 				F6A7B8C9D0E1F2A3B4C5D6E7 /* MiniZIPReader.swift in Sources */,
 				7A53CA94A18CD0DF713D9F5F /* MastodonCollector.swift in Sources */,
+				49360B764E3630B8CD3B9095 /* OAuthSecurity.swift in Sources */,
 				C3D4E5F6A7B8C9D0E1F2A3B4 /* MastodonOAuth.swift in Sources */,
 				4DCF8F8574D64F757C791756 /* NotificationManager.swift in Sources */,
 				4F0487B2E118A141EF3F347B /* OReillyImporter.swift in Sources */,

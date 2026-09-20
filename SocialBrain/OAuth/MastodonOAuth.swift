@@ -10,8 +10,8 @@ import AuthenticationServices
 @MainActor
 enum MastodonOAuth {
 
-    private static let callbackScheme = "socialbrain"
-    private static let callbackURI    = "socialbrain://oauth/mastodon"
+    private nonisolated static let callbackScheme = "socialbrain"
+    private nonisolated static let callbackURI    = "socialbrain://oauth/mastodon"
 
     // Strong references kept for the duration of the ASWebAuthenticationSession.
     // These stay MainActor-isolated on purpose. The completion handler below is
@@ -31,14 +31,42 @@ enum MastodonOAuth {
 
     /// Authenticates with the given Mastodon instance and returns an access token.
     static func authenticate(instanceURL: URL) async throws -> String {
+        let security = OAuthSecurity.generate()
         let reg  = try await registerApp(on: instanceURL)
-        let code = try await authorise(instanceURL: instanceURL, clientID: reg.clientID)
+        let code = try await authorise(instanceURL: instanceURL,
+                                       clientID: reg.clientID,
+                                       security: security)
         return try await exchangeCode(
             code:         code,
             clientID:     reg.clientID,
             clientSecret: reg.clientSecret,
-            instanceURL:  instanceURL
+            instanceURL:  instanceURL,
+            codeVerifier: security.codeVerifier
         )
+    }
+
+    /// The authorisation URL, as a pure function so a test can inspect it.
+    ///
+    /// PKCE is sent to every instance. Mastodon added it in 4.3.0 and accepts
+    /// only `S256`; older instances ignore the two parameters, and then ignore
+    /// the `code_verifier` at the token step, so the flow still completes
+    /// without the protection rather than breaking.
+    nonisolated static func authorizationURL(instanceURL: URL,
+                                 clientID: String,
+                                 security: OAuthSecurity) throws -> URL {
+        var comps = URLComponents(url: instanceURL.appendingPathComponent("oauth/authorize"),
+                                  resolvingAgainstBaseURL: false)!
+        comps.queryItems = [
+            URLQueryItem(name: "client_id",             value: clientID),
+            URLQueryItem(name: "redirect_uri",          value: callbackURI),
+            URLQueryItem(name: "response_type",         value: "code"),
+            URLQueryItem(name: "scope",                 value: "read"),
+            URLQueryItem(name: "state",                 value: security.state),
+            URLQueryItem(name: "code_challenge",        value: security.codeChallenge),
+            URLQueryItem(name: "code_challenge_method", value: "S256")
+        ]
+        guard let url = comps.url else { throw OAuthError.badURL }
+        return url
     }
 
     // MARK: - Steps
@@ -58,16 +86,13 @@ enum MastodonOAuth {
         return try decodeJSON(AppRegistration.self, from: data, response: response)
     }
 
-    private static func authorise(instanceURL: URL, clientID: String) async throws -> String {
-        var comps = URLComponents(url: instanceURL.appendingPathComponent("oauth/authorize"),
-                                  resolvingAgainstBaseURL: false)!
-        comps.queryItems = [
-            URLQueryItem(name: "client_id",     value: clientID),
-            URLQueryItem(name: "redirect_uri",  value: callbackURI),
-            URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "scope",         value: "read")
-        ]
-        guard let authURL = comps.url else { throw OAuthError.badURL }
+    private static func authorise(instanceURL: URL,
+                                  clientID: String,
+                                  security: OAuthSecurity) async throws -> String {
+        let authURL = try authorizationURL(instanceURL: instanceURL,
+                                           clientID: clientID,
+                                           security: security)
+        let expectedState = security.state
 
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.main.async {
@@ -101,14 +126,12 @@ enum MastodonOAuth {
                         continuation.resume(throwing: cancelled ? OAuthError.cancelled : error)
                         return
                     }
-                    guard let code = callbackURL
-                        .flatMap({ URLComponents(url: $0, resolvingAgainstBaseURL: false) })?
-                        .queryItems?.first(where: { $0.name == "code" })?.value
-                    else {
-                        continuation.resume(throwing: OAuthError.noCode)
-                        return
+                    do {
+                        continuation.resume(returning: try OAuthSecurity.code(
+                            fromCallback: callbackURL, expectedState: expectedState))
+                    } catch {
+                        continuation.resume(throwing: error)
                     }
-                    continuation.resume(returning: code)
                 }
                 let provider = ContextProvider()
                 session.presentationContextProvider = provider
@@ -127,7 +150,8 @@ enum MastodonOAuth {
     }
 
     private static func exchangeCode(
-        code: String, clientID: String, clientSecret: String, instanceURL: URL
+        code: String, clientID: String, clientSecret: String, instanceURL: URL,
+        codeVerifier: String
     ) async throws -> String {
         let url = instanceURL.appendingPathComponent("oauth/token")
         var req = URLRequest(url: url)
@@ -139,7 +163,8 @@ enum MastodonOAuth {
             ("client_id",     clientID),
             ("client_secret", clientSecret),
             ("redirect_uri",  callbackURI),
-            ("scope",         "read")
+            ("scope",         "read"),
+            ("code_verifier", codeVerifier)
         ])
         let (data, response) = try await URLSession.shared.data(for: req)
         let tokenResp = try decodeJSON(TokenResponse.self, from: data, response: response)
@@ -186,12 +211,35 @@ enum OAuthError: LocalizedError, Equatable {
     case badURL
     case noCode
     case cancelled
+    /// The callback's `state` was absent or did not match the one we sent, so
+    /// it does not belong to the sign-in the user started. Never retried
+    /// automatically — a mismatch is a reason to stop, not to try again.
+    case stateMismatch
+    /// The authorisation server refused, e.g. the user declined consent.
+    /// Both strings come from the server, so `errorDescription` truncates the
+    /// free-text half rather than rendering unbounded remote text in a
+    /// credentials sheet.
+    case server(String, description: String?)
+
+    /// Bounds a server-supplied string, marking it when it has been cut so a
+    /// truncated message does not read as a complete one.
+    ///
+    /// Length is the smaller half of the problem: the text still renders
+    /// verbatim, so newlines or copy imitating the app survive this (#186).
+    private static func clip(_ s: String, to limit: Int) -> String {
+        s.count <= limit ? s : s.prefix(limit) + "\u{2026}"
+    }
 
     var errorDescription: String? {
         switch self {
         case .badURL:    "Could not build the OAuth URL."
         case .noCode:    "The server did not return an authorisation code."
         case .cancelled: "Sign-in was cancelled."
+        case .stateMismatch:
+            "The sign-in response did not match the request that started it, so it was rejected. Please try signing in again."
+        case let .server(code, description):
+            description.map { "\(Self.clip($0, to: 200)) (\(Self.clip(code, to: 60)))" }
+                ?? "The server refused the sign-in: \(Self.clip(code, to: 60))."
         }
     }
 }
