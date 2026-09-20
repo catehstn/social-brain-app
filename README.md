@@ -194,6 +194,7 @@ no database the server exits with a message saying so.
 
 ## Known gaps
 
-- No tests for the Google Search Console, Hacker News, or Buffer collectors, the
-  LinkedIn XLSX parser, the ZIP reader, or either OAuth flow.
+- The OAuth flows are only partly tested: the authorisation URLs and the
+  callback check are, but neither flow has been run end to end against a live
+  Mastodon instance or WordPress.com in this repo's tests (#50).
 - The app is unsigned and not distributable.

@@ -216,6 +216,9 @@ enum OAuthError: LocalizedError, Equatable {
     /// automatically — a mismatch is a reason to stop, not to try again.
     case stateMismatch
     /// The authorisation server refused, e.g. the user declined consent.
+    /// Both strings come from the server, so `errorDescription` truncates the
+    /// free-text half rather than rendering unbounded remote text in a
+    /// credentials sheet.
     case server(String, description: String?)
 
     var errorDescription: String? {
@@ -226,7 +229,8 @@ enum OAuthError: LocalizedError, Equatable {
         case .stateMismatch:
             "The sign-in response did not match the request that started it, so it was rejected. Please try signing in again."
         case let .server(code, description):
-            description.map { "\($0) (\(code))" } ?? "The server refused the sign-in: \(code)."
+            description.map { "\($0.prefix(200)) (\(code.prefix(60)))" }
+                ?? "The server refused the sign-in: \(code.prefix(60))."
         }
     }
 }

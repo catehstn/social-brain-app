@@ -1,5 +1,6 @@
-// OAuthError, decodeJSON, and ContextProvider are defined in MastodonOAuth.swift
-// (same module — no import needed)
+// Same module, so no import is needed: `OAuthError` and `ContextProvider` are
+// defined in MastodonOAuth.swift, `OAuthSecurity` in OAuthSecurity.swift, and
+// `decodeJSON` in Collectors/Collector.swift.
 import Foundation
 import AuthenticationServices
 

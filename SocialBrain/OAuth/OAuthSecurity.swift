@@ -59,6 +59,12 @@ struct OAuthSecurity: Sendable, Equatable {
     /// An `error` in the callback is reported as itself rather than as "no
     /// code" — a denied consent screen and a malformed redirect are different
     /// problems, and the old code called both `.noCode`.
+    ///
+    /// The error is read before the state check. RFC 6749 §4.1.2.1 requires the
+    /// server to echo `state` on an error response, so in theory the order does
+    /// not matter; in practice not every server does, and the only thing traded
+    /// is which message the user sees. No error-carrying callback can yield a
+    /// code either way — the single `return` below sits under the state guard.
     static func code(fromCallback url: URL?, expectedState: String) throws -> String {
         guard let url,
               let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
@@ -72,7 +78,11 @@ struct OAuthSecurity: Sendable, Equatable {
             throw OAuthError.server(serverError, description: value("error_description"))
         }
 
-        guard let returned = value("state"), returned == expectedState else {
+        // The empty check is hardening, not a live bug: `generate()` always
+        // produces 43 characters. Without it, a caller that passed "" would
+        // accept a callback carrying `state=`.
+        guard !expectedState.isEmpty,
+              let returned = value("state"), returned == expectedState else {
             throw OAuthError.stateMismatch
         }
         guard let code = value("code") else { throw OAuthError.noCode }

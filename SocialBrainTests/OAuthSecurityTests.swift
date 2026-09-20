@@ -22,13 +22,15 @@ struct OAuthSecurityTests {
 
     @Test("base64url uses no padding and no + or /")
     func base64URLIsURLSafe() {
-        // 0xFB 0xFF encodes to "+/8=" in standard base64, which exercises all
-        // three substitutions at once.
-        let encoded = OAuthSecurity.base64URL(Data([0xFB, 0xFF, 0xFF]))
+        // Two bytes, so the group is short and standard base64 pads it:
+        // 0xFB 0xFF encodes to "+/8=", exercising all three substitutions at
+        // once. Three bytes would be a whole group, and the padding assertion
+        // could then never fail.
+        let encoded = OAuthSecurity.base64URL(Data([0xFB, 0xFF]))
         #expect(!encoded.contains("+"))
         #expect(!encoded.contains("/"))
         #expect(!encoded.contains("="))
-        #expect(encoded == "-___")
+        #expect(encoded == "-_8")
     }
 
     @Test("Generated values are unreserved characters of a length RFC 7636 allows")
@@ -99,9 +101,9 @@ struct OAuthSecurityTests {
         }
     }
 
-    /// An error callback carries no `state` on some servers, so the error has
-    /// to be read before the state check or a declined consent screen reports
-    /// itself as a mismatch.
+    /// RFC 6749 §4.1.2.1 requires the server to echo `state` on an error
+    /// response, but not every server does. Reading the error first means a
+    /// declined consent screen says so, rather than reporting a mismatch.
     @Test("A server error is reported even when the callback has no state")
     func serverErrorBeatsStateCheck() {
         let url = URL(string: "socialbrain://oauth/mastodon?error=access_denied")
@@ -114,6 +116,17 @@ struct OAuthSecurityTests {
     func nilCallbackThrows() {
         #expect(throws: OAuthError.noCode) {
             try OAuthSecurity.code(fromCallback: nil, expectedState: "STATE123")
+        }
+    }
+
+    /// Hardening rather than a live bug — `generate()` never produces an empty
+    /// state — but without the guard a caller passing "" would accept a
+    /// callback carrying `state=`.
+    @Test("An empty expected state matches nothing")
+    func emptyExpectedStateIsRejected() {
+        let url = URL(string: "socialbrain://oauth/mastodon?code=abc&state=")
+        #expect(throws: OAuthError.stateMismatch) {
+            try OAuthSecurity.code(fromCallback: url, expectedState: "")
         }
     }
 

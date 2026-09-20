@@ -83,7 +83,9 @@ CLAUDE.md: *"Add tests for every collector."* Currently missing:
 - `HackerNewsCollector` — none
 - `LinkedInXLSXParser` (149 LOC) — none
 - `MiniZIPReader` (168 LOC) — none
-- `MastodonOAuth` / `WordPressOAuth` — none
+- `MastodonOAuth` / `WordPressOAuth` — none *(partly addressed: `OAuthSecurityTests`
+  covers `state`, PKCE and the callback check; the browser flows themselves
+  still have none — #50, #84)*
 
 These are the three most recent collectors plus the two hairiest parsers. The discipline lapsed right before work stopped.
 
