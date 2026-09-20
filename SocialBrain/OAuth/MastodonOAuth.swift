@@ -44,8 +44,20 @@ enum MastodonOAuth {
         let security = OAuthSecurity.generate()
         // `try?` to match the save below: a Keychain the app cannot read is a
         // reason to register afresh, not to refuse to sign in before the
-        // browser has even opened.
-        let stored = try? registrations.registration(for: instanceURL)
+        // browser has even opened. Logged, because the silent version of this
+        // is the app quietly regressing to a registration per sign-in — the
+        // bug this type exists to fix — with nothing to diagnose it by.
+        let stored: MastodonAppRegistration?
+        do {
+            stored = try registrations.registration(for: instanceURL)
+        } catch {
+            collectorLog.error("""
+                Could not read the stored Mastodon app registration for \
+                \(instanceURL.host() ?? "?", privacy: .public); registering a new \
+                application instead: \(error.localizedDescription, privacy: .public)
+                """)
+            stored = nil
+        }
         let reg: MastodonAppRegistration
         if let stored {
             reg = stored
@@ -65,9 +77,19 @@ enum MastodonOAuth {
                 codeVerifier: security.codeVerifier
             )
         } catch let error as CollectorError {
-            // A stored registration the instance no longer recognises — the
-            // user revoked the application, or the instance was reset. Only
-            // reachable when the credentials came from the Keychain: a
+            // A stored registration the instance no longer recognises: its
+            // database was reset, or an admin deleted the application record.
+            //
+            // Note what is *not* a cause. Revoking access from the instance's
+            // "Authorized apps" page calls Doorkeeper's
+            // `revoke_tokens_and_grants_for`, which leaves the application
+            // record itself intact — so the stored `client_id`/`client_secret`
+            // still authenticate and this path never fires. The user simply
+            // signs in again against the same registration, which is the
+            // behaviour we want. (An earlier version of this comment claimed
+            // revocation was the main cause; it is not.)
+            //
+            // Only reachable when the credentials came from the Keychain: a
             // registration made seconds ago cannot be unknown, and treating a
             // fresh one this way would loop.
             //
@@ -106,7 +128,16 @@ enum MastodonOAuth {
                                           clientSecret: wire.clientSecret)
         // A failure to store is not a failure to sign in — it costs a duplicate
         // application next time, which is the old behaviour, not a broken flow.
-        try? registrations.save(reg, for: instanceURL)
+        // Logged for the same reason as the read above.
+        do {
+            try registrations.save(reg, for: instanceURL)
+        } catch {
+            collectorLog.error("""
+                Could not store the Mastodon app registration for \
+                \(instanceURL.host() ?? "?", privacy: .public); the next sign-in will \
+                register again: \(error.localizedDescription, privacy: .public)
+                """)
+        }
         return reg
     }
 
