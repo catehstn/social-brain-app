@@ -10,14 +10,22 @@ struct MastodonAppRegistrationsTests {
     /// A registration belongs to a server, not to a `PlatformInstance`. Two
     /// accounts on the same host must resolve to one registration, or signing
     /// into the second creates a duplicate application — the bug this fixes.
-    @Test("The account is the host, ignoring path, scheme case and user info")
+    @Test("The account is the host, ignoring path, host case, user info and default port")
     func accountIsTheHost() throws {
         let cases = [
             "https://mastodon.social",
             "https://mastodon.social/",
             "https://mastodon.social/@someone",
             "https://MASTODON.SOCIAL",
-            "https://Mastodon.Social/settings"
+            "https://Mastodon.Social/settings",
+            // Userinfo is not part of the server. `evil.com@` in particular
+            // must not be read as the host.
+            "https://someone:secret@mastodon.social",
+            "https://evil.com@mastodon.social",
+            // The scheme's own default port, written out.
+            "https://mastodon.social:443",
+            // A fully-qualified name with the root dot.
+            "https://mastodon.social."
         ]
         for string in cases {
             let url = try #require(URL(string: string))
@@ -36,12 +44,30 @@ struct MastodonAppRegistrationsTests {
 
     /// A self-hosted instance on a non-default port is a different server from
     /// one on the same host without it.
-    @Test("A port is part of the account")
+    @Test("A non-default port is part of the account")
     func portIsPartOfTheAccount() throws {
         let plain = try #require(URL(string: "https://example.org"))
         let ported = try #require(URL(string: "https://example.org:8443"))
         #expect(MastodonAppRegistrations.account(for: plain) == "example.org")
         #expect(MastodonAppRegistrations.account(for: ported) == "example.org:8443")
+    }
+
+    /// Splitting these would cost a duplicate application, which is the whole
+    /// problem this type exists to prevent.
+    @Test("The scheme's default port does not split a server in two")
+    func defaultPortDoesNotSplit() throws {
+        let httpsPlain = try #require(URL(string: "https://example.org"))
+        let https443   = try #require(URL(string: "https://example.org:443"))
+        let httpPlain  = try #require(URL(string: "http://example.org"))
+        let http80     = try #require(URL(string: "http://example.org:80"))
+
+        #expect(MastodonAppRegistrations.account(for: https443)
+                == MastodonAppRegistrations.account(for: httpsPlain))
+        #expect(MastodonAppRegistrations.account(for: http80)
+                == MastodonAppRegistrations.account(for: httpPlain))
+        // 443 is not http's default, so it still counts there.
+        let http443 = try #require(URL(string: "http://example.org:443"))
+        #expect(MastodonAppRegistrations.account(for: http443) == "example.org:443")
     }
 
     @Test("A URL with no host has no account")
@@ -170,5 +196,38 @@ struct MastodonAppRegistrationsTests {
     @Test("The shared registration store uses its own Keychain service")
     func sharedStoreIsSeparate() {
         #expect(MastodonAppRegistrations.shared.keychain.service != KeychainStore.shared.service)
+    }
+
+    /// CLAUDE.md says the app uses two Keychain services and that the split is
+    /// load-bearing. That is a claim about the whole source tree, so it is
+    /// checked against the source rather than asserted in prose: a third
+    /// service, or a new key shape written into the credential store, fails
+    /// here and names the file.
+    @Test("Production constructs exactly the two known Keychain services")
+    func onlyTwoKeychainServicesExist() {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // SocialBrainTests
+            .deletingLastPathComponent()   // repo root
+            .appendingPathComponent("SocialBrain")
+        let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)
+        let paths = (files?.allObjects as? [URL] ?? []).filter { $0.pathExtension == "swift" }
+        #expect(!paths.isEmpty, "No Swift sources under \(root.path) — this would pass vacuously")
+
+        var constructions: [String] = []
+        for file in paths {
+            guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
+            for line in text.split(separator: "\n") {
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard !trimmed.hasPrefix("//"), trimmed.contains("KeychainStore(service:") else {
+                    continue
+                }
+                constructions.append("\(file.lastPathComponent): \(trimmed)")
+            }
+        }
+
+        #expect(constructions.count == 2,
+                "Expected two KeychainStore services, found \(constructions.count): \(constructions)")
+        #expect(constructions.contains { $0.contains("\"com.catehuston.SocialBrain\")") })
+        #expect(constructions.contains { $0.contains("\"com.catehuston.SocialBrain.mastodon-apps\")") })
     }
 }

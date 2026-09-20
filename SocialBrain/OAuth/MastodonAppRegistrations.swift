@@ -16,6 +16,10 @@ struct MastodonAppRegistration: Equatable, Sendable {
 /// the user's instance that they could not revoke, because the app had already
 /// thrown away the credentials naming it (#84).
 ///
+/// Kept across a disconnect on purpose: reconnecting then reuses the
+/// registration instead of creating another unrevocable application. That also
+/// means a stored registration has no removal path in the UI — #188.
+///
 /// Keyed by server, not by `PlatformInstance`: a registration belongs to the
 /// instance's *host*, so two accounts on mastodon.social share one, while an
 /// account on another server needs its own.
@@ -75,9 +79,23 @@ struct MastodonAppRegistrations: Sendable {
     /// Host and port only, lowercased: `https://Mastodon.Social/@someone` and
     /// `https://mastodon.social` are the same server and must not register
     /// twice. `nil` for a URL with no host, which cannot name a server.
+    ///
+    /// A port that is the scheme's default is dropped, so `https://host` and
+    /// `https://host:443` agree; a trailing root dot is dropped for the same
+    /// reason. Both are the same server spelled differently, and splitting them
+    /// costs the user a duplicate application — the thing this type exists to
+    /// prevent. Scheme is deliberately *not* part of the key: the registration
+    /// belongs to the server, not to how it was reached.
     static func account(for instanceURL: URL) -> String? {
-        guard let host = instanceURL.host()?.lowercased(), !host.isEmpty else { return nil }
+        guard var host = instanceURL.host()?.lowercased(), !host.isEmpty else { return nil }
+        if host.hasSuffix(".") { host.removeLast() }
+        guard !host.isEmpty else { return nil }
+
         guard let port = instanceURL.port else { return host }
+        let scheme = instanceURL.scheme?.lowercased()
+        if (scheme == "https" && port == 443) || (scheme == "http" && port == 80) {
+            return host
+        }
         return "\(host):\(port)"
     }
 }

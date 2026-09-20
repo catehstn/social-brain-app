@@ -42,7 +42,10 @@ enum MastodonOAuth {
     static func authenticate(instanceURL: URL,
                              registrations: MastodonAppRegistrations) async throws -> String {
         let security = OAuthSecurity.generate()
-        let stored = try registrations.registration(for: instanceURL)
+        // `try?` to match the save below: a Keychain the app cannot read is a
+        // reason to register afresh, not to refuse to sign in before the
+        // browser has even opened.
+        let stored = try? registrations.registration(for: instanceURL)
         let reg: MastodonAppRegistration
         if let stored {
             reg = stored
@@ -68,13 +71,29 @@ enum MastodonOAuth {
             // registration made seconds ago cannot be unknown, and treating a
             // fresh one this way would loop.
             //
-            // Forget it so the next attempt registers again. Deliberately not
-            // retried inline: that would send the user through a second
-            // browser consent screen inside one action, with no explanation of
-            // why the first did not take.
-            guard stored != nil, case let .httpError(status, _) = error,
-                  status == 400 || status == 401 else { throw error }
-            try? registrations.removeRegistration(for: instanceURL)
+            // Matched on `invalid_client` rather than on the status alone.
+            // Doorkeeper answers a stale or replayed `code` with 400
+            // `invalid_grant`, which is ordinary — the user left the consent
+            // screen open too long — and discarding a good registration for it
+            // would cause the exact bug this change removes: one more
+            // unrevocable application on the next sign-in.
+            //
+            // Erring towards deleting on a genuine match, because there is no
+            // UI anywhere to clear a stored registration: a false negative is
+            // an unrecoverable loop, a false positive costs one duplicate app.
+            //
+            // Forgotten rather than retried inline: a retry would send the user
+            // through a second browser consent screen inside one action, with
+            // no explanation of why the first did not take.
+            guard stored != nil,
+                  case let .httpError(status, body) = error,
+                  status == 400 || status == 401,
+                  body.contains("invalid_client")
+            else { throw error }
+            // Not `try?`: if the delete fails — a locked Keychain — the next
+            // attempt loads the same bad registration and fails the same way,
+            // for ever. Better to say the Keychain could not be written.
+            try registrations.removeRegistration(for: instanceURL)
             throw OAuthError.staleRegistration
         }
     }
