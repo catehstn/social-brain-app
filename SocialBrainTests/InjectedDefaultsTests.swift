@@ -146,6 +146,9 @@ struct InjectedDefaultsTests {
                         if trimmed.contains("*/") { inBlockComment = false }
                         continue
                     }
+                    // Multi-line only: a one-line `/* … */` is still counted,
+                    // which fails loudly rather than silently, so it is the
+                    // safe direction to be wrong in.
                     if trimmed.hasPrefix("/*") && !trimmed.contains("*/") {
                         inBlockComment = true
                         continue

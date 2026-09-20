@@ -27,12 +27,18 @@ final class RunViewModel {
     private let goals: AnalyticsGoalStore
     private var lastSince: Date = .distantPast
 
+    /// No parameter defaults to production, and `labels` is threaded through
+    /// rather than hardcoded into the assembler: a test writing
+    /// `RunViewModel(database: db)` would otherwise read and write the
+    /// developer's own preferences through three separate stores. See the same
+    /// note on `PlatformsViewModel`.
     init(database: AppDatabase,
-         visibility: PlatformVisibilityStore = .shared,
-         goals: AnalyticsGoalStore = .shared) {
+         visibility: PlatformVisibilityStore,
+         goals: AnalyticsGoalStore,
+         labels: InstanceLabels) {
         self.database = database
         self.engine = CollectionEngine(database: database)
-        self.assembler = PromptAssembler(labels: .shared)
+        self.assembler = PromptAssembler(labels: labels)
         self.visibility = visibility
         self.goals = goals
     }

@@ -98,7 +98,7 @@ app, and a documented test command that silently skipped and exited 0.
 - **If a change makes existing tests fail, fix the tests to match the new correct
   behaviour** — don't revert the change to make them pass. If the old assertion
   was right, the change is wrong; decide which, don't split the difference.
-- **Persistent state is injected, never reached for.** Four types store things
+- **Persistent state is injected.** Four types store things
   outside the database — `InstanceRegistry`, `PlatformVisibilityStore`,
   `InstanceLabels`, `AnalyticsGoalStore` — and each takes a `KeyValueStore`
   through its initialiser with a `static let shared` for production. The
@@ -118,22 +118,30 @@ app, and a documented test command that silently skipped and exited 0.
   thing — it passes for a suite-named store, and says nothing about any other
   file.
 
-  **"Injected" describes the stores, not every caller.** Four view-layer sites
-  still read the globals directly: `PlatformCredentialSheet` (three) and
-  `PlatformDetailView` use `InstanceLabels.shared`, and `OnboardingView` uses
-  `AnalyticsGoalStore.shared`. Views are not under test here, so this is
-  tolerated rather than wrong — but `PlatformCredentialSheet` writes labels to
-  `.shared` while the `PlatformsViewModel` behind it writes to an injected
-  store, so a test-injected view model and the sheet will disagree.
+  **That describes the stores, not every caller.** Nine call sites still read
+  the globals directly, across four files: `PlatformCredentialSheet` (three)
+  and `PlatformDetailView` (one) use `InstanceLabels.shared`, `OnboardingView`
+  uses `AnalyticsGoalStore.shared` (four), and `SocialBrainApp` calls
+  `PlatformVisibilityStore.shared.resetAll()`. Views are not under test here,
+  so this is tolerated rather than wrong — but `PlatformCredentialSheet` writes
+  labels to `.shared` while the `PlatformsViewModel` behind it writes to an
+  injected store, so a test-injected view model and the sheet will disagree.
 
-  **Initialisers that reach production state take no default.**
-  `PlatformsViewModel` says so in a comment recording the run where the suite
-  destroyed real credentials — and then grew `labels: InstanceLabels = .shared`
-  anyway, under that very comment, in the branch that added the injection.
-  Four tests silently held real preferences and nothing exercised the parameter,
-  because the stub fetcher returned `nil`. `PromptAssembler` had the same
-  default for the same reason and lost it too; both now take the store
-  explicitly, and production passes `.shared` at each call site.
+  **`PlatformsViewModel`, `RunViewModel` and `PromptAssembler` take no
+  production default**, and their call sites pass `.shared` explicitly. The
+  first says so in a comment recording the run where the suite destroyed real
+  credentials — and then grew `labels: InstanceLabels = .shared` anyway,
+  directly under that comment, in the branch that added the injection. Four
+  tests silently held real preferences, and nothing exercised the parameter
+  because the stub fetcher returned `nil`. It happened twice more in the same
+  branch: `RunViewModel` gained a defaulted `goals:` and hardcoded
+  `PromptAssembler(labels: .shared)`. **Adding an injectable store and giving
+  it a production default is the failure mode to watch for** — it looks like
+  the fix and leaves the hazard.
+
+  **Three initialisers still default to production** and are not yet converted:
+  `FeedViewModel` and `FeedCardBuilder` (`visibility:`), and
+  `CollectionEngine` (`instances:`, `hasCredentials:`) — #184.
 
   **`@AppStorage` is the hole the grep cannot see**, since it never names
   `UserDefaults.standard`. Six uses remain, pinned key-by-key in the same test:

@@ -24,17 +24,17 @@ struct InstanceLabels: @unchecked Sendable {
         self.defaults = defaults
     }
 
-    private let prefix = "instanceLabel_"
+    private static let prefix = "instanceLabel_"
 
     func label(for instance: PlatformInstance) -> String? {
-        defaults.string(forKey: prefix + instance.id)
+        defaults.string(forKey: Self.prefix + instance.id)
     }
 
     func setLabel(_ label: String, for instance: PlatformInstance) {
-        defaults.set(label, forKey: prefix + instance.id)
+        defaults.set(label, forKey: Self.prefix + instance.id)
     }
 
     func removeLabel(for instance: PlatformInstance) {
-        defaults.removeObject(forKey: prefix + instance.id)
+        defaults.removeObject(forKey: Self.prefix + instance.id)
     }
 }
