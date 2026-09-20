@@ -113,10 +113,27 @@ app, and a documented test command that silently skipped and exited 0.
   settings (#90).
 
   That four-line claim is enforced, not just asserted: `InjectedDefaultsTests`
-  greps the app sources, so a fifth use fails the suite and names the file. It
-  replaced two tests that checked `InstanceLabels.shared.defaults is
-  UserDefaults` while their names promised the whole claim — which passes for a
-  suite-named store and says nothing about any other file.
+  greps `SocialBrain/` and `SocialBrainMCP/`, so a fifth use fails the suite and
+  names the file. An `is UserDefaults` check on the shared store is not the same
+  thing — it passes for a suite-named store, and says nothing about any other
+  file.
+
+  **"Injected" describes the stores, not every caller.** Four view-layer sites
+  still read the globals directly: `PlatformCredentialSheet` (three) and
+  `PlatformDetailView` use `InstanceLabels.shared`, and `OnboardingView` uses
+  `AnalyticsGoalStore.shared`. Views are not under test here, so this is
+  tolerated rather than wrong — but `PlatformCredentialSheet` writes labels to
+  `.shared` while the `PlatformsViewModel` behind it writes to an injected
+  store, so a test-injected view model and the sheet will disagree.
+
+  **Initialisers that reach production state take no default.**
+  `PlatformsViewModel` says so in a comment recording the run where the suite
+  destroyed real credentials — and then grew `labels: InstanceLabels = .shared`
+  anyway, under that very comment, in the branch that added the injection.
+  Four tests silently held real preferences and nothing exercised the parameter,
+  because the stub fetcher returned `nil`. `PromptAssembler` had the same
+  default for the same reason and lost it too; both now take the store
+  explicitly, and production passes `.shared` at each call site.
 
   **`@AppStorage` is the hole the grep cannot see**, since it never names
   `UserDefaults.standard`. Six uses remain, pinned key-by-key in the same test:

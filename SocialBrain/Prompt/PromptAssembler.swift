@@ -11,9 +11,15 @@ struct PromptAssembler {
 
     /// Injected so the prompt does not depend on the developer's own stored
     /// labels — see `PlatformInstance.displayName(using:)`.
+    ///
+    /// No default, deliberately: with `= .shared` a test written as
+    /// `PromptAssembler()` reads real preferences, and a stored label silently
+    /// changes the prompt under test. That is not hypothetical — it is how a
+    /// `PromptAssemblerTests` case came to be passing by luck (#58, #90).
+    /// Production passes `.shared` at its two call sites.
     let labels: InstanceLabels
 
-    init(labels: InstanceLabels = .shared) {
+    init(labels: InstanceLabels) {
         self.labels = labels
     }
 

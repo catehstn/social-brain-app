@@ -32,7 +32,7 @@ final class RunViewModel {
          goals: AnalyticsGoalStore = .shared) {
         self.database = database
         self.engine = CollectionEngine(database: database)
-        self.assembler = PromptAssembler()
+        self.assembler = PromptAssembler(labels: .shared)
         self.visibility = visibility
         self.goals = goals
     }

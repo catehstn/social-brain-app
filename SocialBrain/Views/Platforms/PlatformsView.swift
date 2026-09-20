@@ -14,6 +14,7 @@ struct PlatformsView: View {
                                                               keychain: .shared,
                                                               registry: .shared,
                                                               visibility: .shared,
+                                                              labels: .shared,
                                                               labelFetcher: PlatformsViewModel.liveLabelFetcher))
     }
 

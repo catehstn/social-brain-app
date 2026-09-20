@@ -79,6 +79,7 @@ struct PlatformVisibilitySuite {
                                                keychain: ScratchKeychain.make(),
                                                registry: ScratchRegistry.make(),
                                                visibility: store,
+                                               labels: InstanceLabels(defaults: InMemoryKeyValueStore()),
                                                labelFetcher: { _, _ in nil })
             viewModel.hidePlatform(.calendly)
             #expect(viewModel.isHidden(.calendly) == true)
@@ -96,6 +97,7 @@ struct PlatformVisibilitySuite {
                                                keychain: ScratchKeychain.make(),
                                                registry: ScratchRegistry.make(),
                                                visibility: store,
+                                               labels: InstanceLabels(defaults: InMemoryKeyValueStore()),
                                                labelFetcher: { _, _ in nil })
             viewModel.hidePlatform(.calendly)
             viewModel.showPlatform(.calendly)
@@ -117,6 +119,7 @@ struct PlatformVisibilitySuite {
                                                keychain: ScratchKeychain.make(),
                                                registry: ScratchRegistry.make(),
                                                visibility: store,
+                                               labels: InstanceLabels(defaults: InMemoryKeyValueStore()),
                                                labelFetcher: { _, _ in nil })
             // Write directly to store (simulating prior app session)
             store.hide(.mastodon)
@@ -141,6 +144,7 @@ struct PlatformVisibilitySuite {
                                                keychain: keychain,
                                                registry: ScratchRegistry.make(),
                                                visibility: store,
+                                               labels: InstanceLabels(defaults: InMemoryKeyValueStore()),
                                                labelFetcher: { _, _ in nil })
             viewModel.hidePlatform(.buttondown)
             #expect(viewModel.isHidden(.buttondown) == true)
@@ -149,6 +153,35 @@ struct PlatformVisibilitySuite {
 
             #expect(viewModel.isHidden(.buttondown) == false)
             #expect(store.isHidden(.buttondown) == false)
+        }
+
+        // Test 15: the injected label store is the one that gets written.
+        @MainActor
+        @Test("delete() removes the label from the injected store, not the shared one")
+        func testDeleteUsesInjectedLabelStore() async throws {
+            // `labels` had a `= .shared` default when it was added, which meant
+            // the four tests above silently held the developer's real
+            // preferences and nothing exercised the parameter at all — the
+            // stubbed fetcher returns nil, so `setLabel` never fires. This test
+            // is what makes the injection load-bearing.
+            let db = try AppDatabase.makeInMemory()
+            let instance = PlatformInstance(platform: .buttondown)
+            let keychain = ScratchKeychain.make()
+            defer { try? keychain.deleteAll() }
+
+            let labelStore = InstanceLabels(defaults: InMemoryKeyValueStore())
+            labelStore.setLabel("Scratch Newsletter", for: instance)
+
+            let viewModel = PlatformsViewModel(database: db,
+                                               keychain: keychain,
+                                               registry: ScratchRegistry.make(),
+                                               visibility: store,
+                                               labels: labelStore,
+                                               labelFetcher: { _, _ in nil })
+
+            #expect(labelStore.label(for: instance) == "Scratch Newsletter")
+            try await viewModel.delete(for: instance)
+            #expect(labelStore.label(for: instance) == nil)
         }
     }
     // MARK: - visible(_:) — the prompt half of #80

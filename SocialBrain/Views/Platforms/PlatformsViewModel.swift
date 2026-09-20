@@ -40,7 +40,7 @@ final class PlatformsViewModel {
          keychain: KeychainStore,
          registry: InstanceRegistry,
          visibility: PlatformVisibilityStore,
-         labels: InstanceLabels = .shared,
+         labels: InstanceLabels,
          labelFetcher: @escaping LabelFetcher) {
         self.database = database
         self.keychain = keychain

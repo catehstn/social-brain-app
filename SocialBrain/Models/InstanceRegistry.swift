@@ -12,7 +12,7 @@ import Foundation
 /// real app's preferences on every test run.
 ///
 /// The store itself is `KeyValueStore`, in its own file.
-
+///
 /// `@unchecked Sendable` because the store is a protocol existential whose
 /// conformances vouch for their own thread-safety; the only stored property is
 /// a `let`.

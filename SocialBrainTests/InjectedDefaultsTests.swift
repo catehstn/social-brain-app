@@ -112,32 +112,48 @@ struct InjectedDefaultsTests {
     /// files. This reads the source instead, so adding a fifth use fails here
     /// rather than quietly making the docs wrong.
     @Test("UserDefaults.standard appears only in the four shared stores")
-    func standardDefaultsConfinedToSharedStores() throws {
-        let root = URL(fileURLWithPath: #filePath)
+    func standardDefaultsConfinedToSharedStores() {
+        // Both the app and the MCP tool: the tool builds its own copy of
+        // `InstanceLabels` and friends, and its `UserDefaults.standard` is a
+        // different domain again, so a new use there is worth catching too.
+        let repo = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()   // SocialBrainTests
             .deletingLastPathComponent()   // repo root
-            .appendingPathComponent("SocialBrain")
+        let roots = [repo.appendingPathComponent("SocialBrain"),
+                     repo.appendingPathComponent("SocialBrainMCP")]
 
         let expected: Set<String> = [
-            "Models/InstanceRegistry.swift",
-            "Models/InstanceLabels.swift",
-            "Models/AnalyticsGoal.swift",
-            "Models/PlatformVisibilityStore.swift",
+            "SocialBrain/Models/InstanceRegistry.swift",
+            "SocialBrain/Models/InstanceLabels.swift",
+            "SocialBrain/Models/AnalyticsGoal.swift",
+            "SocialBrain/Models/PlatformVisibilityStore.swift",
         ]
 
         var found: [String: [String]] = [:]
-        let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)
-        let paths = (files?.allObjects as? [URL] ?? []).filter { $0.pathExtension == "swift" }
-        #expect(!paths.isEmpty, "Found no Swift sources under \(root.path) — the detector would pass vacuously")
+        for root in roots {
+            let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)
+            let paths = (files?.allObjects as? [URL] ?? []).filter { $0.pathExtension == "swift" }
+            #expect(!paths.isEmpty, "No Swift sources under \(root.lastPathComponent) — this would pass vacuously")
 
-        for file in paths {
-            guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
-            let relative = file.path.replacingOccurrences(of: root.path + "/", with: "")
-            for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                guard !trimmed.hasPrefix("//") else { continue }
-                if trimmed.contains("UserDefaults.standard") {
-                    found[relative, default: []].append(trimmed)
+            for file in paths {
+                guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
+                let relative = root.lastPathComponent + "/"
+                    + file.path.replacingOccurrences(of: root.path + "/", with: "")
+                var inBlockComment = false
+                for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+                    let trimmed = line.trimmingCharacters(in: .whitespaces)
+                    if inBlockComment {
+                        if trimmed.contains("*/") { inBlockComment = false }
+                        continue
+                    }
+                    if trimmed.hasPrefix("/*") && !trimmed.contains("*/") {
+                        inBlockComment = true
+                        continue
+                    }
+                    guard !trimmed.hasPrefix("//") else { continue }
+                    if trimmed.contains("UserDefaults.standard") {
+                        found[relative, default: []].append(trimmed)
+                    }
                 }
             }
         }
