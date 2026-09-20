@@ -107,7 +107,7 @@ struct OrphanedCredentialsTests {
             // enum no longer has. `delete(for:)` cannot address this at all.
             try store.save(Credentials(["token": "live"]), for: PlatformInstance(platform: .mastodon))
             let account = "vercel:default"
-            try store.saveRaw(Credentials(["token": "stranded"]), account: account)
+            try store.save(Credentials(["token": "stranded"]), account: account)
 
             #expect(try store.storedAccounts().contains(account))
             try store.deleteAccount(account)
@@ -126,7 +126,7 @@ struct OrphanedCredentialsTests {
         // reintroduced the moment a test first used `withStore`.
         let store = ScratchKeychain.make()
         for i in 0..<5 {
-            try store.saveRaw(Credentials(["k": "v"]), account: "retired\(i):default")
+            try store.save(Credentials(["k": "v"]), account: "retired\(i):default")
         }
         #expect(try store.storedAccounts().count == 5)
         try store.deleteAll()
@@ -145,17 +145,17 @@ struct OrphanedCredentialsTests {
     func accountsAreSorted() throws {
         try ScratchKeychain.withStore { store in
             for name in ["zulu", "alpha", "mike"] {
-                try store.saveRaw(Credentials(["k": "v"]), account: "\(name):default")
+                try store.save(Credentials(["k": "v"]), account: "\(name):default")
             }
             #expect(try store.storedAccounts() == ["alpha:default", "mike:default", "zulu:default"])
         }
     }
 
     @Test("Saving the same account twice replaces it rather than duplicating")
-    func saveRawOverwrites() throws {
+    func rawAccountSaveOverwrites() throws {
         try ScratchKeychain.withStore { store in
-            try store.saveRaw(Credentials(["k": "first"]), account: "vercel:default")
-            try store.saveRaw(Credentials(["k": "second"]), account: "vercel:default")
+            try store.save(Credentials(["k": "first"]), account: "vercel:default")
+            try store.save(Credentials(["k": "second"]), account: "vercel:default")
             #expect(try store.storedAccounts() == ["vercel:default"])
         }
     }

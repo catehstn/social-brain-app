@@ -22,7 +22,15 @@ analysis in Claude. It is a ground-up Swift rewrite of the original Python CLI t
   `Info.plist` and `SocialBrain.entitlements` are tracked in git.
 - **SQLite via GRDB.swift** for the local analytics store (replaces analytics.xlsx).
 - **Keychain** (via the Security framework) for all credential storage. No plaintext
-  config files.
+  config files. **Two services, and the split is load-bearing:**
+  `com.catehuston.SocialBrain` holds platform credentials keyed
+  `"<platform.rawValue>:<instanceName>"`, and `OrphanedCredentials.find` depends
+  on that being the only shape in there — it reports any account it cannot parse
+  as a platform as a stranded API token, with a Remove button in Settings.
+  Mastodon's OAuth app registrations are keyed by server host, so they live in
+  `com.catehuston.SocialBrain.mastodon-apps` (`MastodonAppRegistrations`).
+  Anything else needing the Keychain under a different key shape gets its own
+  service too, rather than an exception in the scanner.
 - **Swift Charts** for the dashboard (week / month / 3 month / all time views).
 - **ASWebAuthenticationSession** for OAuth flows (Mastodon, Jetpack).
 - **UserNotifications** for stale-export reminders.

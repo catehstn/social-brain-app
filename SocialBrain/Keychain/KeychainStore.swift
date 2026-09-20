@@ -28,8 +28,17 @@ struct KeychainStore: Sendable {
     /// Encodes `credentials` and stores them under the given `PlatformInstance` key.
     /// Overwrites any existing entry for that instance.
     func save(_ credentials: Credentials, for instance: PlatformInstance) throws {
+        try save(credentials, account: instance.id)
+    }
+
+    /// Stores `credentials` under a raw account name.
+    ///
+    /// The account-keyed primitive the `PlatformInstance` methods build on.
+    /// Also how a test writes an item the way an older build did — under a
+    /// platform the enum no longer has, or under the bare platform name from
+    /// before multi-instance — which is otherwise impossible to construct.
+    func save(_ credentials: Credentials, account: String) throws {
         let data = try JSONSerialization.data(withJSONObject: credentials.values)
-        let account = instance.id
 
         let updateQuery: [CFString: Any] = [
             kSecClass:       kSecClassGenericPassword,
@@ -67,10 +76,15 @@ struct KeychainStore: Sendable {
 
     /// Returns the stored `Credentials` for the given `PlatformInstance`, or `nil` if none.
     func load(for instance: PlatformInstance) throws -> Credentials? {
+        try load(account: instance.id)
+    }
+
+    /// Returns the stored `Credentials` for a raw account name, or `nil` if none.
+    func load(account: String) throws -> Credentials? {
         let query: [CFString: Any] = [
             kSecClass:       kSecClassGenericPassword,
             kSecAttrService: service,
-            kSecAttrAccount: instance.id,
+            kSecAttrAccount: account,
             kSecReturnData:  true,
             kSecMatchLimit:  kSecMatchLimitOne
         ]
@@ -99,10 +113,15 @@ struct KeychainStore: Sendable {
 
     /// Removes any stored credentials for the given `PlatformInstance`.
     func delete(for instance: PlatformInstance) throws {
+        try delete(account: instance.id)
+    }
+
+    /// Removes any stored credentials under a raw account name.
+    func delete(account: String) throws {
         let query: [CFString: Any] = [
             kSecClass:       kSecClassGenericPassword,
             kSecAttrService: service,
-            kSecAttrAccount: instance.id
+            kSecAttrAccount: account
         ]
         let status = SecItemDelete(query as CFDictionary)
         guard status == errSecSuccess || status == errSecItemNotFound else {
@@ -166,45 +185,15 @@ struct KeychainStore: Sendable {
         return items.compactMap { $0[kSecAttrAccount] as? String }.sorted()
     }
 
-    /// Saves under a raw account name.
-    ///
-    /// **Never called in production**, the same warning `deleteAll()` carries:
-    /// the app always goes through `save(_:for:)`, which builds the key from a
-    /// `Platform`. This exists so a test can write an item the way an older
-    /// build did — under a platform the enum no longer has, or under the bare
-    /// platform name from before multi-instance — which is otherwise impossible
-    /// to construct.
-    func saveRaw(_ credentials: Credentials, account: String) throws {
-        let data = try JSONSerialization.data(withJSONObject: credentials.values)
-        let query: [CFString: Any] = [
-            kSecClass:          kSecClassGenericPassword,
-            kSecAttrService:    service,
-            kSecAttrAccount:    account,
-            kSecValueData:      data,
-            kSecAttrAccessible: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
-        ]
-        SecItemDelete(query as CFDictionary)
-        let status = SecItemAdd(query as CFDictionary, nil)
-        guard status == errSecSuccess else { throw KeychainError.unexpectedStatus(status) }
-    }
-
     /// Deletes one stored item by its raw account name.
     ///
-    /// Deliberately separate from `delete(for:)`, which requires a `Platform`
-    /// and therefore cannot address an orphan at all. Nothing calls this
-    /// automatically: an orphaned credential is deleted only when the user asks,
-    /// because the token also has to be revoked at the provider and the app
-    /// cannot do that — removing it quietly would hide the half that matters.
+    /// A named alias for `delete(account:)`, kept because the *policy* is worth
+    /// stating where orphans are handled: nothing calls this automatically. An
+    /// orphaned credential is deleted only when the user asks, because the
+    /// token also has to be revoked at the provider and the app cannot do that
+    /// — removing it quietly would hide the half that matters.
     func deleteAccount(_ account: String) throws {
-        let query: [CFString: Any] = [
-            kSecClass:       kSecClassGenericPassword,
-            kSecAttrService: service,
-            kSecAttrAccount: account
-        ]
-        let status = SecItemDelete(query as CFDictionary)
-        guard status == errSecSuccess || status == errSecItemNotFound else {
-            throw KeychainError.unexpectedStatus(status)
-        }
+        try delete(account: account)
     }
 
     /// Removes every item under this store's service.

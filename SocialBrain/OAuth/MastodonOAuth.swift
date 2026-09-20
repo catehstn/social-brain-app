@@ -30,19 +30,65 @@ enum MastodonOAuth {
     // MARK: - Public
 
     /// Authenticates with the given Mastodon instance and returns an access token.
-    static func authenticate(instanceURL: URL) async throws -> String {
+    /// Authenticates with the given Mastodon instance and returns an access token.
+    ///
+    /// Reuses the stored application registration for this server if there is
+    /// one. `POST /api/v1/apps` creates a new application on every call and the
+    /// returned `client_secret` is the only handle on it, so registering each
+    /// time left the user with applications they could not revoke (#84).
+    ///
+    /// - Parameter registrations: injected, with no production default, so a
+    ///   test cannot reach the real Keychain by omitting it.
+    static func authenticate(instanceURL: URL,
+                             registrations: MastodonAppRegistrations) async throws -> String {
         let security = OAuthSecurity.generate()
-        let reg  = try await registerApp(on: instanceURL)
+        let stored = try registrations.registration(for: instanceURL)
+        let reg: MastodonAppRegistration
+        if let stored {
+            reg = stored
+        } else {
+            reg = try await registerAndStore(on: instanceURL, in: registrations)
+        }
+
         let code = try await authorise(instanceURL: instanceURL,
                                        clientID: reg.clientID,
                                        security: security)
-        return try await exchangeCode(
-            code:         code,
-            clientID:     reg.clientID,
-            clientSecret: reg.clientSecret,
-            instanceURL:  instanceURL,
-            codeVerifier: security.codeVerifier
-        )
+        do {
+            return try await exchangeCode(
+                code:         code,
+                clientID:     reg.clientID,
+                clientSecret: reg.clientSecret,
+                instanceURL:  instanceURL,
+                codeVerifier: security.codeVerifier
+            )
+        } catch let error as CollectorError {
+            // A stored registration the instance no longer recognises — the
+            // user revoked the application, or the instance was reset. Only
+            // reachable when the credentials came from the Keychain: a
+            // registration made seconds ago cannot be unknown, and treating a
+            // fresh one this way would loop.
+            //
+            // Forget it so the next attempt registers again. Deliberately not
+            // retried inline: that would send the user through a second
+            // browser consent screen inside one action, with no explanation of
+            // why the first did not take.
+            guard stored != nil, case let .httpError(status, _) = error,
+                  status == 400 || status == 401 else { throw error }
+            try? registrations.removeRegistration(for: instanceURL)
+            throw OAuthError.staleRegistration
+        }
+    }
+
+    private static func registerAndStore(
+        on instanceURL: URL, in registrations: MastodonAppRegistrations
+    ) async throws -> MastodonAppRegistration {
+        let wire = try await registerApp(on: instanceURL)
+        let reg = MastodonAppRegistration(clientID: wire.clientID,
+                                          clientSecret: wire.clientSecret)
+        // A failure to store is not a failure to sign in — it costs a duplicate
+        // application next time, which is the old behaviour, not a broken flow.
+        try? registrations.save(reg, for: instanceURL)
+        return reg
     }
 
     /// The authorisation URL, as a pure function so a test can inspect it.
@@ -215,6 +261,9 @@ enum OAuthError: LocalizedError, Equatable {
     /// it does not belong to the sign-in the user started. Never retried
     /// automatically — a mismatch is a reason to stop, not to try again.
     case stateMismatch
+    /// The stored application registration was rejected by the instance, and
+    /// has been forgotten. Signing in again makes a new one.
+    case staleRegistration
     /// The authorisation server refused, e.g. the user declined consent.
     /// Both strings come from the server, so `errorDescription` truncates the
     /// free-text half rather than rendering unbounded remote text in a
@@ -235,6 +284,8 @@ enum OAuthError: LocalizedError, Equatable {
         case .badURL:    "Could not build the OAuth URL."
         case .noCode:    "The server did not return an authorisation code."
         case .cancelled: "Sign-in was cancelled."
+        case .staleRegistration:
+            "This Mastodon application registration is no longer recognised by the instance, so it has been discarded. Please try signing in again."
         case .stateMismatch:
             "The sign-in response did not match the request that started it, so it was rejected. Please try signing in again."
         case let .server(code, description):
