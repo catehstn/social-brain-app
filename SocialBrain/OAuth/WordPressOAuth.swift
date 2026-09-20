@@ -14,11 +14,11 @@ import AuthenticationServices
 @MainActor
 enum WordPressOAuth {
 
-    private static let callbackScheme = "socialbrain"
-    private static let callbackURI    = "socialbrain://oauth/wordpress"
+    private nonisolated static let callbackScheme = "socialbrain"
+    private nonisolated static let callbackURI    = "socialbrain://oauth/wordpress"
 
-    static let authURL  = URL(string: "https://public-api.wordpress.com/oauth2/authorize")!
-    static let tokenURL = URL(string: "https://public-api.wordpress.com/oauth2/token")!
+    nonisolated static let authURL  = URL(string: "https://public-api.wordpress.com/oauth2/authorize")!
+    nonisolated static let tokenURL = URL(string: "https://public-api.wordpress.com/oauth2/token")!
 
     // Strong references kept for the duration of the ASWebAuthenticationSession.
     // These stay MainActor-isolated on purpose — see the matching note in
@@ -33,21 +33,35 @@ enum WordPressOAuth {
 
     /// Opens the WordPress.com sign-in browser and returns an access token.
     static func authenticate(clientID: String, clientSecret: String) async throws -> String {
-        let code = try await authorise(clientID: clientID)
+        let security = OAuthSecurity.generate()
+        let code = try await authorise(clientID: clientID, security: security)
         return try await exchangeCode(code: code, clientID: clientID, clientSecret: clientSecret)
     }
 
-    // MARK: - Steps
-
-    private static func authorise(clientID: String) async throws -> String {
+    /// The authorisation URL, as a pure function so a test can inspect it.
+    ///
+    /// No PKCE: WordPress.com's OAuth2 documents `client_id`, `redirect_uri`,
+    /// `response_type`, `scope`, `state` and `blog`, and no challenge
+    /// parameters. Its own security guidance says to send `state` and validate
+    /// it on return, which is what this does.
+    nonisolated static func authorizationURL(clientID: String, security: OAuthSecurity) throws -> URL {
         var comps = URLComponents(url: authURL, resolvingAgainstBaseURL: false)!
         comps.queryItems = [
             URLQueryItem(name: "client_id",     value: clientID),
             URLQueryItem(name: "redirect_uri",  value: callbackURI),
             URLQueryItem(name: "response_type", value: "code"),
-            URLQueryItem(name: "scope",         value: "global")
+            URLQueryItem(name: "scope",         value: "global"),
+            URLQueryItem(name: "state",         value: security.state)
         ]
         guard let url = comps.url else { throw OAuthError.badURL }
+        return url
+    }
+
+    // MARK: - Steps
+
+    private static func authorise(clientID: String, security: OAuthSecurity) async throws -> String {
+        let url = try authorizationURL(clientID: clientID, security: security)
+        let expectedState = security.state
 
         return try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.main.async {
@@ -81,14 +95,12 @@ enum WordPressOAuth {
                         continuation.resume(throwing: cancelled ? OAuthError.cancelled : error)
                         return
                     }
-                    guard let code = callbackURL
-                        .flatMap({ URLComponents(url: $0, resolvingAgainstBaseURL: false) })?
-                        .queryItems?.first(where: { $0.name == "code" })?.value
-                    else {
-                        continuation.resume(throwing: OAuthError.noCode)
-                        return
+                    do {
+                        continuation.resume(returning: try OAuthSecurity.code(
+                            fromCallback: callbackURL, expectedState: expectedState))
+                    } catch {
+                        continuation.resume(throwing: error)
                     }
-                    continuation.resume(returning: code)
                 }
                 let provider = ContextProvider()
                 session.presentationContextProvider = provider
