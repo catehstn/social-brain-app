@@ -118,8 +118,9 @@ app, and a documented test command that silently skipped and exited 0.
   thing — it passes for a suite-named store, and says nothing about any other
   file.
 
-  **That describes the stores, not every caller.** These still read a global
-  directly: `PlatformCredentialSheet` and `PlatformDetailView`
+  **That describes the stores, not every caller.** These still read one of the
+  four `UserDefaults`-backed globals directly (`KeychainStore.shared` has its
+  own direct readers, not listed here): `PlatformCredentialSheet` and `PlatformDetailView`
   (`InstanceLabels.shared`), `OnboardingView` (`AnalyticsGoalStore.shared`),
   `SocialBrainApp` (`PlatformVisibilityStore.shared.resetAll()`),
   `PlatformInstance.displayName` (`displayName(using: .shared)`) and
@@ -152,8 +153,10 @@ app, and a documented test command that silently skipped and exited 0.
   inits" misses two: `FeedViewModel.init` and the static `FeedCardBuilder.build`
   (`visibility:`), and the static `CollectorRegistry.configured`
   (`instances:`, `hasCredentials:`). That last one is *not* on
-  `CollectionEngine`, which is an actor taking only a database and reaching
-  nothing — they share a file. #184.
+  `CollectionEngine`, whose *initialiser* takes only a database — they share a
+  file. The actor is not clean at call time, though: it formats a
+  missing-credential error with the bare `displayName`, so running it reads
+  real labels. #184.
 
   **`@AppStorage` is the hole the grep cannot see**, since it never names
   `UserDefaults.standard`. Six uses remain, pinned key-by-key in the same test:

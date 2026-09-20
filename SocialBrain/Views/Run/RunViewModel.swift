@@ -34,13 +34,16 @@ final class RunViewModel {
     /// `PlatformsViewModel`.
     ///
     /// Constructing one is safe — the initialiser only builds a
-    /// `CollectionEngine`, which reaches nothing, and an assembler from the
-    /// store it was given. *Calling* it is not: `startCollection` uses
+    /// `CollectionEngine`, whose own initialiser takes just an `AppDatabase`,
+    /// and an assembler from the store it was given. *Calling* it is not.
+    /// `startCollection` reaches production state five ways:
     /// `CollectorRegistry.configured()`, whose `instances:` and
     /// `hasCredentials:` default to the real registry and Keychain;
-    /// `KeychainStore.shared` is read directly at two points below; and
-    /// `SpikeNotifier` takes `NotificationManager.shared` through its own
-    /// default. #184.
+    /// `KeychainStore.shared`, read directly at two points below;
+    /// `SpikeNotifier`, which takes `NotificationManager.shared` through its
+    /// own default; and `engine.run`, because `CollectionEngine` formats a
+    /// missing-credential error with the bare `displayName` property, which
+    /// consults `InstanceLabels.shared`. #184.
     init(database: AppDatabase,
          visibility: PlatformVisibilityStore,
          goals: AnalyticsGoalStore,
