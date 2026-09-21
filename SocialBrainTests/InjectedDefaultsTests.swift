@@ -137,8 +137,12 @@ struct InjectedDefaultsTests {
 
             for file in paths {
                 guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
+                // Resolve both sides: under a symlinked checkout the
+                // enumerator returns `/private/tmp/…` while `root.path` says
+                // `/tmp/…`, and the prefix strip silently misses.
                 let relative = root.lastPathComponent + "/"
-                    + file.path.replacingOccurrences(of: root.path + "/", with: "")
+                    + file.resolvingSymlinksInPath().path.replacingOccurrences(
+                        of: root.resolvingSymlinksInPath().path + "/", with: "")
                 var inBlockComment = false
                 for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
                     let trimmed = line.trimmingCharacters(in: .whitespaces)
