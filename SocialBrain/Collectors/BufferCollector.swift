@@ -9,7 +9,8 @@ import Foundation
 /// not have used the old collector at all.
 ///
 /// Everything below was checked against the live API on 2026-09-21, because
-/// Buffer's migration guide disagrees with it in two places:
+/// Buffer's migration guide disagrees with it in two places (and is silent on
+/// the page-size cap, documented at `pageSize`):
 ///
 /// - The guide says analytics are dashboard-only. The schema has
 ///   `Post.metrics` and `aggregatedPostMetrics`; they need an **`insights:read`
@@ -73,6 +74,11 @@ struct BufferCollector: Collector {
     /// seconds across all 1,062 posts checked — and one sent *before* its
     /// `dueAt` is still caught by the `sentAt` check. The slack covers a post
     /// that went out late, such as one held in a paused queue.
+    ///
+    /// `dueAt` is nullable in the schema, and the filter excludes a post
+    /// without one, so a windowed run would miss it while "All time" counted
+    /// it. None of those 1,062 sent posts lacked a `dueAt` — share-now posts
+    /// included — so this is a known edge, not an observed one.
     static let dueAtSlack: TimeInterval = 7 * 24 * 60 * 60
 
     init(session: any URLSessionProtocol = URLSession.shared) {
@@ -140,15 +146,18 @@ struct BufferCollector: Collector {
         ]
 
         if engagementUnavailable {
+            // "Some or all": the schema scopes insights access per channel, so
+            // one refused post drops every total — omitting is safe, but the
+            // note must not claim the whole key lacks access.
             metrics["engagement_unavailable"] = .string(
-                "the Buffer API key lacks insights access, so clicks, reach and likes were not collected")
+                "the Buffer API key lacks insights access for some or all channels, so clicks, reach and likes were not collected")
         } else {
             metrics.merge(Self.engagementTotals(inWindow)) { _, new in new }
         }
 
         if truncated {
             metrics["posts_sampled"] = .string(
-                "stopped after \(Self.maxPages * Self.pageSize) posts — the period may hold more")
+                "stopped reading after \(Self.maxPages * Self.pageSize) posts — the sent or queued counts may be higher")
         }
 
         let names = Dictionary(channels.map { ($0.id, $0.formatted) }, uniquingKeysWith: { first, _ in first })

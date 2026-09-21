@@ -272,6 +272,21 @@ struct BufferCollectorTests {
         }
     }
 
+    @Test("A non-scope error on metrics is still an error, not a missing scope")
+    func otherErrorOnMetricsThrows() async throws {
+        let body = #"""
+            {"errors":[{"message":"boom","path":["posts","edges",0,"node","metrics"],"extensions":{"code":"INTERNAL_SERVER_ERROR"}}],
+             "data":{"posts":{"edges":[{"node":{"channelId":"c1","channelService":"mastodon","sentAt":null,"metrics":null}}],
+             "pageInfo":{"hasNextPage":false,"endCursor":null}}}}
+            """#
+        await #expect {
+            try await collect(session(sent: [.init(body)]))
+        } throws: { error in
+            guard case CollectorError.serviceError(let code) = error else { return false }
+            return code == "INTERNAL_SERVER_ERROR"
+        }
+    }
+
     @Test("A response with neither data nor errors is an error")
     func emptyEnvelopeThrows() async throws {
         await #expect(throws: CollectorError.self) {
