@@ -28,6 +28,7 @@ final class PlatformsViewModel {
     private let keychain: KeychainStore
     private let registry: InstanceRegistry
     private let visibility: PlatformVisibilityStore
+    private let labels: InstanceLabels
     private let labelFetcher: LabelFetcher
 
     /// No parameter defaults to production on purpose. A default would let a new
@@ -39,11 +40,13 @@ final class PlatformsViewModel {
          keychain: KeychainStore,
          registry: InstanceRegistry,
          visibility: PlatformVisibilityStore,
+         labels: InstanceLabels,
          labelFetcher: @escaping LabelFetcher) {
         self.database = database
         self.keychain = keychain
         self.registry = registry
         self.visibility = visibility
+        self.labels = labels
         self.labelFetcher = labelFetcher
     }
 
@@ -101,7 +104,7 @@ final class PlatformsViewModel {
         let fetch = labelFetcher
         Task {
             if let label = await fetch(instance, credentials) {
-                InstanceLabels.setLabel(label, for: instance)
+                labels.setLabel(label, for: instance)
             }
         }
     }
@@ -111,7 +114,7 @@ final class PlatformsViewModel {
         try keychain.delete(for: instance)
         try await database.deleteSnapshots(for: instance)
         registry.remove(instanceName: instance.instanceName, from: instance.platform)
-        InstanceLabels.removeLabel(for: instance)
+        labels.removeLabel(for: instance)
         reload()
     }
 

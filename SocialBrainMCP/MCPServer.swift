@@ -422,7 +422,7 @@ actor MCPServer {
             return "No platforms have data within the requested period."
         }
 
-        let assembler = PromptAssembler()
+        let assembler = PromptAssembler(labels: .shared)
         let input = PromptAssembler.Input(
             periodLabel: periodLabel,
             reportDate: .now,

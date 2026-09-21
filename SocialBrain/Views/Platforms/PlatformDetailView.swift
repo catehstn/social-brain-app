@@ -67,7 +67,7 @@ struct PlatformDetailView: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text(inst.platform.displayName)
-                if let label = InstanceLabels.label(for: inst) {
+                if let label = InstanceLabels.shared.label(for: inst) {
                     Text(label).font(.caption).foregroundStyle(.secondary)
                 } else if inst.instanceName != "default" {
                     Text(inst.instanceName).font(.caption).foregroundStyle(.secondary)

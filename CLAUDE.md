@@ -106,6 +106,81 @@ app, and a documented test command that silently skipped and exited 0.
 - **If a change makes existing tests fail, fix the tests to match the new correct
   behaviour** — don't revert the change to make them pass. If the old assertion
   was right, the change is wrong; decide which, don't split the difference.
+- **Persistent state is injected.** Four types store things
+  outside the database — `InstanceRegistry`, `PlatformVisibilityStore`,
+  `InstanceLabels`, `AnalyticsGoalStore` — and each takes a `KeyValueStore`
+  through its initialiser with a `static let shared` for production. The
+  protocol lives in its own `Models/KeyValueStore.swift` because two of those
+  types compile into the MCP targets as well as the app, and it used to sit in
+  `InstanceRegistry.swift`, which does not.
+  `UserDefaults.standard` appears in exactly four lines of the app, one per
+  store; `KeychainStore` is the same shape with `service`. **A new store follows
+  that pattern**, because a `static var` global is repointed by whichever suite
+  runs first and stays repointed (#58), and a type reaching for the global
+  directly means the first test to touch it writes the developer's own
+  settings (#90).
+
+  That four-line claim is enforced, not just asserted: `InjectedDefaultsTests`
+  greps `SocialBrain/` and `SocialBrainMCP/`, so a fifth use fails the suite and
+  names the file. An `is UserDefaults` check on the shared store is not the same
+  thing — it passes for a suite-named store, and says nothing about any other
+  file.
+
+  **That describes the stores, not every caller.** These still read one of the
+  four `UserDefaults`-backed globals directly (`KeychainStore.shared` has its
+  own direct readers, not listed here): `PlatformCredentialSheet` and `PlatformDetailView`
+  (`InstanceLabels.shared`), `OnboardingView` (`AnalyticsGoalStore.shared`),
+  `SocialBrainApp` (`PlatformVisibilityStore.shared.resetAll()`),
+  `PlatformInstance.displayName` (`displayName(using: .shared)`) and
+  `MCPServer` (`PromptAssembler(labels: .shared)` — #183). Views are not under
+  test, so most of this is tolerated rather than wrong; `PlatformInstance` is
+  not a view, which is why `displayName` has a `using:` form and tests must
+  call it.
+
+  **Do not restate that as a count.** Three attempts in one PR gave three wrong
+  numbers, because `grep "InstanceLabels.shared"` cannot see `displayName(using:
+  .shared)` — the type is inferred, so the store's name never appears. Both
+  forms need grepping, and `: \.shared` also matches the *approved* pattern of
+  passing a store explicitly (`PlatformsView`, `RunView`), so the two cannot be
+  told apart mechanically. Hence a list, not a total.
+
+  **`PlatformsViewModel`, `RunViewModel` and `PromptAssembler` take no
+  production default**, and their call sites pass `.shared` explicitly. The
+  first says so in a comment recording the run where the suite destroyed real
+  credentials — and then grew `labels: InstanceLabels = .shared` anyway,
+  directly under that comment, in the branch that added the injection. Four
+  tests silently held real preferences, and nothing exercised the parameter
+  because the stub fetcher returned `nil`. It happened twice more in the same
+  branch: `RunViewModel` gained a defaulted `goals:` and hardcoded
+  `PromptAssembler(labels: .shared)`. **Adding an injectable store and giving
+  it a production default is the failure mode to watch for** — it looks like
+  the fix and leaves the hazard.
+
+  **Three declarations still default to production** and are not yet
+  converted — only one of them is an initialiser, which is why "check the
+  inits" misses two: `FeedViewModel.init` and the static `FeedCardBuilder.build`
+  (`visibility:`), and the static `CollectorRegistry.configured`
+  (`instances:`, `hasCredentials:`). That last one is *not* on
+  `CollectionEngine`, whose *initialiser* takes only a database — they share a
+  file. The actor is not clean at call time, though: it formats a
+  missing-credential error with the bare `displayName`, so running it reads
+  real labels. #184.
+
+  **`@AppStorage` is the hole the grep cannot see**, since it never names
+  `UserDefaults.standard`. Six uses remain, pinned key-by-key in the same test:
+  the analytics goal in two views (bypassing `AnalyticsGoalStore`) and
+  `hasCompletedOnboarding`, which has no store at all — and whose two
+  declarations disagree on the default (#182).
+
+  Watch for the indirect path: `PlatformInstance.displayName` consults the
+  label store, so `PromptAssembler` had to take one too — its prompt headers
+  were reading real preferences, and a test had been passing by luck. A test
+  that wants the plain string calls `displayName(using:)` with a throwaway
+  store; the bare property reads `.shared`, so a stored label breaks it.
+
+  **Mutation-testing one of these seams aims the whole suite at real storage.**
+  Snapshot first (`defaults read com.catehuston.SocialBrain`), or mutate a call
+  site rather than the seam.
 - **Never let a test trap.** A trapping test does not fail: it kills the test
   host, and the test host **is `SocialBrain.app`** (`TEST_HOST` in the project
   file), so it shows "SocialBrain quit unexpectedly" and writes an `.ips` instead

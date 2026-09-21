@@ -26,7 +26,7 @@ struct PlatformCredentialSheet: View {
         .frame(width: 480)
         .onAppear {
             values = viewModel.loadValues(for: instance)
-            labelText = InstanceLabels.label(for: instance) ?? ""
+            labelText = InstanceLabels.shared.label(for: instance) ?? ""
         }
     }
 
@@ -416,9 +416,9 @@ struct PlatformCredentialSheet: View {
             // Persist manual label, or clear so auto-fetch can run.
             let trimmed = labelText.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty {
-                InstanceLabels.removeLabel(for: instance)
+                InstanceLabels.shared.removeLabel(for: instance)
             } else {
-                InstanceLabels.setLabel(trimmed, for: instance)
+                InstanceLabels.shared.setLabel(trimmed, for: instance)
             }
             dismiss()
         } catch {

@@ -6,7 +6,10 @@ struct RunView: View {
     @State private var since: Date = Calendar.current.date(byAdding: .day, value: -30, to: .now)!
 
     init(database: AppDatabase) {
-        _viewModel = State(wrappedValue: RunViewModel(database: database))
+        _viewModel = State(wrappedValue: RunViewModel(database: database,
+                                                        visibility: .shared,
+                                                        goals: .shared,
+                                                        labels: .shared))
     }
 
     var body: some View {

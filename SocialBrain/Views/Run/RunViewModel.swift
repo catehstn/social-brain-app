@@ -24,13 +24,35 @@ final class RunViewModel {
     private let engine: CollectionEngine
     private let assembler: PromptAssembler
     private let visibility: PlatformVisibilityStore
+    private let goals: AnalyticsGoalStore
     private var lastSince: Date = .distantPast
 
-    init(database: AppDatabase, visibility: PlatformVisibilityStore = .shared) {
+    /// No parameter defaults to production, and `labels` is threaded through
+    /// rather than hardcoded into the assembler: a test writing
+    /// `RunViewModel(database: db)` would otherwise read the developer's own
+    /// preferences through three separate stores. See the same note on
+    /// `PlatformsViewModel`.
+    ///
+    /// Constructing one is safe — the initialiser only builds a
+    /// `CollectionEngine`, whose own initialiser takes just an `AppDatabase`,
+    /// and an assembler from the store it was given. *Calling* it is not.
+    /// `startCollection` reaches production state five ways:
+    /// `CollectorRegistry.configured()`, whose `instances:` and
+    /// `hasCredentials:` default to the real registry and Keychain;
+    /// `KeychainStore.shared`, read directly at two points below;
+    /// `SpikeNotifier`, which takes `NotificationManager.shared` through its
+    /// own default; and `engine.run`, because `CollectionEngine` formats a
+    /// missing-credential error with the bare `displayName` property, which
+    /// consults `InstanceLabels.shared`. #184.
+    init(database: AppDatabase,
+         visibility: PlatformVisibilityStore,
+         goals: AnalyticsGoalStore,
+         labels: InstanceLabels) {
         self.database = database
         self.engine = CollectionEngine(database: database)
-        self.assembler = PromptAssembler()
+        self.assembler = PromptAssembler(labels: labels)
         self.visibility = visibility
+        self.goals = goals
     }
 
     // MARK: - Actions
@@ -118,8 +140,8 @@ final class RunViewModel {
             periodLabel: Self.periodLabel(since: lastSince),
             reportDate: summary.completedAt,
             snapshots: visibleSnapshots,
-            goal: AnalyticsGoal.current,
-            goalCustomText: AnalyticsGoal.customText
+            goal: goals.current,
+            goalCustomText: goals.customText
         )
         generatedPrompt = assembler.assemble(input)
     }

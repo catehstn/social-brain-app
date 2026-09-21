@@ -11,16 +11,23 @@ struct PlatformInstanceTests {
         #expect(inst.id == "buttondown:newsletter-1")
     }
 
+    /// These two go through `displayName(using:)` rather than the `displayName`
+    /// property, which reads `InstanceLabels.shared` and so the real
+    /// preferences. With the property, a stored label for either instance made
+    /// them fail — planting `instanceLabel_mastodon:default` and
+    /// `instanceLabel_goat_counter:my-blog` reproduced it (#58, #90).
     @Test("displayName omits label for default instance")
     func displayNameDefault() {
         let inst = PlatformInstance(platform: .mastodon)
-        #expect(inst.displayName == "Mastodon")
+        let labels = InstanceLabels(defaults: InMemoryKeyValueStore())
+        #expect(inst.displayName(using: labels) == "Mastodon")
     }
 
     @Test("displayName includes label for non-default instance")
     func displayNameNonDefault() {
         let inst = PlatformInstance(platform: .goatCounter, instanceName: "my-blog")
-        #expect(inst.displayName == "GoatCounter — my-blog")
+        let labels = InstanceLabels(defaults: InMemoryKeyValueStore())
+        #expect(inst.displayName(using: labels) == "GoatCounter — my-blog")
     }
 
     @Test("Two instances with same platform+name are equal")

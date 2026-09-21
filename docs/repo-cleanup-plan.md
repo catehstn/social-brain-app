@@ -191,10 +191,11 @@ done. #47 wired the MCP server up as a real target, which found two bugs that
 could only exist in code nothing compiles. #51 kept the CI/local Xcode gap
 deliberately.
 
-1. **#58, #90** — finish test isolation. Both are now roughly half done: the
-   `static var defaults` races they describe are fixed, and what remains is
-   `InstanceLabels` and `AnalyticsGoal`, which still write `UserDefaults`
-   directly. Audits on both issues say what is actually left.
+1. **#58, #90** — finish test isolation. The `static var defaults` races they
+   describe are fixed, and so are `InstanceLabels` and `AnalyticsGoal`, which
+   used to write `UserDefaults` directly: all four persistent stores now take a
+   `KeyValueStore` through their initialiser, and `UserDefaults.standard`
+   appears in four lines of the app. Audits on both issues say what is left.
 2. **#63** — the orphan detector landed; deriving its emitted-key table from the
    collectors (#173) is the other half.
 3. *Then* M2. The design pass is the interesting work, and it lands on a repo

@@ -5,7 +5,10 @@ import Foundation
 @Suite("Prompt Assembler Tests")
 struct PromptAssemblerTests {
 
-    private let assembler = PromptAssembler()
+    // A throwaway label store: instance.displayName consults one, so without
+    // this the prompt headers under test depend on the developer's own stored
+    // labels (#58).
+    private let assembler = PromptAssembler(labels: InstanceLabels(defaults: InMemoryKeyValueStore()))
 
     private func makeInput(snapshots: [PlatformInstance: PlatformSnapshot]) -> PromptAssembler.Input {
         // Fixed date for deterministic output
