@@ -37,7 +37,7 @@ struct SetupURLTests {
         ("WordPress.com apps",         "https://developer.wordpress.com/apps/"),
         ("Google Cloud Console",       "https://console.cloud.google.com/apis/credentials"),
         ("Google OAuth Playground",    "https://developers.google.com/oauthplayground/"),
-        ("Buffer developer API",       "https://buffer.com/developers/api"),
+        ("Buffer API settings",        "https://publish.buffer.com/settings/api"),
         // File-export platforms
         ("O'Reilly",                   "https://www.oreilly.com"),
     ]

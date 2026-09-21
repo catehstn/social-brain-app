@@ -2,422 +2,333 @@ import Testing
 import Foundation
 @testable import SocialBrain
 
-/// Buffer had no test suite beyond a setup-URL check (#48).
+/// Buffer's collector talks to its GraphQL API (#117).
 ///
-/// It also records where the access token currently travels. Buffer accepts it
-/// in the Authorization header, the body *or* the query string — this collector
-/// chooses the query string, which puts a live credential into every server log
-/// and proxy along the way. That is a choice, not an API constraint, and #85
-/// tracks changing it; the assertion below is what makes that change visible.
+/// The fixtures follow response shapes observed live on 2026-09-21 — field
+/// names, fractional-second timestamps, and the `INSUFFICIENT_SCOPE` error
+/// that a key without insights access gets once per post. Identifiers are
+/// invented. The `metrics` values are **not** from a live response: the key
+/// used had no insights access, so their shape comes from the schema.
 @Suite("Buffer Collector Tests")
 struct BufferCollectorTests {
 
-    private static let profilesJSON = """
-        [
-          {"id":"p1","service":"mastodon","service_username":"cate"},
-          {"id":"p2","service":"bluesky","service_username":"cate.bsky"}
-        ]
+    // MARK: - Fixtures
+
+    private static let account = """
+        {"data":{"account":{"name":"cate","organizations":[{"id":"org1"}]}}}
         """
 
-    private static let sentP1JSON = """
-        {"updates":[
-          {"id":"u1","sent_at":1767225600,"statistics":{"clicks":10,"reach":100,"likes":5}},
-          {"id":"u2","sent_at":1767312000,"statistics":{"clicks":3,"reach":40,"likes":1}}
-        ]}
+    private static let channels = """
+        {"data":{"channels":[
+          {"id":"c1","name":"cate","service":"mastodon"},
+          {"id":"c2","name":"cate.bsky","service":"bluesky"}
+        ]}}
         """
 
-    /// One post, and its like count arrives as `favorites` — the name Buffer's
-    /// own v1 documentation uses. Only `likes` was decoded, so this contributed
-    /// zero.
-    private static let sentP2JSON = """
-        {"updates":[
-          {"id":"u3","sent_at":1767225600,"statistics":{"clicks":7,"reach":60,"favorites":4}}
-        ]}
+    /// Three posts, with metrics. `likes` on c2 is Buffer's Facebook-only
+    /// subcount and must not be summed; `reactions` is the cross-network one.
+    private static let sentWithMetrics = """
+        {"data":{"posts":{"edges":[
+          {"node":{"channelId":"c1","channelService":"mastodon","sentAt":"2026-01-02T00:00:00.000Z",
+                   "metrics":[{"type":"clicks","value":10},{"type":"reach","value":100},{"type":"reactions","value":5}]}},
+          {"node":{"channelId":"c1","channelService":"mastodon","sentAt":"2026-01-01T00:00:00.000Z",
+                   "metrics":[{"type":"clicks","value":3},{"type":"reach","value":40},{"type":"reactions","value":1}]}},
+          {"node":{"channelId":"c2","channelService":"bluesky","sentAt":"2026-01-01T12:00:00.000Z",
+                   "metrics":[{"type":"clicks","value":7},{"type":"reactions","value":4},{"type":"likes","value":99}]}}
+        ],"pageInfo":{"hasNextPage":false,"endCursor":"end"}}}}
         """
 
-    private static let pendingJSON = """
-        {"updates":[{"id":"u3"},{"id":"u4"},{"id":"u5"}]}
+    /// What a key without `insights:read` gets: `metrics: null` on every node
+    /// and one error per post, everything else intact.
+    private static let sentScopeRefused = """
+        {"errors":[
+          {"message":"Insufficient scope. Required: insights:read.","path":["posts","edges",0,"node","metrics"],
+           "extensions":{"code":"INSUFFICIENT_SCOPE","requiredScopes":["insights:read"]}},
+          {"message":"Insufficient scope. Required: insights:read.","path":["posts","edges",1,"node","metrics"],
+           "extensions":{"code":"INSUFFICIENT_SCOPE","requiredScopes":["insights:read"]}}
+        ],"data":{"posts":{"edges":[
+          {"node":{"channelId":"c1","channelService":"mastodon","sentAt":"2026-01-02T00:00:00.000Z","metrics":null}},
+          {"node":{"channelId":"c2","channelService":"bluesky","sentAt":"2026-01-01T00:00:00.000Z","metrics":null}}
+        ],"pageInfo":{"hasNextPage":false,"endCursor":"end"}}}}
         """
 
-    /// A sent update with no `sent_at`, which Buffer does return.
-    private static let sentNoDateJSON = """
-        {"updates":[
-          {"id":"u9","statistics":{"clicks":2,"reach":20,"likes":1}}
-        ]}
+    private static let scheduled = """
+        {"data":{"posts":{"edges":[{"node":{"id":"s1"}},{"node":{"id":"s2"}},{"node":{"id":"s3"}}],
+          "pageInfo":{"hasNextPage":false,"endCursor":"end"}}}}
         """
 
-    private func makeSession() -> MockURLSession {
-        MockURLSession([
-            "/1/profiles.json": (Self.profilesJSON, 200),
-            "/1/profiles/p1/updates/sent.json": (Self.sentP1JSON, 200),
-            "/1/profiles/p2/updates/sent.json": (Self.sentP2JSON, 200),
-            "/1/profiles/p1/updates/pending.json": (Self.pendingJSON, 200),
-            "/1/profiles/p2/updates/pending.json": (Self.pendingJSON, 200)
+    private static func sentPage(_ posts: [(channel: String, sentAt: String?)], next: String?) -> String {
+        let edges = posts.map { post in
+            let sentAt = post.sentAt.map { "\"\($0)\"" } ?? "null"
+            return #"{"node":{"channelId":"\#(post.channel)","channelService":"mastodon","sentAt":\#(sentAt),"metrics":[]}}"#
+        }
+        let cursor = next.map { "\"\($0)\"" } ?? "null"
+        return #"{"data":{"posts":{"edges":[\#(edges.joined(separator: ","))],"pageInfo":{"hasNextPage":\#(next != nil),"endCursor":\#(cursor)}}}}"#
+    }
+
+    private func session(
+        sent: [MockURLSession.Response] = [.init(sentWithMetrics)],
+        scheduled: [MockURLSession.Response] = [.init(scheduled)],
+        account: String = account,
+        channels: String = channels
+    ) -> GraphQLMockSession {
+        GraphQLMockSession([
+            "Account": [.init(account)],
+            "Channels": [.init(channels)],
+            "SentPosts": sent,
+            "ScheduledPosts": scheduled
         ])
     }
 
     private let credentials = Credentials(["api_key": "tok-123"])
 
-    // MARK: - Parsing
+    private func collect(_ session: GraphQLMockSession, since: Date = .distantPast) async throws -> PlatformData {
+        try await BufferCollector(session: session).collect(since: since, credentials: credentials)
+    }
 
-    @Test("Counts profiles and aggregates sent-post statistics across them")
-    func aggregatesAcrossProfiles() async throws {
-        let data = try await BufferCollector(session: makeSession())
-            .collect(since: .distantPast, credentials: credentials)
+    private static func date(_ iso: String) -> Date {
+        ISO8601DateFormatter().date(from: iso)!
+    }
+
+    // MARK: - Counts and engagement
+
+    @Test("Counts channels, sent and queued posts, and sums engagement across channels")
+    func aggregates() async throws {
+        let data = try await collect(session())
 
         #expect(data.metrics["profiles_count"] == .int(2))
         #expect(data.metrics["sent_updates"] == .int(3))
+        #expect(data.metrics["scheduled_updates"] == .int(3))
         #expect(data.metrics["total_clicks"] == .int(20))
-        #expect(data.metrics["total_reach"] == .int(200))
-        // 5 + 1 from `likes`, 4 from `favorites`. Reading only `likes` gives 6.
+        // c2 reports no reach; the other two do.
+        #expect(data.metrics["total_reach"] == .int(140))
+        #expect(data.metrics["engagement_unavailable"] == nil)
+    }
+
+    @Test("Likes come from reactions, not Buffer's Facebook-only likes subcount")
+    func likesAreReactions() async throws {
+        let data = try await collect(session())
+        // 5 + 1 + 4. Summing the `likes` type instead gives 99.
         #expect(data.metrics["total_likes"] == .int(10))
     }
 
-    @Test("Counts everything still queued")
-    func countsScheduled() async throws {
-        // Pending posts carry no sent_at. When Update required it, decoding
-        // pending.json threw and the surrounding try? swallowed it, so this
-        // metric reported 0 for every user who has ever run a collection.
-        let data = try await BufferCollector(session: makeSession())
-            .collect(since: .distantPast, credentials: credentials)
-
-        #expect(data.metrics["scheduled_updates"] == .int(6))
+    @Test("A metric no post carries is left out, not reported as zero")
+    func absentMetricIsOmitted() {
+        let posts = [BufferCollector.SentPost(channelId: "c1", channelService: "mastodon", sentAt: nil,
+                                              metrics: [.init(type: "reactions", value: 3)])]
+        let totals = BufferCollector.engagementTotals(posts)
+        #expect(totals["total_likes"] == .int(3))
+        #expect(totals["total_reach"] == nil)
+        #expect(totals["total_clicks"] == nil)
     }
 
-    @Test("A failing pending request is an error, not a zero")
-    func pendingFailurePropagates() async throws {
-        // Both the request and the decode were wrapped in try?, so any failure
-        // produced 0 — and 0 is a plausible answer meaning "nothing queued",
-        // so the metric read as working while reporting nothing. #115 found it
-        // had been doing exactly that for every collection ever run.
-        let session = MockURLSession([
-            "/1/profiles.json": (Self.profilesJSON, 200),
-            "/1/profiles/p1/updates/sent.json": (Self.sentP1JSON, 200),
-            "/1/profiles/p2/updates/sent.json": (Self.sentP2JSON, 200),
-            "/1/profiles/p1/updates/pending.json": ("{\"error\":\"gone\"}", 500),
-            "/1/profiles/p2/updates/pending.json": (Self.pendingJSON, 200)
-        ])
-
-        // CollectorError, not `any Error`: with `any Error` a typo in the fixture
-        // path passes too, because MockURLSessionError.noFixture also satisfies
-        // it — so a broken mock would read as a working test.
-        let error = await #expect(throws: CollectorError.self) {
-            try await BufferCollector(session: session).collect(since: .distantPast, credentials: credentials)
-        }
-        #expect(error?.localizedDescription.contains("HTTP 500") == true)
+    @Test("With no posts, every engagement total is a true zero")
+    func noPostsIsZero() {
+        let totals = BufferCollector.engagementTotals([])
+        #expect(totals == ["total_clicks": .int(0), "total_reach": .int(0), "total_likes": .int(0)])
     }
 
-    @Test("A pending response the decoder cannot read is an error, not a zero")
-    func pendingDecodeFailurePropagates() async throws {
-        // The other half of the same swallow. A 200 carrying a shape the
-        // decoder rejects is exactly what the required sent_at produced, and is
-        // what the next field Buffer stops sending will produce.
-        let session = MockURLSession([
-            "/1/profiles.json": (Self.profilesJSON, 200),
-            "/1/profiles/p1/updates/sent.json": (Self.sentP1JSON, 200),
-            "/1/profiles/p2/updates/sent.json": (Self.sentP2JSON, 200),
-            "/1/profiles/p1/updates/pending.json": ("{\"unexpected\":true}", 200),
-            "/1/profiles/p2/updates/pending.json": (Self.pendingJSON, 200)
-        ])
+    @Test("A key without insights access still yields counts, and says why engagement is missing")
+    func scopeRefusedKeepsCounts() async throws {
+        let data = try await collect(session(sent: [.init(Self.sentScopeRefused)]))
 
-        let error = await #expect(throws: CollectorError.self) {
-            try await BufferCollector(session: session).collect(since: .distantPast, credentials: credentials)
-        }
-        #expect(error?.localizedDescription.contains("Failed to decode") == true)
-    }
-
-    // MARK: - The collection cap
-
-    private static func sentPage(_ count: Int) -> String {
-        let items = (0..<count).map { i in
-            """
-            {"id":"s\(i)","sent_at":1767225600,"statistics":{"clicks":1,"reach":1,"likes":1}}
-            """
-        }
-        return "{\"updates\":[\(items.joined(separator: ","))]}"
-    }
-
-    @Test("A full page of sent posts is reported as a cap, not a count")
-    func fullPageIsReported() async throws {
-        // One page of 100 is fetched and its length reported, so a busy month
-        // comes back as exactly 100 posts — a number that looks like data and is
-        // actually a page size. Not paginated, because this API is retired on
-        // 1 February 2027 and its replacement is a different protocol; what the
-        // undercount needs is to stop being silent.
-        let session = MockURLSession([
-            "/1/profiles.json": (Self.profilesJSON, 200),
-            "/1/profiles/p1/updates/sent.json": (Self.sentPage(100), 200),
-            "/1/profiles/p2/updates/sent.json": (Self.sentPage(3), 200),
-            "/1/profiles/p1/updates/pending.json": (Self.pendingJSON, 200),
-            "/1/profiles/p2/updates/pending.json": (Self.pendingJSON, 200)
-        ])
-        let data = try await BufferCollector(session: session)
-            .collect(since: .distantPast, credentials: credentials)
-
-        #expect(data.metrics["sent_updates"] == .int(103))
-        let note = try #require(data.stringMetric("posts_sampled"))
-        #expect(note.contains("100"))
-    }
-
-    @Test("A short page is not reported as a cap")
-    func shortPagesAreNotReported() async throws {
-        // The other half. Without this, a note stamped onto every run — including
-        // a three-post month — would pass just as green.
-        let session = MockURLSession([
-            "/1/profiles.json": (Self.profilesJSON, 200),
-            "/1/profiles/p1/updates/sent.json": (Self.sentPage(4), 200),
-            "/1/profiles/p2/updates/sent.json": (Self.sentPage(3), 200),
-            "/1/profiles/p1/updates/pending.json": (Self.pendingJSON, 200),
-            "/1/profiles/p2/updates/pending.json": (Self.pendingJSON, 200)
-        ])
-        let data = try await BufferCollector(session: session)
-            .collect(since: .distantPast, credentials: credentials)
-
-        #expect(data.metrics["sent_updates"] == .int(7))
-        #expect(data.metrics["posts_sampled"] == nil)
-    }
-
-    @Test("The cap is judged before the since filter, not after")
-    func capIsJudgedOnTheRawPage() async throws {
-        // A full page whose posts mostly fall outside the window still means
-        // the API had more to give. Judging after filtering would call that a
-        // short page and report a filtered handful as complete.
-        let session = MockURLSession([
-            "/1/profiles.json": (Self.profilesJSON, 200),
-            "/1/profiles/p1/updates/sent.json": (Self.sentPage(100), 200),
-            "/1/profiles/p2/updates/sent.json": (Self.sentPage(1), 200),
-            "/1/profiles/p1/updates/pending.json": (Self.pendingJSON, 200),
-            "/1/profiles/p2/updates/pending.json": (Self.pendingJSON, 200)
-        ])
-        // Every fixture post is sent_at 2026-01-01; this window excludes them all.
-        let since = Date(timeIntervalSince1970: 1_800_000_000)
-        let data = try await BufferCollector(session: session)
-            .collect(since: since, credentials: credentials)
-
-        #expect(data.metrics["sent_updates"] == .int(0))
-        #expect(data.stringMetric("posts_sampled") != nil)
-    }
-
-    // MARK: - Decode errors must not become zeros
-
-    private func sessionWithSent(_ p1: String) -> MockURLSession {
-        MockURLSession([
-            "/1/profiles.json": (Self.profilesJSON, 200),
-            "/1/profiles/p1/updates/sent.json": (p1, 200),
-            "/1/profiles/p2/updates/sent.json": (Self.sentP2JSON, 200),
-            "/1/profiles/p1/updates/pending.json": (Self.pendingJSON, 200),
-            "/1/profiles/p2/updates/pending.json": (Self.pendingJSON, 200)
-        ])
-    }
-
-    @Test("A sent_at of the wrong type is an error, not a post outside the window")
-    func wrongTypedSentAtIsAnError() async throws {
-        // `try?` could not tell "absent" from "wrong type". Absent is normal —
-        // a pending post has no sent_at — but wrong type meant every post
-        // silently fell outside the `since` window and sent_updates reported 0,
-        // which reads as a quiet month rather than a broken decode (#133).
-        let session = sessionWithSent("""
-            {"updates":[{"id":"u1","sent_at":"1767312000",
-             "statistics":{"clicks":9,"reach":10,"likes":1}}]}
-            """)
-        await #expect(throws: CollectorError.self) {
-            try await BufferCollector(session: session).collect(
-                since: Date(timeIntervalSince1970: 1_767_225_600), credentials: credentials)
-        }
-    }
-
-    @Test("A malformed statistics block is an error, not three zeros")
-    func malformedStatisticsIsAnError() async throws {
-        // One bad field used to nil the whole block, and the sums downstream
-        // contributed nothing — so clicks, reach and likes all read zero while
-        // sent_updates looked healthy. The worst shape: nothing about the
-        // output signals a problem.
-        let session = sessionWithSent("""
-            {"updates":[{"id":"u1","sent_at":1767312000,
-             "statistics":{"clicks":"9","reach":10,"likes":1}}]}
-            """)
-        await #expect(throws: CollectorError.self) {
-            try await BufferCollector(session: session).collect(
-                since: .distantPast, credentials: credentials)
-        }
-    }
-
-    @Test("A pending post with no sent_at still decodes")
-    func absentSentAtIsStillFine() async throws {
-        // The behaviour #115 fixed, and the reason `sentAt` is optional at all.
-        // Tightening the decode must not undo it: pending.json has no sent_at
-        // on any row, and scheduled_updates has to keep counting.
-        let session = makeSession()
-        let data = try await BufferCollector(session: session)
-            .collect(since: .distantPast, credentials: credentials)
-        #expect(data.metrics["scheduled_updates"] == .int(6))
-    }
-
-    @Test("A post with no statistics at all still decodes")
-    func absentStatisticsIsStillFine() async throws {
-        // Absent is legitimate — a post can have no stats yet — and must stay
-        // distinguishable from malformed.
-        let session = sessionWithSent("""
-            {"updates":[{"id":"u1","sent_at":1767312000}]}
-            """)
-        let data = try await BufferCollector(session: session)
-            .collect(since: .distantPast, credentials: credentials)
         #expect(data.metrics["sent_updates"] == .int(2))
-        // p2's single post contributes; p1's contributes nothing but is counted.
-        #expect(data.metrics["total_clicks"] == .int(7))
+        #expect(data.metrics["scheduled_updates"] == .int(3))
+        #expect(data.metrics["total_clicks"] == nil)
+        #expect(data.metrics["total_reach"] == nil)
+        #expect(data.metrics["total_likes"] == nil)
+        let note = try #require(data.metrics["engagement_unavailable"]?.stringValue)
+        #expect(note.contains("insights"))
     }
 
-    @Test("Names the top profiles by sent count, most first")
-    func namesTopProfiles() async throws {
-        // The profiles send different counts on purpose. With both on two the
-        // ordering was nondeterministic, so this could only assert non-nil —
-        // and replacing the whole label with a constant left it passing.
-        let data = try await BufferCollector(session: makeSession())
-            .collect(since: .distantPast, credentials: credentials)
-
-        // Exact strings, not "contains": replacing the whole label with a
-        // constant left a contains-check passing, so the service name and
-        // username formatting were entirely unverified.
+    @Test("Names the top channels by sent count, most first")
+    func topProfiles() async throws {
+        let data = try await collect(session())
         #expect(data.metrics["top_profile_1"] == .string("Mastodon (cate) (2 posts)"))
         #expect(data.metrics["top_profile_2"] == .string("Bluesky (cate.bsky) (1 posts)"))
         #expect(data.metrics["top_profile_3"] == nil)
     }
 
-    @Test("since filters sent posts to the window")
-    func sinceFiltersSentPosts() async throws {
-        // Every other test collects with since: .distantPast, so the whole filtering
-        // branch was dead in the suite — replacing it with `return updates`
-        // left them all green.
-        let sent = """
-            {"updates":[
-              {"id":"old","sent_at":1735689600,"statistics":{"clicks":1}},
-              {"id":"new","sent_at":1767312000,"statistics":{"clicks":2}},
-              {"id":"undated","statistics":{"clicks":99}}
-            ]}
-            """
-        let session = MockURLSession([
-            "/1/profiles.json": ("[{\"id\":\"p1\",\"service\":\"mastodon\"}]", 200),
-            "/1/profiles/p1/updates/sent.json": (sent, 200),
-            "/1/profiles/p1/updates/pending.json": (Self.pendingJSON, 200)
+    @Test("A post from a channel no longer connected is named by its service")
+    func unknownChannel() async throws {
+        let sent = Self.sentPage([("gone", "2026-01-01T00:00:00.000Z")], next: nil)
+        let data = try await collect(session(sent: [.init(sent)]))
+        #expect(data.metrics["top_profile_1"] == .string("Mastodon (1 posts)"))
+    }
+
+    @Test("Sums across every organisation on the account")
+    func multipleOrganisations() async throws {
+        let account = #"{"data":{"account":{"name":"cate","organizations":[{"id":"org1"},{"id":"org2"}]}}}"#
+        let mock = session(account: account)
+        let data = try await collect(mock)
+
+        #expect(data.metrics["sent_updates"] == .int(6))
+        #expect(data.metrics["scheduled_updates"] == .int(6))
+        #expect(mock.variables("SentPosts").compactMap { $0["organizationId"] as? String } == ["org1", "org2"])
+    }
+
+    // MARK: - Pagination
+
+    @Test("Walks every page of sent posts, passing each cursor on")
+    func paginatesSent() async throws {
+        let mock = session(sent: [
+            .init(Self.sentPage([("c1", "2026-01-03T00:00:00.000Z")], next: "p2")),
+            .init(Self.sentPage([("c1", "2026-01-02T00:00:00.000Z")], next: "p3")),
+            .init(Self.sentPage([("c2", "2026-01-01T00:00:00.000Z")], next: nil))
         ])
-        let since = Date(timeIntervalSince1970: 1_767_225_600)  // 2026-01-01
+        let data = try await collect(mock)
 
-        let data = try await BufferCollector(session: session)
-            .collect(since: since, credentials: credentials)
+        #expect(data.metrics["sent_updates"] == .int(3))
+        #expect(data.metrics["posts_sampled"] == nil)
+        let variables = mock.variables("SentPosts")
+        #expect(variables.map { $0["after"] as? String } == [nil, "p2", "p3"])
+        #expect(variables.allSatisfy { $0["first"] as? Int == BufferCollector.pageSize })
+    }
 
-        // Only "new" is in the window. "undated" has no sent_at and so cannot be
-        // placed in it — counting it would inflate the period.
+    @Test("Walks every page of the queue")
+    func paginatesScheduled() async throws {
+        let page1 = #"{"data":{"posts":{"edges":[{"node":{"id":"s1"}}],"pageInfo":{"hasNextPage":true,"endCursor":"q2"}}}}"#
+        let mock = session(scheduled: [.init(page1), .init(Self.scheduled)])
+        let data = try await collect(mock)
+
+        #expect(data.metrics["scheduled_updates"] == .int(4))
+        #expect(mock.variables("ScheduledPosts").map { $0["after"] as? String } == [nil, "q2"])
+    }
+
+    @Test("A walk that hits the page cap says so rather than reporting a page count as a total")
+    func capIsReported() async throws {
+        // The last entry repeats, so this never ends on its own.
+        let mock = session(sent: [.init(Self.sentPage([("c1", "2026-01-01T00:00:00.000Z")], next: "more"))])
+        let data = try await collect(mock)
+
+        #expect(mock.variables("SentPosts").count == BufferCollector.maxPages)
+        #expect(data.metrics["sent_updates"] == .int(BufferCollector.maxPages))
+        #expect(data.metrics["posts_sampled"] != nil)
+    }
+
+    // MARK: - The window
+
+    @Test("since narrows on the server by dueAt, with slack, and decides membership by sentAt")
+    func sinceFilters() async throws {
+        let since = Self.date("2026-01-02T00:00:00Z")
+        let sent = Self.sentPage([
+            ("c1", "2026-01-03T00:00:00.000Z"),
+            ("c1", "2026-01-02T00:00:00.000Z"),   // exactly on the bound: in
+            ("c1", "2026-01-01T23:59:59.000Z")    // inside the slack, before since: out
+        ], next: nil)
+        let mock = session(sent: [.init(sent)])
+        let data = try await collect(mock, since: since)
+
+        #expect(data.metrics["sent_updates"] == .int(2))
+        let dueAt = try #require(mock.variables("SentPosts").first?["dueAt"] as? [String: Any])
+        #expect(dueAt["start"] as? String == "2025-12-26T00:00:00Z")
+        #expect(dueAt["end"] == nil)
+    }
+
+    @Test("All time sends no dueAt filter rather than a date in year 1")
+    func allTimeSendsNoFilter() async throws {
+        let mock = session()
+        _ = try await collect(mock)
+        let variables = try #require(mock.variables("SentPosts").first)
+        #expect(variables["dueAt"] is NSNull)
+    }
+
+    @Test("A sent post with no sentAt counts with no window, and is excluded once there is one")
+    func missingSentAt() async throws {
+        let sent = [MockURLSession.Response(Self.sentPage([("c1", nil)], next: nil))]
+        #expect(try await collect(session(sent: sent)).metrics["sent_updates"] == .int(1))
+        #expect(try await collect(session(sent: sent), since: Self.date("2026-01-01T00:00:00Z"))
+            .metrics["sent_updates"] == .int(0))
+    }
+
+    @Test("Timestamps without fractional seconds decode too")
+    func plainTimestamps() async throws {
+        let sent = Self.sentPage([("c1", "2026-01-03T00:00:00Z")], next: nil)
+        let data = try await collect(session(sent: [.init(sent)]), since: Self.date("2026-01-01T00:00:00Z"))
         #expect(data.metrics["sent_updates"] == .int(1))
-        #expect(data.metrics["total_clicks"] == .int(2))
     }
 
-    @Test("No connected profiles yields zeros rather than a failure")
-    func handlesNoProfiles() async throws {
-        let session = MockURLSession(["/1/profiles.json": ("[]", 200)])
-        let data = try await BufferCollector(session: session)
-            .collect(since: .distantPast, credentials: credentials)
+    // MARK: - Errors
 
-        #expect(data.metrics["profiles_count"] == .int(0))
-        #expect(data.metrics["sent_updates"] == .int(0))
-    }
-
-    // MARK: - The request
-
-    @Test("Every request carries the access token")
-    func everyRequestIsAuthorised() async throws {
-        let session = makeSession()
-        _ = try await BufferCollector(session: session).collect(since: .distantPast, credentials: credentials)
-
-        let tokens = session.requestedURLs.compactMap { url -> String? in
-            URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                .queryItems?.first { $0.name == "access_token" }?.value
+    @Test("An error inside an HTTP 200 fails the collection instead of reading as empty")
+    func graphQLErrorThrows() async throws {
+        let body = #"{"errors":[{"message":"Cannot query field","extensions":{"code":"GRAPHQL_VALIDATION_FAILED"}}],"data":null}"#
+        await #expect {
+            try await collect(session(scheduled: [.init(body)]))
+        } throws: { error in
+            guard case CollectorError.serviceError(let code) = error else { return false }
+            return code == "GRAPHQL_VALIDATION_FAILED"
         }
-        #expect(tokens.count == session.requestedURLs.count)
-        #expect(tokens.allSatisfy { $0 == "tok-123" })
     }
 
-    @Test("Records where the token currently travels, so #85 is a visible change")
-    func recordsCurrentTokenPlacement() async throws {
-        let session = makeSession()
-        _ = try await BufferCollector(session: session).collect(since: .distantPast, credentials: credentials)
-
-        // Asserting today's behaviour, not endorsing it. When #85 moves the
-        // token to a header this test should flip rather than be deleted.
-        #expect(session.requestedURLs.allSatisfy { $0.absoluteString.contains("access_token=") })
-        #expect(session.headerValues("Authorization", path: "/1/profiles.json").isEmpty)
-    }
-
-    @Test("Each connected profile is queried for both sent and pending posts")
-    func queriesEachProfile() async throws {
-        let session = makeSession()
-        _ = try await BufferCollector(session: session).collect(since: .distantPast, credentials: credentials)
-
-        let paths = Set(session.requestedURLs.map(\.path))
-        #expect(paths.contains("/1/profiles/p1/updates/sent.json"))
-        #expect(paths.contains("/1/profiles/p2/updates/sent.json"))
-        #expect(paths.contains("/1/profiles/p1/updates/pending.json"))
-        #expect(paths.contains("/1/profiles/p2/updates/pending.json"))
-    }
-
-    // MARK: - Failures
-
-    @Test("A missing token is reported by name")
-    func missingTokenIsNamed() async throws {
-        let collector = BufferCollector(session: makeSession())
-
-        let error = await #expect(throws: CollectorError.self) {
-            _ = try await collector.collect(since: .distantPast, credentials: Credentials([:]))
+    @Test("A scope refusal on anything but metrics is still an error")
+    func scopeRefusalElsewhereThrows() async throws {
+        let body = #"{"errors":[{"message":"Insufficient scope","path":["channels"],"extensions":{"code":"INSUFFICIENT_SCOPE"}}],"data":null}"#
+        await #expect {
+            try await collect(session(channels: body))
+        } throws: { error in
+            guard case CollectorError.serviceError(let code) = error else { return false }
+            return code == "INSUFFICIENT_SCOPE"
         }
-        #expect(error?.localizedDescription.contains("api_key") == true)
     }
 
-    @Test("An unauthorised response propagates")
-    func propagatesUnauthorised() async throws {
-        let session = MockURLSession(["/1/profiles.json": (#"{"error":"bad token"}"#, 401)])
-        let collector = BufferCollector(session: session)
-
+    @Test("A response with neither data nor errors is an error")
+    func emptyEnvelopeThrows() async throws {
         await #expect(throws: CollectorError.self) {
-            _ = try await collector.collect(since: .distantPast, credentials: credentials)
+            try await collect(session(account: "{}"))
         }
     }
-    // MARK: - What "no lower bound" means for an undated post (#96)
 
-    @Test("An update with no sent_at counts when there is no lower bound")
-    func undatedUpdateCountsForAllTime() async throws {
-        // A post that cannot be placed in a window is only a problem when there
-        // is a window to place it in. This was the behaviour when `since` was
-        // nil, and dropping the optional had to preserve it rather than start
-        // silently discarding undated posts from an all-time run.
-        let session = MockURLSession([
-            "/1/profiles.json": (Self.profilesJSON, 200),
-            "/1/profiles/p1/updates/sent.json": (Self.sentNoDateJSON, 200),
-            "/1/profiles/p2/updates/sent.json": (Self.sentNoDateJSON, 200),
-            "/1/profiles/p1/updates/pending.json": (Self.pendingJSON, 200),
-            "/1/profiles/p2/updates/pending.json": (Self.pendingJSON, 200)
-        ])
-
-        let data = try await BufferCollector(session: session)
-            .collect(since: .distantPast, credentials: credentials)
-
-        #expect(data.intMetric("sent_updates") == 2)
+    @Test("A rejected key propagates as HTTP 401")
+    func unauthorised() async throws {
+        let body = #"{"errors":[{"message":"Access token is not valid","extensions":{"code":"UNAUTHENTICATED"}}]}"#
+        let mock = GraphQLMockSession(["Account": [.init(body, status: 401)]])
+        await #expect {
+            try await collect(mock)
+        } throws: { error in
+            guard case CollectorError.httpError(let status, _) = error else { return false }
+            return status == 401
+        }
     }
 
-    @Test("An update with no sent_at is excluded once a window exists")
-    func undatedUpdateIsExcludedWithinAWindow() async throws {
-        // The other half of the same rule: with a real lower bound, an undated
-        // post cannot be shown to fall inside it, so counting it would inflate
-        // the period.
-        let session = MockURLSession([
-            "/1/profiles.json": (Self.profilesJSON, 200),
-            "/1/profiles/p1/updates/sent.json": (Self.sentNoDateJSON, 200),
-            "/1/profiles/p2/updates/sent.json": (Self.sentNoDateJSON, 200),
-            "/1/profiles/p1/updates/pending.json": (Self.pendingJSON, 200),
-            "/1/profiles/p2/updates/pending.json": (Self.pendingJSON, 200)
-        ])
+    @Test("A missing key is reported by name")
+    func missingKey() async throws {
+        await #expect {
+            try await BufferCollector(session: session()).collect(since: .distantPast, credentials: Credentials([:]))
+        } throws: { error in
+            guard case CollectorError.missingCredential(let key) = error else { return false }
+            return key == "api_key"
+        }
+    }
 
-        let data = try await BufferCollector(session: session)
-            .collect(since: Date(timeIntervalSince1970: 1_767_225_600), credentials: credentials)
+    @Test("A malformed metric is an error, not a zero")
+    func malformedMetricThrows() async throws {
+        let sent = #"{"data":{"posts":{"edges":[{"node":{"channelId":"c1","channelService":"mastodon","sentAt":null,"metrics":[{"type":"clicks","value":"ten"}]}}],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}"#
+        await #expect(throws: CollectorError.self) {
+            try await collect(session(sent: [.init(sent)]))
+        }
+    }
 
-        #expect(data.intMetric("sent_updates") == 0)
+    // MARK: - The wire
+
+    @Test("Every request is a POST to the GraphQL endpoint, with the key in a Bearer header and not the URL")
+    func requestShape() async throws {
+        let mock = session()
+        _ = try await collect(mock)
+
+        #expect(!mock.requests.isEmpty)
+        for request in mock.requests {
+            #expect(request.httpMethod == "POST")
+            #expect(request.url == BufferCollector.endpoint)
+            #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer tok-123")
+            #expect(request.url?.absoluteString.contains("tok-123") == false)
+        }
+        #expect(mock.operations == ["Account", "Channels", "SentPosts", "ScheduledPosts"])
+    }
+
+    @Test("The label is the account name")
+    func label() async {
+        let label = await BufferCollector(session: session()).fetchLabel(credentials: credentials)
+        #expect(label == "cate")
     }
 }
