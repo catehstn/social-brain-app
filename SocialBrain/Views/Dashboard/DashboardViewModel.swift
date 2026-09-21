@@ -26,7 +26,7 @@ final class DashboardViewModel {
     var isLoading = false
 
     private let database: AppDatabase
-    private let labels: InstanceLabels
+    let labels: InstanceLabels
 
     enum TimeRange: String, CaseIterable, Identifiable {
         case week  = "7 days"

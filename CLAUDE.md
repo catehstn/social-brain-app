@@ -129,7 +129,7 @@ app, and a documented test command that silently skipped and exited 0.
   **That describes the stores, not every caller.** These still read one of the
   four `UserDefaults`-backed globals directly (`KeychainStore.shared` has its
   own direct readers, not listed here): `PlatformCredentialSheet` and `PlatformDetailView`
-  (`InstanceLabels.shared`), `OnboardingView` (`AnalyticsGoalStore.shared`),
+  (`InstanceLabels.shared`, and the sheet's header through the bare `displayName`), `OnboardingView` (`AnalyticsGoalStore.shared`),
   `SocialBrainApp` (`PlatformVisibilityStore.shared.resetAll()`),
   `PlatformInstance.displayName` (`displayName(using: .shared)`) and
   `MCPServer` (`PromptAssembler(labels: .shared)` — #183). Views are not under
@@ -142,16 +142,22 @@ app, and a documented test command that silently skipped and exited 0.
   .shared)` — the type is inferred, so the store's name never appears. Both
   forms need grepping, and `: \.shared` also matches the *approved* pattern of
   passing a store explicitly (`PlatformsView`, `RunView`, `DashboardView`,
-  `FeedView`, `SocialBrainApp`), so the two cannot be
+  `FeedView`, `SocialBrainApp`, and `PlatformCredentialSheet` for
+  `registrations:`), so the two cannot be
   told apart mechanically. Hence a list, not a total.
 
   **Nothing that reaches persistent state takes a production default.** That
-  covers the initialisers of `PlatformsViewModel`, `RunViewModel`,
+  includes the initialisers of `PlatformsViewModel`, `RunViewModel`,
   `DashboardViewModel`, `FeedViewModel`, `PromptAssembler`, `CollectionEngine`
-  and `SpikeNotifier`, and three static functions: `FeedCardBuilder.build`,
-  `CollectorRegistry.configured` and `AppDelegate.runBackgroundRefresh`. Their
-  production call sites pass `.shared` (or `SpikeNotifier.system`) explicitly.
-  The static functions are why "check the inits" is not enough (#184).
+  and `SpikeNotifier`, `MastodonOAuth.authenticate`'s `registrations:`, and
+  three static functions: `FeedCardBuilder.build`, `CollectorRegistry.configured`
+  and `AppDelegate.runBackgroundRefresh`. The outermost production call sites
+  — views and the scheduler — pass `.shared` (or `SpikeNotifier.system`)
+  explicitly. The static functions are why "check the inits" is not enough
+  (#184). **One known exception**: `PlatformsViewModel.saveImport` reaches
+  `NotificationManager.shared` at call time to re-arm stale-export reminders.
+  `NotificationManager` has no seam to inject yet (#192); no test reaches it,
+  because the import path runs only from `NSOpenPanel`.
   `PlatformsViewModel` says so in a comment recording the run where the suite destroyed real
   credentials — and then grew `labels: InstanceLabels = .shared` anyway,
   directly under that comment, in the branch that added the injection. Four

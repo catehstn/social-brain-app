@@ -30,7 +30,7 @@ struct DashboardView: View {
         HStack {
             Picker("Instance", selection: $viewModel.selectedInstance) {
                 ForEach(viewModel.allInstances) { instance in
-                    Text(instance.displayName).tag(instance)
+                    Text(instance.displayName(using: viewModel.labels)).tag(instance)
                 }
             }
             .labelsHidden()
