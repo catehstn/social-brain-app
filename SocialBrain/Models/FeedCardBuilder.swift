@@ -26,12 +26,14 @@ struct FeedCardBuilder {
     ///   used to change only the Platforms grid, so the feed went on nagging
     ///   about a platform the user had said they don't use — worst of all for
     ///   the stale-export reminders, whose whole message is "go and do
-    ///   something about this" (#80).
+    ///   something about this" (#80). No default: it was `.shared`, which
+    ///   made every test that omitted it depend on the developer's own hidden
+    ///   platforms (#184).
     static func build(
         snapshots: [PlatformInstance: PlatformSnapshot],
         previousSnapshots: [PlatformInstance: PlatformSnapshot] = [:],
         now: Date = Date(),
-        visibility: PlatformVisibilityStore = .shared
+        visibility: PlatformVisibilityStore
     ) -> [FeedCard] {
         // Filtered on the way in *and* on the way out, and both are needed.
         //

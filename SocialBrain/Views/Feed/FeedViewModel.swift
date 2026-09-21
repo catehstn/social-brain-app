@@ -15,9 +15,11 @@ final class FeedViewModel {
     private let now: () -> Date
     private let visibility: PlatformVisibilityStore
 
+    /// No default for `visibility`: it was `.shared`, so a test that left it
+    /// out filtered cards by the developer's own hidden platforms (#184).
     init(database: AppDatabase,
          now: @escaping @Sendable () -> Date = { Date() },
-         visibility: PlatformVisibilityStore = .shared) {
+         visibility: PlatformVisibilityStore) {
         self.database = database
         self.now = now
         self.visibility = visibility

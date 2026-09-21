@@ -5,7 +5,7 @@ struct DashboardView: View {
     @State private var viewModel: DashboardViewModel
 
     init(database: AppDatabase) {
-        _viewModel = State(wrappedValue: DashboardViewModel(database: database))
+        _viewModel = State(wrappedValue: DashboardViewModel(database: database, labels: .shared))
     }
 
     var body: some View {

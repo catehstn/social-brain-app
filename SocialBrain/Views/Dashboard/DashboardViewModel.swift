@@ -26,6 +26,7 @@ final class DashboardViewModel {
     var isLoading = false
 
     private let database: AppDatabase
+    private let labels: InstanceLabels
 
     enum TimeRange: String, CaseIterable, Identifiable {
         case week  = "7 days"
@@ -45,8 +46,14 @@ final class DashboardViewModel {
         }
     }
 
-    init(database: AppDatabase, initialInstance: PlatformInstance = PlatformInstance(platform: .mastodon)) {
+    /// `labels` orders the instance picker by display name. No default: the
+    /// bare `displayName` reads `InstanceLabels.shared`, so this view model's
+    /// tests were sorting by the developer's own labels (#184).
+    init(database: AppDatabase,
+         labels: InstanceLabels,
+         initialInstance: PlatformInstance = PlatformInstance(platform: .mastodon)) {
         self.database = database
+        self.labels = labels
         self.selectedInstance = initialInstance
     }
 
@@ -56,7 +63,7 @@ final class DashboardViewModel {
         do {
             // Refresh the list of available instances.
             let latestMap = try await database.latestSnapshots()
-            allInstances = Array(latestMap.keys).sorted { $0.displayName < $1.displayName }
+            allInstances = Array(latestMap.keys).sorted { $0.displayName(using: labels) < $1.displayName(using: labels) }
 
             let snapshots = try await database.snapshots(
                 for: selectedInstance.platform,

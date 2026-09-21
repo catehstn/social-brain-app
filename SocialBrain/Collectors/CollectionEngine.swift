@@ -55,9 +55,15 @@ struct CollectionSummary: Sendable {
 /// `AppDatabase` even when some collectors fail, so partial data is never lost.
 actor CollectionEngine {
     private let database: AppDatabase
+    private let labels: InstanceLabels
 
-    init(database: AppDatabase) {
+    /// `labels` names an instance in a missing-credential error. It is
+    /// injected, with no default, because the bare `displayName` property
+    /// reads `InstanceLabels.shared` — so running the engine in a test used
+    /// to read the developer's own labels (#184).
+    init(database: AppDatabase, labels: InstanceLabels) {
         self.database = database
+        self.labels = labels
     }
 
     /// Runs every collector in `collectors`, saves results to the database, and returns a summary.
@@ -89,6 +95,7 @@ actor CollectionEngine {
         let runID = run.id!
 
         // Run all collectors concurrently, accumulating results.
+        let labels = self.labels
         var results: [CollectionResult] = []
         await withTaskGroup(of: CollectionResult.self) { group in
             for collector in collectors {
@@ -99,7 +106,7 @@ actor CollectionEngine {
                     )
                     do {
                         guard let creds = try credentials(instance) else {
-                            throw CollectorError.missingCredential("(no credentials stored for \(instance.displayName))")
+                            throw CollectorError.missingCredential("(no credentials stored for \(instance.displayName(using: labels)))")
                         }
                         let data = try await collector.collect(since: since, credentials: creds)
                         return .success(data)
@@ -184,9 +191,13 @@ actor CollectionEngine {
 /// so this always returns collectors that are ready to run.
 enum CollectorRegistry {
     /// Returns all collectors for all instances with stored credentials.
+    ///
+    /// No defaults: they were the real registry and Keychain, so a call with no
+    /// arguments in a test read the developer's own setup (#184). Production
+    /// passes its stores through `configured(registry:keychain:)`.
     static func configured(
-        instances: (Platform) -> [String] = InstanceRegistry.shared.instances,
-        hasCredentials: (PlatformInstance) -> Bool = KeychainStore.shared.hasCredentials
+        instances: (Platform) -> [String],
+        hasCredentials: (PlatformInstance) -> Bool
     ) -> [any Collector] {
         Platform.allCases.flatMap { platform in
             instances(platform).compactMap { instanceName in
@@ -195,6 +206,11 @@ enum CollectorRegistry {
                 return collector(for: instance)
             }
         }
+    }
+
+    /// The same, from the stores themselves.
+    static func configured(registry: InstanceRegistry, keychain: KeychainStore) -> [any Collector] {
+        configured(instances: registry.instances, hasCredentials: keychain.hasCredentials)
     }
 
     /// Returns the collector implementation for a given `PlatformInstance`, or nil for

@@ -5,7 +5,7 @@ struct FeedView: View {
     var onNavigate: (SidebarItem, Platform?) -> Void
 
     init(database: AppDatabase, onNavigate: @escaping (SidebarItem, Platform?) -> Void) {
-        _vm = State(wrappedValue: FeedViewModel(database: database))
+        _vm = State(wrappedValue: FeedViewModel(database: database, visibility: .shared))
         self.onNavigate = onNavigate
     }
 

@@ -131,11 +131,36 @@ struct FeedDatabaseTests {
         try await db.saveSnapshot(&snap)
 
         let instance = PlatformInstance(platform: .mastodon, instanceName: "work")
-        let vm = DashboardViewModel(database: db, initialInstance: instance)
+        let vm = DashboardViewModel(database: db, labels: InstanceLabels(defaults: InMemoryKeyValueStore()),
+                                    initialInstance: instance)
         vm.timeRange = .all
         await vm.load()
 
         #expect(!vm.series.isEmpty)
+    }
+
+    @Test("The Dashboard orders instances by the labels it was given, not the real ones")
+    @MainActor
+    func dashboardSortsByInjectedLabels() async throws {
+        // It sorted by the bare `displayName`, which reads
+        // `InstanceLabels.shared` — the developer's own labels (#184). Labels
+        // chosen to invert the order the instance names alone would give.
+        let db = try makeDB()
+        let runID = try await makeRun(in: db)
+        for name in ["alpha", "beta"] {
+            var snap = try PlatformSnapshot(
+                runID: runID,
+                data: PlatformData(platform: .mastodon, instanceName: name, metrics: ["followers_count": .int(1)]))
+            try await db.saveSnapshot(&snap)
+        }
+        let labels = InstanceLabels(defaults: InMemoryKeyValueStore())
+        labels.setLabel("Zebra", for: PlatformInstance(platform: .mastodon, instanceName: "alpha"))
+        labels.setLabel("Aardvark", for: PlatformInstance(platform: .mastodon, instanceName: "beta"))
+
+        let vm = DashboardViewModel(database: db, labels: labels)
+        await vm.load()
+
+        #expect(vm.allInstances.map(\.instanceName) == ["beta", "alpha"])
     }
 
     @Test("The Dashboard charts GoatCounter visits, and nothing called Visitors")
@@ -155,7 +180,7 @@ struct FeedDatabaseTests {
         var snap = try PlatformSnapshot(runID: runID, data: data)
         try await db.saveSnapshot(&snap)
 
-        let vm = DashboardViewModel(database: db,
+        let vm = DashboardViewModel(database: db, labels: InstanceLabels(defaults: InMemoryKeyValueStore()),
                                     initialInstance: PlatformInstance(platform: .goatCounter))
         vm.timeRange = .all
         await vm.load()
@@ -181,7 +206,7 @@ struct FeedDatabaseTests {
         var snap = try PlatformSnapshot(runID: runID, data: data)
         try await db.saveSnapshot(&snap)
 
-        let vm = DashboardViewModel(database: db,
+        let vm = DashboardViewModel(database: db, labels: InstanceLabels(defaults: InMemoryKeyValueStore()),
                                     initialInstance: PlatformInstance(platform: .linkedin))
         vm.timeRange = .all
         await vm.load()

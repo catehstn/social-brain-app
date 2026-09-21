@@ -78,7 +78,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
 
         // Start the daily background refresh for API-based platforms.
         BackgroundRefreshScheduler.shared.start {
-            await Self.runBackgroundRefresh(database: database)
+            await Self.runBackgroundRefresh(
+                database: database,
+                collectors: CollectorRegistry.configured(registry: .shared, keychain: .shared)
+                    .filter { $0.platform.authType == .apiKey || $0.platform.authType == .oauthToken },
+                credentials: { try KeychainStore.shared.load(for: $0) },
+                labels: .shared,
+                notifier: SpikeNotifier(database: database, send: SpikeNotifier.system))
         }
     }
 
@@ -100,27 +106,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
     /// closure, deleting the `notifySpikes` call below left every test passing —
     /// the one behaviour this exists to provide had no regression guard at all.
     ///
-    /// - Parameters:
-    ///   - collectors: defaults to the configured API-backed platforms.
-    ///   - notifier: defaults to the real one, which posts a system notification.
+    /// Every dependency is a parameter with no default. Each used to fall back
+    /// to production when left `nil`, and one test did pass `notifier: nil` —
+    /// handing a unit test the real notifier, one spike away from posting a
+    /// system notification (#184). The scheduler passes production explicitly.
     static func runBackgroundRefresh(
         database: AppDatabase,
-        collectors: [any Collector]? = nil,
-        credentials: (@Sendable (PlatformInstance) throws -> Credentials?)? = nil,
-        notifier: SpikeNotifier? = nil
+        collectors: [any Collector],
+        credentials: @escaping @Sendable (PlatformInstance) throws -> Credentials?,
+        labels: InstanceLabels,
+        notifier: SpikeNotifier
     ) async {
-        let collectors = collectors ?? CollectorRegistry.configured()
-            .filter { $0.platform.authType == .apiKey || $0.platform.authType == .oauthToken }
         guard !collectors.isEmpty else { return }
 
-        let engine = CollectionEngine(database: database)
+        let engine = CollectionEngine(database: database, labels: labels)
         let summary: CollectionSummary
         do {
             summary = try await engine.run(
                 collectors: collectors,
-                credentials: credentials ?? { instance in
-                    try KeychainStore.shared.load(for: instance)
-                },
+                credentials: credentials,
                 // Explicit, where this used to pass `nil` and each collector
                 // read it differently — thirty days for some, twenty-eight for
                 // others, one page for the rest, so the daily refresh covered a
@@ -140,6 +144,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, @unchecked Sendable {
         // The whole point of a background run: this is the path that can
         // actually surprise the user, and it was the one path that never
         // detected a spike or sent a notification.
-        await (notifier ?? SpikeNotifier(database: database)).notifySpikes(for: summary)
+        await notifier.notifySpikes(for: summary)
     }
 }
