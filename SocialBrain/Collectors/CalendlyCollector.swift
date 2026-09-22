@@ -124,11 +124,15 @@ struct CalendlyCollector: Collector {
             if names[event.eventType] == nil { names[event.eventType] = event.name }
         }
         // Ties broken by name so the order does not depend on dictionary order.
-        return counts
-            .map { (name: names[$0.key] ?? $0.key, count: $0.value) }
-            .sorted { $0.count != $1.count ? $0.count > $1.count : $0.name < $1.name }
-            .prefix(3)
-            .map(\.name)
+        // Split into typed steps: as one chain, Xcode 16.4 could not type-check
+        // it in reasonable time and failed the CI build.
+        let tallied: [(name: String, count: Int)] = counts.map { entry in
+            (name: names[entry.key] ?? entry.key, count: entry.value)
+        }
+        let ranked = tallied.sorted { a, b in
+            a.count != b.count ? a.count > b.count : a.name < b.name
+        }
+        return ranked.prefix(3).map { $0.name }
     }
 
     private func fetchUserURI(apiKey: String) async throws -> String {
