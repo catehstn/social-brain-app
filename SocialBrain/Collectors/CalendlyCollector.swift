@@ -5,10 +5,19 @@ import Foundation
 /// Required credentials key: `"api_key"` – Calendly personal access token.
 ///
 /// Metrics returned:
-/// - `events_count`       – scheduled events in the period
-/// - `cancelled_count`    – cancelled events
-/// - `unique_invitees`    – distinct invitee email count
-/// - `top_event_type_1` … `top_event_type_3` – names of most-used event types
+/// - `events_count`       – scheduled events in the period, cancelled included
+/// - `cancelled_count`    – of those, events whose `status` is `"canceled"`
+/// - `unique_invitees`    – distinct invitee emails across the period's
+///   non-cancelled events. **Omitted** when the period holds more than
+///   `maximumInviteeLookups` of them — see that constant.
+/// - `top_event_type_1` … `top_event_type_3` – names of the most-booked event
+///   types, cancelled events included
+///
+/// Checked against the live API on 2026-09-22. Until then this decoded
+/// `event_type_name` and `invitees_email_hint`, neither of which a scheduled
+/// event has, and read one page of 100: every type came back `"Unknown"`,
+/// `unique_invitees` was always 0, and all time reported exactly 100 events
+/// for an account holding 118 (#75).
 struct CalendlyCollector: Collector {
     let platform: Platform = .calendly
     var instanceName: String = "default"
@@ -20,6 +29,19 @@ struct CalendlyCollector: Collector {
         self.session = session
         self.baseURL = baseURL
     }
+
+    /// The most per-event invitee lookups `collect` will make.
+    ///
+    /// A scheduled event carries only `invitees_counter` — how many invitees,
+    /// not who — so counting distinct people costs one
+    /// `/scheduled_events/{uuid}/invitees` request per event. The live API
+    /// reported `x-ratelimit-limit: 500` per 60 seconds on 2026-09-22
+    /// (`x-ratelimit-tier: standard`), and 400 leaves headroom for the event
+    /// pages and `/users/me` inside the same minute.
+    ///
+    /// Past it the metric is left out rather than counted from a sample: a
+    /// partial count would read as a real one, and an absent metric does not.
+    static let maximumInviteeLookups = 400
 
     func fetchLabel(credentials: Credentials) async -> String? {
         guard let apiKey = credentials.apiKey else { return nil }
@@ -43,24 +65,25 @@ struct CalendlyCollector: Collector {
         let userURI = try await fetchUserURI(apiKey: apiKey)
         let events  = try await fetchEvents(apiKey: apiKey, userURI: userURI, since: since)
 
-        let total     = events.count
-        let cancelled = events.filter { $0.status == "canceled" }.count
-        let invitees  = Set(events.compactMap(\.inviteesEmailHint)).count
-
-        // Tally event types
-        var typeCounts: [String: Int] = [:]
-        for event in events {
-            let name = event.eventTypeName ?? "Unknown"
-            typeCounts[name, default: 0] += 1
-        }
-        let topTypes = typeCounts.sorted { $0.value > $1.value }.prefix(3).map(\.key)
-
+        let cancelled = events.filter { $0.status == "canceled" }
         var metrics: [String: MetricValue] = [
-            "events_count":    .int(total),
-            "cancelled_count": .int(cancelled),
-            "unique_invitees": .int(invitees)
+            "events_count":    .int(events.count),
+            "cancelled_count": .int(cancelled.count)
         ]
-        for (index, name) in topTypes.enumerated() {
+
+        let held = events.filter { $0.status != "canceled" }
+        if held.count <= Self.maximumInviteeLookups {
+            var emails = Set<String>()
+            for event in held {
+                for invitee in try await fetchInvitees(apiKey: apiKey, eventURI: event.uri)
+                where invitee.status == "active" {
+                    emails.insert(invitee.email.lowercased())
+                }
+            }
+            metrics["unique_invitees"] = .int(emails.count)
+        }
+
+        for (index, name) in topEventTypes(events).enumerated() {
             metrics["top_event_type_\(index + 1)"] = .string(name)
         }
 
@@ -68,6 +91,28 @@ struct CalendlyCollector: Collector {
     }
 
     // MARK: - Private
+
+    /// The three most-booked event types, by name.
+    ///
+    /// Tallied by the `event_type` URI, not by `name`. An event's `name` is the
+    /// type's name *when it was booked*, so a renamed type shows up under two
+    /// names — one of the account's five types did, live — and tallying by name
+    /// would split it. The label is the name on the most recent event of that
+    /// type; events arrive newest first.
+    private func topEventTypes(_ events: [CalendlyEvent]) -> [String] {
+        var counts: [String: Int] = [:]
+        var names: [String: String] = [:]
+        for event in events {
+            counts[event.eventType, default: 0] += 1
+            if names[event.eventType] == nil { names[event.eventType] = event.name }
+        }
+        // Ties broken by name so the order does not depend on dictionary order.
+        return counts
+            .map { (name: names[$0.key] ?? $0.key, count: $0.value) }
+            .sorted { $0.count != $1.count ? $0.count > $1.count : $0.name < $1.name }
+            .prefix(3)
+            .map(\.name)
+    }
 
     private func fetchUserURI(apiKey: String) async throws -> String {
         let url = baseURL.appendingPathComponent("users/me")
@@ -80,6 +125,7 @@ struct CalendlyCollector: Collector {
         return decoded.resource.uri
     }
 
+    /// Every scheduled event in the window, walking `next_page_token` to the end.
     private func fetchEvents(apiKey: String, userURI: String, since: Date) async throws -> [CalendlyEvent] {
         var items: [URLQueryItem] = [
             URLQueryItem(name: "user",  value: userURI),
@@ -89,17 +135,51 @@ struct CalendlyCollector: Collector {
         if let lowerBound = CollectionWindow.lowerBound(since) {
             items.append(URLQueryItem(name: "min_start_time", value: iso8601DateTime(lowerBound)))
         }
-        var url = baseURL.appendingPathComponent("scheduled_events")
-        url.append(queryItems: items)
-        var req = URLRequest(url: url)
-        req.setBearerToken(apiKey)
+        return try await fetchAllPages(
+            CalendlyEvent.self, apiKey: apiKey,
+            path: "scheduled_events", items: items
+        )
+    }
 
-        let (data, response) = try await session.data(for: req)
+    private func fetchInvitees(apiKey: String, eventURI: String) async throws -> [CalendlyInvitee] {
+        // Built on `baseURL` from the event's UUID rather than requested at the
+        // URI the API handed back, so the token only ever goes to `baseURL`.
+        let uuid = URL(string: eventURI)?.lastPathComponent ?? eventURI
+        return try await fetchAllPages(
+            CalendlyInvitee.self, apiKey: apiKey,
+            path: "scheduled_events/\(uuid)/invitees",
+            items: [URLQueryItem(name: "count", value: "100")]
+        )
+    }
+
+    /// Follows `pagination.next_page_token` until the API stops returning one.
+    ///
+    /// The token is sent back as `page_token` alongside the original
+    /// parameters. Calendly's own `next_page` URL carries the same token (the
+    /// two matched, live), but following it would send the token to whatever
+    /// host that URL names.
+    private func fetchAllPages<Item: Decodable>(
+        _ type: Item.Type, apiKey: String, path: String, items: [URLQueryItem]
+    ) async throws -> [Item] {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        decoder.dateDecodingStrategy = .iso8601Flexible
-        let decoded = try decodeJSON(EventsResponse.self, from: data, response: response, decoder: decoder)
-        return decoded.collection
+
+        var collected: [Item] = []
+        var pageToken: String?
+        repeat {
+            var url = baseURL.appendingPathComponent(path)
+            var query = items
+            if let pageToken { query.append(URLQueryItem(name: "page_token", value: pageToken)) }
+            url.append(queryItems: query)
+            var req = URLRequest(url: url)
+            req.setBearerToken(apiKey)
+
+            let (data, response) = try await session.data(for: req)
+            let page = try decodeJSON(Page<Item>.self, from: data, response: response, decoder: decoder)
+            collected.append(contentsOf: page.collection)
+            pageToken = page.pagination.nextPageToken
+        } while pageToken != nil
+        return collected
     }
 }
 
@@ -110,15 +190,27 @@ private struct UserResponse: Decodable {
     let resource: Resource
 }
 
-private struct EventsResponse: Decodable {
-    let collection: [CalendlyEvent]
+private struct Page<Item: Decodable>: Decodable {
+    struct Pagination: Decodable {
+        /// `null` on the last page.
+        let nextPageToken: String?
+    }
+    let collection: [Item]
+    let pagination: Pagination
 }
 
 private struct CalendlyEvent: Decodable {
     let uri: String
-    let status: String                   // "active" | "canceled"
-    let eventTypeName: String?
-    let inviteesEmailHint: String?       // populated in some API tiers
+    let status: String          // "active" | "canceled"
+    /// The event type's name as it was when this event was booked.
+    let name: String
+    /// The event type's URI — stable across renames, unlike `name`.
+    let eventType: String
+}
+
+private struct CalendlyInvitee: Decodable {
+    let email: String
+    let status: String          // "active" | "canceled"
 }
 
 // MARK: - Helpers
