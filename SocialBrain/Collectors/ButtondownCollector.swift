@@ -9,8 +9,15 @@ import Foundation
 /// - `new_subscribers`      – active subscribers created since the `since` date
 /// - `emails_sent`          – newsletters sent since `since`
 /// - `avg_open_rate`        – mean per-email unique opens / deliveries (0–1),
-///                            over emails with any opens recorded
-/// - `avg_click_rate`       – mean per-email unique clicks / deliveries (0–1)
+///                            leaving out emails with no opens at all, which
+///                            reads as open tracking off rather than a real 0%
+/// - `avg_click_rate`       – mean per-email unique clicks / deliveries (0–1).
+///                            A 0-click email is averaged in, deliberately: an
+///                            email with no links is common, and there is no
+///                            signal that tells it apart from click tracking off
+///
+/// Both are a mean of per-email rates, so each email weighs the same whatever
+/// its size — the "typical send", not total opens over total deliveries.
 /// - `emails_sampled`       – a note, only when the email walk hit its page cap
 ///
 /// Response shapes were checked against the live API on 2026-09-22 (#75).
@@ -50,7 +57,10 @@ struct ButtondownCollector: Collector {
             }
         }
         guard let page = try? JSONDecoder().decode(PagedResponse<Newsletter>.self, from: data),
-              let mine = page.results.first(where: { $0.apiKey == apiKey })
+              let mine = page.results.first(where: {
+                  // Trimmed: the credential sheet stores the key as pasted.
+                  $0.apiKey == apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+              })
         else { return nil }
         return [mine.name, mine.username].compactMap { $0 }.first { !$0.isEmpty }
     }
@@ -242,11 +252,17 @@ struct ButtondownCollector: Collector {
                 // neither has a rate.
                 guard let stats = email.analytics, stats.deliveries > 0 else { continue }
                 let deliveries = Double(stats.deliveries)
-                // Zero opens means open tracking was not recording, not that
-                // nobody opened it: live, one email reports 0 opens against 48
-                // deliveries and 1 click, which cannot happen with tracking on.
-                // Buttondown itself calls that a 0% open rate; averaged in, it
-                // drags every all-time figure down, so it is left out instead.
+                // No opens at all across a send reads as open tracking off,
+                // not a real 0%. Live on 2026-09-22 the account's other seven
+                // sends opened at 56–70%; two report zero — 0 of 48 (with a
+                // click) and 0 of 6 (no clicks). At two-thirds, 0 of 6 by
+                // chance is about 0.15%. A click without an open is possible
+                // with tracking on (images blocked), so clicks are not the
+                // signal; zero opens across the whole send is. Averaged in,
+                // those two pull the all-time rate from 0.66 to 0.58.
+                //
+                // A judgement: a genuinely unopened send is dropped too. On
+                // any real volume that is far less likely than tracking off.
                 if stats.opens > 0 { acc.openRates.append(Double(stats.opens) / deliveries) }
                 acc.clickRates.append(Double(stats.clicks) / deliveries)
             }

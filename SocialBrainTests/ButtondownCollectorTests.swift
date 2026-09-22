@@ -217,6 +217,28 @@ struct ButtondownCollectorTests {
         #expect(abs(avgClick - 0.35 / 3) < 0.0001)
     }
 
+    @Test("Zero opens is left out of the open rate even with no clicks")
+    func zeroOpensAndZeroClicksIsLeftOut() async throws {
+        // Clicks are not the signal that open tracking was off; zero opens
+        // across a whole send is. Live, a 0-open, 0-click, 6-delivery send sat
+        // beside sends opening at 56-70%, and counting it as 0% moved the
+        // all-time rate from 0.66 to 0.58.
+        let emails = """
+            {"results": [\(Self.email(id: 1, analytics: Self.analytics(
+                recipients: 20, deliveries: 20, opens: 0, clicks: 0)))],
+             "next": null, "previous": null, "count": 1}
+            """
+        let session = MockURLSession([
+            "/v1/subscribers": (Self.subscribersJSON, 200),
+            "/v1/emails":      (emails, 200)
+        ])
+        let data = try await ButtondownCollector(session: session)
+            .collect(since: .distantPast, credentials: Credentials(["api_key": "k"]))
+
+        #expect(data.metrics["avg_open_rate"] == nil)
+        #expect(data.doubleMetric("avg_click_rate") == 0)
+    }
+
     @Test("An email with no opens has no open rate, rather than a rate of zero")
     func zeroOpensIsNotAnOpenRate() async throws {
         // Live: one sent email reports 0 opens against 48 deliveries and 1
@@ -322,6 +344,14 @@ struct ButtondownCollectorTests {
 
         #expect(label == "Example Letters")
         #expect(session.headerValues("Authorization", path: "/v1/newsletters") == ["Token test-key"])
+    }
+
+    @Test("A key pasted with surrounding whitespace still finds its newsletter")
+    func labelMatchesATrimmedKey() async throws {
+        let session = MockURLSession(["/v1/newsletters": (Self.newslettersJSON, 200)])
+        let label = await ButtondownCollector(session: session)
+            .fetchLabel(credentials: Credentials(["api_key": "test-key \n"]))
+        #expect(label == "Example Letters")
     }
 
     @Test("No label when no newsletter matches the key")
