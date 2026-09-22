@@ -258,8 +258,9 @@ struct ButtondownCollector: Collector {
                 // click) and 0 of 6 (no clicks). At two-thirds, 0 of 6 by
                 // chance is about 0.15%. A click without an open is possible
                 // with tracking on (images blocked), so clicks are not the
-                // signal; zero opens across the whole send is. Averaged in,
-                // those two pull the all-time rate from 0.66 to 0.58.
+                // signal; zero opens across the whole send is. The 0-of-6
+                // send alone, averaged in, pulls the all-time rate from 0.66
+                // to 0.58; both together, to 0.51.
                 //
                 // A judgement: a genuinely unopened send is dropped too. On
                 // any real volume that is far less likely than tracking off.
