@@ -34,19 +34,16 @@ jobs:
           key: ${{ runner.os }}-spm-app-${{ hashFiles('**/Package.resolved') }}
           restore-keys: ${{ runner.os }}-spm-app-
 
-      # `-onlyUsePackageVersionsFromResolvedFile` pins resolution to the
-      # checked-in Package.resolved and skips the remote version check, which
-      # this step pays even on a cache hit: measured at 18-21s per run across
-      # four recent runs, in this job and UI Tests. Every xcodebuild invocation
-      # below carries it too, because the other two jobs have no explicit
-      # resolve step — they resolve inside their build, where the same cost is
-      # invisible rather than absent.
+      # No explicit `Resolve packages` step: xcodebuild resolves what it needs
+      # on the way into the build, which is what MCP Server and Release Build
+      # have always relied on. The separate step cost 18-21s per run even on a
+      # cache hit.
       #
-      # It also makes CI fail loudly on a Package.resolved that does not
-      # satisfy the project, instead of quietly resolving to something newer
-      # than what was committed.
-      - name: Resolve packages
-        run: xcodebuild -resolvePackageDependencies -scheme SocialBrain -onlyUsePackageVersionsFromResolvedFile
+      # `-onlyUsePackageVersionsFromResolvedFile` on every invocation below
+      # pins resolution to the committed Package.resolved, so CI fails loudly
+      # on a resolved file that cannot satisfy the project rather than quietly
+      # building against something newer. It is not a speed measure: with the
+      # explicit step still in place it changed nothing (19s either way).
 
       # `shell: bash --noprofile --norc -eo pipefail {0}` is load-bearing — the
       # `pipefail` half especially. Without it, piping
@@ -96,9 +93,6 @@ jobs:
           path: ~/Library/Developer/Xcode/DerivedData/**/SourcePackages
           key: ${{ runner.os }}-spm-app-${{ hashFiles('**/Package.resolved') }}
           restore-keys: ${{ runner.os }}-spm-app-
-
-      - name: Resolve packages
-        run: xcodebuild -resolvePackageDependencies -scheme SocialBrain-UITests -onlyUsePackageVersionsFromResolvedFile
 
       - name: Run UI tests
         shell: bash --noprofile --norc -eo pipefail {0}
