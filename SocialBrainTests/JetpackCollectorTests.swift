@@ -7,14 +7,48 @@ struct JetpackCollectorTests {
 
     private static let siteID = "12345678"
 
+    // Both fixtures follow the shape of a live response captured on 2026-09-22
+    // (#75): same field names, nesting and types. Every value is invented.
+    //
+    // Note what `stats` does *not* have: `likes_today`. The collector used to
+    // require it, and the API does not send it, so every live run failed.
     private static let statsJSON = """
     {
+      "date": "2026-03-26",
       "stats": {
+        "visitors_today": 7,
+        "visitors_yesterday": 31,
+        "visitors": 90210,
+        "views_today": 9,
+        "views_yesterday": 40,
+        "views_best_day": "2025-01-15",
+        "views_best_day_total": 2048,
+        "views": 123456,
+        "comments": 342,
+        "posts": 250,
         "followers_blog": 1240,
         "followers_comments": 85,
-        "comments": 342,
-        "likes_today": 12
-      }
+        "comments_per_month": 0,
+        "comments_most_active_recent_day": "2020-01-01 00:00:00",
+        "comments_most_active_time": "N/A",
+        "comments_spam": 0,
+        "categories": 12,
+        "tags": 300,
+        "shares": 0,
+        "shares_twitter": 0,
+        "shares_linkedin": 0,
+        "shares_facebook": 0
+      },
+      "visits": {
+        "date": "2026-03-26",
+        "unit": "day",
+        "fields": ["period", "views", "visitors"],
+        "data": [
+          ["2026-03-25", 1, 1]
+        ],
+        "utc_offset": "+00:00"
+      },
+      "utc_offset": "+00:00"
     }
     """
 
@@ -22,12 +56,13 @@ struct JetpackCollectorTests {
     {
       "date": "2026-03-26",
       "unit": "day",
-      "fields": ["period", "views", "visitors"],
+      "fields": ["period", "views", "visitors", "likes", "reblogs", "comments", "posts"],
       "data": [
-        ["2026-03-25", 156, 42],
-        ["2026-03-24", 143, 38],
-        ["2026-03-23", 201, 55]
-      ]
+        ["2026-03-23", 201, 55, 5, 0, 1, 1],
+        ["2026-03-24", 143, 38, 0, 0, 0, 0],
+        ["2026-03-25", 156, 42, 7, 0, 2, 0]
+      ],
+      "utc_offset": "+00:00"
     }
     """
 
@@ -58,10 +93,74 @@ struct JetpackCollectorTests {
         #expect(data.intMetric("total_comments") == 342)
     }
 
-    @Test("Parses likes_today")
+    @Test("Likes are summed over the window from the visits likes column")
     func parsesLikes() async throws {
+        // 5 + 0 + 7. The summary's `likes_today` does not exist on the live API.
         let data = try await JetpackCollector(session: session).collect(since: .distantPast, credentials: credentials)
         #expect(data.intMetric("total_likes") == 12)
+    }
+
+    @Test("A stats response without likes_today still decodes (#75)")
+    func statsWithoutLikesTodayDecodes() async throws {
+        // Regression: the live API sends no `likes_today`, and requiring it
+        // failed the whole decode ("'stats.likes_today' missing"), so Jetpack
+        // produced nothing at all.
+        let minimal = """
+        { "stats": { "followers_blog": 3, "followers_comments": 1, "comments": 2 } }
+        """
+        let sess = MockURLSession([
+            "/rest/v1.1/sites/\(Self.siteID)/stats":        (minimal, 200),
+            "/rest/v1.1/sites/\(Self.siteID)/stats/visits": (Self.visitsJSON, 200)
+        ])
+        let data = try await JetpackCollector(session: sess).collect(since: .distantPast, credentials: credentials)
+        #expect(data.intMetric("followers_blog") == 3)
+        #expect(data.intMetric("total_views") == 500)
+    }
+
+    @Test("A missing summary field fails loudly and names the field")
+    func missingSummaryFieldFails() async throws {
+        // Deliberately not tolerated: a follower count that silently vanishes
+        // is worse than a decode error naming it.
+        let sess = MockURLSession([
+            "/rest/v1.1/sites/\(Self.siteID)/stats":        ("{ \"stats\": {\"followers_comments\": 1, \"comments\": 2} }", 200),
+            "/rest/v1.1/sites/\(Self.siteID)/stats/visits": (Self.visitsJSON, 200)
+        ])
+        await #expect {
+            try await JetpackCollector(session: sess).collect(since: .distantPast, credentials: self.credentials)
+        } throws: { error in
+            error.localizedDescription.contains("followers_blog")
+        }
+    }
+
+    @Test("Likes are omitted when the visits response has no likes column")
+    func missingLikesColumnIsOmitted() async throws {
+        let noLikes = """
+        { "date": "2026-03-26", "unit": "day", "fields": ["period", "views", "visitors"],
+          "data": [["2026-03-25", 4, 3]] }
+        """
+        let sess = MockURLSession([
+            "/rest/v1.1/sites/\(Self.siteID)/stats":        (Self.statsJSON, 200),
+            "/rest/v1.1/sites/\(Self.siteID)/stats/visits": (noLikes, 200)
+        ])
+        let data = try await JetpackCollector(session: sess).collect(since: .distantPast, credentials: credentials)
+        #expect(data.metrics["total_likes"] == nil)
+        #expect(data.intMetric("total_views") == 4)
+    }
+
+    @Test("A likes column of zeros is a real zero and is reported")
+    func zeroLikesAreReported() async throws {
+        // The API sent the column and it summed to nothing: that is data, unlike
+        // a missing column. The old code dropped any zero.
+        let zeroLikes = """
+        { "date": "2026-03-26", "unit": "day", "fields": ["period", "views", "visitors", "likes"],
+          "data": [["2026-03-25", 4, 3, 0]] }
+        """
+        let sess = MockURLSession([
+            "/rest/v1.1/sites/\(Self.siteID)/stats":        (Self.statsJSON, 200),
+            "/rest/v1.1/sites/\(Self.siteID)/stats/visits": (zeroLikes, 200)
+        ])
+        let data = try await JetpackCollector(session: sess).collect(since: .distantPast, credentials: credentials)
+        #expect(data.intMetric("total_likes") == 0)
     }
 
     @Test("Sums visit data across all rows")
@@ -73,7 +172,7 @@ struct JetpackCollectorTests {
         #expect(data.intMetric("total_visitors") == 135)
     }
 
-    @Test("Handles visits response with missing fields gracefully")
+    @Test("Views and visitors are omitted when their columns are missing")
     func handlesEmptyVisits() async throws {
         let emptyVisits = """
         { "date": "2026-03-26", "unit": "day", "fields": ["period"], "data": [] }
@@ -83,8 +182,25 @@ struct JetpackCollectorTests {
             "/rest/v1.1/sites/\(Self.siteID)/stats/visits": (emptyVisits, 200)
         ])
         let data = try await JetpackCollector(session: sess).collect(since: .distantPast, credentials: credentials)
+        // Not 0: a response with no views column is not a site nobody visited.
+        #expect(data.metrics["total_views"] == nil)
+        #expect(data.metrics["total_visitors"] == nil)
+        #expect(data.metrics["total_likes"] == nil)
+    }
+
+    @Test("A window with no rows is a real zero")
+    func noRowsIsZero() async throws {
+        let noRows = """
+        { "date": "2026-03-26", "unit": "day", "fields": ["period", "views", "visitors", "likes"], "data": [] }
+        """
+        let sess = MockURLSession([
+            "/rest/v1.1/sites/\(Self.siteID)/stats":        (Self.statsJSON, 200),
+            "/rest/v1.1/sites/\(Self.siteID)/stats/visits": (noRows, 200)
+        ])
+        let data = try await JetpackCollector(session: sess).collect(since: .distantPast, credentials: credentials)
         #expect(data.intMetric("total_views") == 0)
         #expect(data.intMetric("total_visitors") == 0)
+        #expect(data.intMetric("total_likes") == 0)
     }
 
     // MARK: - Error cases
@@ -193,6 +309,8 @@ struct JetpackCollectorTests {
         let note = try #require(data.stringMetric("views_window"))
         #expect(note.contains("90"))
         #expect(note.contains("365"))
+        // Likes come from the same capped request, so the note must cover them.
+        #expect(note.contains("likes"))
     }
 
     @Test("A window spanning a clock change is still a whole number of days",

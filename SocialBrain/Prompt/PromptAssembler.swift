@@ -224,7 +224,10 @@ struct PromptAssembler {
         if let v = data.intMetric("total_views")    { lines.append("Views: \(formatted(v))") }
         if let v = data.intMetric("total_visitors")  { lines.append("Visitors: \(formatted(v))") }
         if let v = data.intMetric("total_likes")     { lines.append("Likes: \(formatted(v))") }
-        if let v = data.intMetric("total_comments")  { lines.append("Comments: \(formatted(v))") }
+        // All time, unlike the lines above: it comes from the site summary,
+        // not the visits window, and saying so stops it reading as a period
+        // figure beside "Likes".
+        if let v = data.intMetric("total_comments")  { lines.append("Comments (all time): \(formatted(v))") }
         if let note = data.stringMetric("views_window") { lines.append("Note: \(note)") }
         return lines
     }

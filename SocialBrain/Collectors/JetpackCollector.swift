@@ -9,13 +9,21 @@ import Foundation
 /// - `"site_code"`   – WordPress.com site ID (numeric) or site domain
 ///   (e.g. `"12345678"` or `"myblog.wordpress.com"`)
 ///
-/// Metrics returned:
+/// Metrics returned — each only when the response carries its field, since a
+/// plausible zero reads as real data and an absence does not:
 /// - `followers_blog`    – total blog subscriber count
 /// - `followers_comment` – comment subscriber count
 /// - `total_views`       – total page views in the collection period
-/// - `total_visitors`    – total unique visitors in the period
-/// - `total_likes`       – total post likes recorded today
+/// - `total_visitors`    – sum of each day's unique visitors in the period
+///   (a visitor who returns on two days counts twice)
+/// - `total_likes`       – post likes in the collection period, summed from the
+///   `likes` column of `stats/visits`
 /// - `total_comments`    – total comments (all-time count from site stats)
+///
+/// Response shapes were checked against the live API on 2026-09-22 (#75).
+/// `stats` has no `likes_today` field at all — the collector used to require
+/// it, so every run failed to decode — and `stats/visits` returns the columns
+/// `period, views, visitors, likes, reblogs, comments, posts`.
 struct JetpackCollector: Collector {
     let platform: Platform = .jetpack
     var instanceName: String = "default"
@@ -58,18 +66,15 @@ struct JetpackCollector: Collector {
         let (sum, visitResult) = try await (summary, visits)
         let vis = visitResult.totals
 
-        var metrics: [String: MetricValue] = [
-            "followers_blog":    .int(sum.followersBlog),
-            "followers_comment": .int(sum.followersComments),
-            "total_comments":    .int(sum.comments)
-        ]
-        if sum.likesToday > 0 {
-            metrics["total_likes"] = .int(sum.likesToday)
-        }
-        metrics["total_views"]    = .int(vis.views)
-        metrics["total_visitors"] = .int(vis.visitors)
+        var metrics: [String: MetricValue] = [:]
+        metrics["followers_blog"]    = .int(sum.followersBlog)
+        metrics["followers_comment"] = .int(sum.followersComments)
+        metrics["total_comments"]    = .int(sum.comments)
+        if let v = vis.views             { metrics["total_views"]       = .int(v) }
+        if let v = vis.visitors          { metrics["total_visitors"]    = .int(v) }
+        if let v = vis.likes             { metrics["total_likes"]       = .int(v) }
 
-        // The views and visitors above cover what was asked of the API, which is
+        // The views, visitors and likes above cover what was asked of the API, which is
         // not what the caller asked for whenever the cap bites. Silently capping
         // a year-long request at 90 days makes a busy year look like a quiet
         // quarter.
@@ -82,8 +87,8 @@ struct JetpackCollector: Collector {
             // rather than a day threshold. A threshold would be a second,
             // fuzzier encoding of "all time" for no gain.
             let note = CollectionWindow.lowerBound(since) == nil
-                ? "views and visitors cover the last \(visitResult.daysCovered) days, not all time as requested"
-                : "views and visitors cover the last \(visitResult.daysCovered) days, not the \(visitResult.daysRequested) requested"
+                ? "views, visitors and likes cover the last \(visitResult.daysCovered) days, not all time as requested"
+                : "views, visitors and likes cover the last \(visitResult.daysCovered) days, not the \(visitResult.daysRequested) requested"
             metrics["views_window"] = .string(note)
         }
 
@@ -104,19 +109,17 @@ struct JetpackCollector: Collector {
 
     /// The largest `quantity` this collector asks for, in days.
     ///
-    /// Whether this is the API's limit or a choice made here is **unverified**.
-    /// `stats/visits` requires authentication, so it cannot be probed without a
-    /// real site token; the v1.1 reference page does not exist, and the v1 one
-    /// documents `unit`, `quantity` ("number of units to return, Default: 30")
-    /// and `date` with **no stated maximum**. It has been in the code since the
-    /// collector was written with no note saying which.
+    /// This is a choice made here, **not the API's limit**. The v1.1 reference
+    /// page does not exist, and the v1 one documents `unit`, `quantity`
+    /// ("number of units to return, Default: 30") and `date` with no stated
+    /// maximum. Live requests on 2026-09-22 (#75) with `quantity` of 365, 1000,
+    /// 3650 and 10000 each returned exactly that many daily rows, so the API
+    /// accepts at least 10,000.
     ///
-    /// So the cap stays, and the *silence* goes: a request for a longer period
-    /// now says the numbers cover 90 days rather than presenting them as the
-    /// whole window. That is right either way, which is why it does not wait on
-    /// the answer. #75 covers checking collectors against live APIs; if 90 turns
-    /// out to be ours rather than theirs, this becomes a page walk over `date`
-    /// offsets.
+    /// The cap is unchanged by that finding; what matters is that it is not
+    /// silent: a request for a longer period says the numbers cover 90 days
+    /// rather than presenting them as the whole window. Raising it is a
+    /// separate decision.
     static let maximumDays = 90
 
 
@@ -156,20 +159,16 @@ struct JetpackCollector: Collector {
     }
 
     /// Parses the visits response which uses a tabular `{ fields: [...], data: [[...]] }` shape.
+    ///
+    /// A column missing from `fields` gives `nil`, not `0`: it used to give 0
+    /// for views and visitors, which reads as a site nobody visited.
     private func parseVisits(data: Data, response: URLResponse) throws -> VisitTotals {
         let envelope = try decodeJSON(VisitsEnvelope.self, from: data, response: response)
-        let fields = envelope.fields
-        guard let viewsIdx   = fields.firstIndex(of: "views"),
-              let visitorsIdx = fields.firstIndex(of: "visitors") else {
-            return VisitTotals(views: 0, visitors: 0)
+        func total(_ field: String) -> Int? {
+            guard let idx = envelope.fields.firstIndex(of: field) else { return nil }
+            return envelope.data.reduce(0) { $0 + ($1[safe: idx] ?? 0) }
         }
-        var totalViews    = 0
-        var totalVisitors = 0
-        for row in envelope.data {
-            totalViews    += row[safe: viewsIdx]    ?? 0
-            totalVisitors += row[safe: visitorsIdx] ?? 0
-        }
-        return VisitTotals(views: totalViews, visitors: totalVisitors)
+        return VisitTotals(views: total("views"), visitors: total("visitors"), likes: total("likes"))
     }
 }
 
@@ -179,17 +178,22 @@ private struct StatsEnvelope: Decodable {
     let stats: SiteStats
 }
 
+/// Only fields the live API sends (checked 2026-09-22). `likes_today` was
+/// required here and is not sent, which failed every Jetpack collection; it
+/// is gone, and likes come from the visits columns instead.
+///
+/// The three that remain stay required on purpose. If WordPress.com drops
+/// one, a decode error naming the field is better than the follower count
+/// silently vanishing from the prompt, the Dashboard and spike detection.
 private struct SiteStats: Decodable {
     let followersBlog: Int
     let followersComments: Int
     let comments: Int
-    let likesToday: Int
 
     enum CodingKeys: String, CodingKey {
         case followersBlog     = "followers_blog"
         case followersComments = "followers_comments"
         case comments
-        case likesToday        = "likes_today"
     }
 }
 
@@ -216,8 +220,9 @@ private struct VisitsEnvelope: Decodable {
 }
 
 private struct VisitTotals {
-    let views: Int
-    let visitors: Int
+    let views: Int?
+    let visitors: Int?
+    let likes: Int?
 }
 
 // MARK: - JSONValue (for heterogeneous array decoding)
