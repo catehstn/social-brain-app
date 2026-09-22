@@ -92,7 +92,7 @@ struct MultiInstanceCollectorRegistryTests {
     @Test("Engine credentials closure receives PlatformInstance with correct instanceName")
     func collectionEngineUsesInstanceKeyedCredentials() async throws {
         let db = try AppDatabase.makeInMemory()
-        let engine = CollectionEngine(database: db)
+        let engine = CollectionEngine(database: db, labels: InstanceLabels(defaults: InMemoryKeyValueStore()))
 
         let collectors: [any Collector] = [
             InstanceStubCollector(platform: .buttondown, instanceName: "nl-a",
@@ -117,7 +117,7 @@ struct MultiInstanceCollectorRegistryTests {
     @Test("PlatformData instanceName is passed through collector result")
     func platformDataPassedThroughWithInstanceName() async throws {
         let db = try AppDatabase.makeInMemory()
-        let engine = CollectionEngine(database: db)
+        let engine = CollectionEngine(database: db, labels: InstanceLabels(defaults: InMemoryKeyValueStore()))
 
         let collector = InstanceStubCollector(platform: .mastodon, instanceName: "site-b",
                                               metricsValue: .int(42))
@@ -133,7 +133,7 @@ struct MultiInstanceCollectorRegistryTests {
     @Test("Snapshot saved with instanceName from collector")
     func snapshotSavedWithInstanceNameFromCollector() async throws {
         let db = try AppDatabase.makeInMemory()
-        let engine = CollectionEngine(database: db)
+        let engine = CollectionEngine(database: db, labels: InstanceLabels(defaults: InMemoryKeyValueStore()))
 
         let collectors: [any Collector] = [
             InstanceStubCollector(platform: .buttondown, instanceName: "btn-1",

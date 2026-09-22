@@ -5,7 +5,7 @@ struct DashboardView: View {
     @State private var viewModel: DashboardViewModel
 
     init(database: AppDatabase) {
-        _viewModel = State(wrappedValue: DashboardViewModel(database: database))
+        _viewModel = State(wrappedValue: DashboardViewModel(database: database, labels: .shared))
     }
 
     var body: some View {
@@ -30,7 +30,7 @@ struct DashboardView: View {
         HStack {
             Picker("Instance", selection: $viewModel.selectedInstance) {
                 ForEach(viewModel.allInstances) { instance in
-                    Text(instance.displayName).tag(instance)
+                    Text(instance.displayName(using: viewModel.labels)).tag(instance)
                 }
             }
             .labelsHidden()

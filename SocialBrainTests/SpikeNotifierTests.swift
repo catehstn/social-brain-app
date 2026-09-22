@@ -182,6 +182,7 @@ struct SpikeNotifierTests {
             database: db,
             collectors: [StubSpikeCollector(platform: .mastodon)],
             credentials: { _ in Credentials(["api_key": "k"]) },
+            labels: InstanceLabels(defaults: InMemoryKeyValueStore()),
             notifier: SpikeNotifier(database: db, send: { await sent.record($0) })
         )
 
@@ -198,6 +199,7 @@ struct SpikeNotifierTests {
             database: db,
             collectors: [],
             credentials: { _ in nil },
+            labels: InstanceLabels(defaults: InMemoryKeyValueStore()),
             notifier: SpikeNotifier(database: db, send: { await sent.record($0) })
         )
 
@@ -231,7 +233,9 @@ struct SpikeNotifierTests {
             database: db,
             collectors: [collector],
             credentials: { _ in Credentials(["api_key": "k"]) },
-            notifier: nil
+            labels: InstanceLabels(defaults: InMemoryKeyValueStore()),
+            // Was `nil`, which fell back to the real notifier (#184).
+            notifier: SpikeNotifier(database: db, send: { _ in })
         )
 
         let since = try #require(await recorder.since)

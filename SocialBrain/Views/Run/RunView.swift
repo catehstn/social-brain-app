@@ -9,7 +9,10 @@ struct RunView: View {
         _viewModel = State(wrappedValue: RunViewModel(database: database,
                                                         visibility: .shared,
                                                         goals: .shared,
-                                                        labels: .shared))
+                                                        labels: .shared,
+                                                        registry: .shared,
+                                                        keychain: .shared,
+                                                        sendSpikeAlerts: SpikeNotifier.system))
     }
 
     var body: some View {
@@ -106,7 +109,7 @@ struct RunView: View {
     }
 
     private var idlePlaceholder: some View {
-        let hasPlatforms = !CollectorRegistry.configured().isEmpty
+        let hasPlatforms = !CollectorRegistry.configured(registry: .shared, keychain: .shared).isEmpty
         return ContentUnavailableView(
             hasPlatforms ? "Ready to collect" : "No platforms configured",
             systemImage: hasPlatforms ? "chart.bar.doc.horizontal" : "square.grid.2x2",

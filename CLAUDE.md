@@ -129,7 +129,7 @@ app, and a documented test command that silently skipped and exited 0.
   **That describes the stores, not every caller.** These still read one of the
   four `UserDefaults`-backed globals directly (`KeychainStore.shared` has its
   own direct readers, not listed here): `PlatformCredentialSheet` and `PlatformDetailView`
-  (`InstanceLabels.shared`), `OnboardingView` (`AnalyticsGoalStore.shared`),
+  (`InstanceLabels.shared`, and the sheet's header through the bare `displayName`), `OnboardingView` (`AnalyticsGoalStore.shared`),
   `SocialBrainApp` (`PlatformVisibilityStore.shared.resetAll()`),
   `PlatformInstance.displayName` (`displayName(using: .shared)`) and
   `MCPServer` (`PromptAssembler(labels: .shared)` — #183). Views are not under
@@ -141,12 +141,24 @@ app, and a documented test command that silently skipped and exited 0.
   numbers, because `grep "InstanceLabels.shared"` cannot see `displayName(using:
   .shared)` — the type is inferred, so the store's name never appears. Both
   forms need grepping, and `: \.shared` also matches the *approved* pattern of
-  passing a store explicitly (`PlatformsView`, `RunView`), so the two cannot be
+  passing a store explicitly (`PlatformsView`, `RunView`, `DashboardView`,
+  `FeedView`, `SocialBrainApp`, and `PlatformCredentialSheet` for
+  `registrations:`), so the two cannot be
   told apart mechanically. Hence a list, not a total.
 
-  **`PlatformsViewModel`, `RunViewModel` and `PromptAssembler` take no
-  production default**, and their call sites pass `.shared` explicitly. The
-  first says so in a comment recording the run where the suite destroyed real
+  **Nothing that reaches persistent state takes a production default.** That
+  includes the initialisers of `PlatformsViewModel`, `RunViewModel`,
+  `DashboardViewModel`, `FeedViewModel`, `PromptAssembler`, `CollectionEngine`
+  and `SpikeNotifier`, `MastodonOAuth.authenticate`'s `registrations:`, and
+  three static functions: `FeedCardBuilder.build`, `CollectorRegistry.configured`
+  and `AppDelegate.runBackgroundRefresh`. The outermost production call sites
+  — views and the scheduler — pass `.shared` (or `SpikeNotifier.system`)
+  explicitly. The static functions are why "check the inits" is not enough
+  (#184). **One known exception**: `PlatformsViewModel.saveImport` reaches
+  `NotificationManager.shared` at call time to re-arm stale-export reminders.
+  `NotificationManager` has no seam to inject yet (#192); no test reaches it,
+  because the import path runs only from `NSOpenPanel`.
+  `PlatformsViewModel` says so in a comment recording the run where the suite destroyed real
   credentials — and then grew `labels: InstanceLabels = .shared` anyway,
   directly under that comment, in the branch that added the injection. Four
   tests silently held real preferences, and nothing exercised the parameter
@@ -156,15 +168,10 @@ app, and a documented test command that silently skipped and exited 0.
   it a production default is the failure mode to watch for** — it looks like
   the fix and leaves the hazard.
 
-  **Three declarations still default to production** and are not yet
-  converted — only one of them is an initialiser, which is why "check the
-  inits" misses two: `FeedViewModel.init` and the static `FeedCardBuilder.build`
-  (`visibility:`), and the static `CollectorRegistry.configured`
-  (`instances:`, `hasCredentials:`). That last one is *not* on
-  `CollectionEngine`, whose *initialiser* takes only a database — they share a
-  file. The actor is not clean at call time, though: it formats a
-  missing-credential error with the bare `displayName`, so running it reads
-  real labels. #184.
+  **An optional that falls back to production is the same default in
+  disguise.** `runBackgroundRefresh` took `notifier: SpikeNotifier? = nil` and
+  used the real one on `nil`, and a test passed `nil` — a unit test one spike
+  away from posting a system notification. Required, non-optional (#184).
 
   **`@AppStorage` is the hole the grep cannot see**, since it never names
   `UserDefaults.standard`. Six uses remain, pinned key-by-key in the same test:

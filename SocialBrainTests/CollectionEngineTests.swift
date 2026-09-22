@@ -30,7 +30,7 @@ struct CollectionEngineTests {
     @Test("Successful run saves snapshots and returns correct summary")
     func successfulRun() async throws {
         let db = try makeDB()
-        let engine = CollectionEngine(database: db)
+        let engine = CollectionEngine(database: db, labels: InstanceLabels(defaults: InMemoryKeyValueStore()))
 
         let collectors: [any Collector] = [
             StubCollector(
@@ -73,7 +73,7 @@ struct CollectionEngineTests {
     @Test("Partial failure still saves successful snapshots")
     func partialFailure() async throws {
         let db = try makeDB()
-        let engine = CollectionEngine(database: db)
+        let engine = CollectionEngine(database: db, labels: InstanceLabels(defaults: InMemoryKeyValueStore()))
 
         let collectors: [any Collector] = [
             StubCollector(
@@ -110,7 +110,7 @@ struct CollectionEngineTests {
     @Test("Missing credentials results in failure, not crash")
     func missingCredentials() async throws {
         let db = try makeDB()
-        let engine = CollectionEngine(database: db)
+        let engine = CollectionEngine(database: db, labels: InstanceLabels(defaults: InMemoryKeyValueStore()))
 
         let collectors: [any Collector] = [
             StubCollector(
@@ -127,10 +127,29 @@ struct CollectionEngineTests {
         #expect(summary.successCount == 0)
     }
 
+    @Test("A missing-credential error names the instance by the labels it was given")
+    func missingCredentialUsesInjectedLabel() async throws {
+        // It used the bare `displayName`, which reads `InstanceLabels.shared`,
+        // so running the engine in a test read the developer's own labels (#184).
+        let db = try makeDB()
+        let labels = InstanceLabels(defaults: InMemoryKeyValueStore())
+        labels.setLabel("Injected Label", for: PlatformInstance(platform: .mastodon))
+        let engine = CollectionEngine(database: db, labels: labels)
+
+        let summary = try await engine.run(
+            collectors: [StubCollector(platform: .mastodon,
+                                       result: .success(PlatformData(platform: .mastodon, metrics: [:])))],
+            credentials: { _ in nil },
+            since: .distantPast)
+
+        let message = try #require(summary.results.first?.error?.localizedDescription)
+        #expect(message.contains("Injected Label"))
+    }
+
     @Test("Progress callback is called for each result")
     func progressCallback() async throws {
         let db = try makeDB()
-        let engine = CollectionEngine(database: db)
+        let engine = CollectionEngine(database: db, labels: InstanceLabels(defaults: InMemoryKeyValueStore()))
 
         let collectors: [any Collector] = [
             StubCollector(platform: .mastodon, result: .success(PlatformData(platform: .mastodon, metrics: [:]))),
@@ -151,7 +170,7 @@ struct CollectionEngineTests {
     @Test("Empty collectors list produces a run with zero results")
     func emptyCollectors() async throws {
         let db = try makeDB()
-        let engine = CollectionEngine(database: db)
+        let engine = CollectionEngine(database: db, labels: InstanceLabels(defaults: InMemoryKeyValueStore()))
 
         let summary = try await engine.run(collectors: [], credentials: makeCredentials(), since: .distantPast)
 
@@ -167,7 +186,7 @@ struct CollectionEngineTests {
     @Test("Two collectors for same platform with different instanceNames each save a snapshot")
     func multiInstanceCollectorsRunAndSave() async throws {
         let db = try makeDB()
-        let engine = CollectionEngine(database: db)
+        let engine = CollectionEngine(database: db, labels: InstanceLabels(defaults: InMemoryKeyValueStore()))
 
         let collectors: [any Collector] = [
             StubCollector(
@@ -206,7 +225,7 @@ struct CollectionEngineTests {
         // loop, the throw propagated out of run(), every snapshot after it went
         // unsaved and completeRun never ran — leaving a dangling open run.
         let db = try makeDB()
-        let engine = CollectionEngine(database: db)
+        let engine = CollectionEngine(database: db, labels: InstanceLabels(defaults: InMemoryKeyValueStore()))
 
         let collectors: [any Collector] = [
             StubCollector(
@@ -270,7 +289,7 @@ struct CollectionEngineTests {
         // persistence errors was meant to prevent, and throw away a summary
         // whose results are all already known.
         let db = try makeDB()
-        let engine = CollectionEngine(database: db)
+        let engine = CollectionEngine(database: db, labels: InstanceLabels(defaults: InMemoryKeyValueStore()))
         let collectors: [any Collector] = [
             StubCollector(
                 platform: .mastodon,

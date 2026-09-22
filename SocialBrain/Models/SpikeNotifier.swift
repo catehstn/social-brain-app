@@ -8,8 +8,13 @@
 /// at the Run screen, having just pressed the button.
 struct SpikeNotifier: Sendable {
 
-    /// Injectable so tests don't post real system notifications.
+    /// Injectable so tests don't post real system notifications — and with no
+    /// default, because a default of the real one meant a test that left it
+    /// out could post one (#184). Production passes `SpikeNotifier.system`.
     typealias Send = @Sendable ([SpikeAlert]) async -> Void
+
+    /// The real one: a macOS notification.
+    static let system: Send = { await NotificationManager.shared.sendSpikeAlerts($0) }
 
     private let database: AppDatabase
     private let detector: SpikeDetector
@@ -18,7 +23,7 @@ struct SpikeNotifier: Sendable {
     init(
         database: AppDatabase,
         detector: SpikeDetector = SpikeDetector(),
-        send: @escaping Send = { await NotificationManager.shared.sendSpikeAlerts($0) }
+        send: @escaping Send
     ) {
         self.database = database
         self.detector = detector

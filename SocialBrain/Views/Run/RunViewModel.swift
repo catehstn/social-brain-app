@@ -25,34 +25,35 @@ final class RunViewModel {
     private let assembler: PromptAssembler
     private let visibility: PlatformVisibilityStore
     private let goals: AnalyticsGoalStore
+    private let registry: InstanceRegistry
+    private let keychain: KeychainStore
+    private let sendSpikeAlerts: SpikeNotifier.Send
     private var lastSince: Date = .distantPast
 
-    /// No parameter defaults to production, and `labels` is threaded through
-    /// rather than hardcoded into the assembler: a test writing
-    /// `RunViewModel(database: db)` would otherwise read the developer's own
-    /// preferences through three separate stores. See the same note on
-    /// `PlatformsViewModel`.
+    /// Every store it touches is a parameter, and none defaults to
+    /// production: a test writing `RunViewModel(database: db, …)` must say
+    /// where each one points. See the same note on `PlatformsViewModel`.
     ///
-    /// Constructing one is safe — the initialiser only builds a
-    /// `CollectionEngine`, whose own initialiser takes just an `AppDatabase`,
-    /// and an assembler from the store it was given. *Calling* it is not.
-    /// `startCollection` reaches production state five ways:
-    /// `CollectorRegistry.configured()`, whose `instances:` and
-    /// `hasCredentials:` default to the real registry and Keychain;
-    /// `KeychainStore.shared`, read directly at two points below;
-    /// `SpikeNotifier`, which takes `NotificationManager.shared` through its
-    /// own default; and `engine.run`, because `CollectionEngine` formats a
-    /// missing-credential error with the bare `displayName` property, which
-    /// consults `InstanceLabels.shared`. #184.
+    /// This used to be true of construction only. `startCollection` reached
+    /// the real registry and Keychain through `CollectorRegistry.configured()`,
+    /// read `KeychainStore.shared` directly twice, posted real notifications
+    /// through `SpikeNotifier`'s default, and read real labels through the
+    /// engine's error message (#184).
     init(database: AppDatabase,
          visibility: PlatformVisibilityStore,
          goals: AnalyticsGoalStore,
-         labels: InstanceLabels) {
+         labels: InstanceLabels,
+         registry: InstanceRegistry,
+         keychain: KeychainStore,
+         sendSpikeAlerts: @escaping SpikeNotifier.Send) {
         self.database = database
-        self.engine = CollectionEngine(database: database)
+        self.engine = CollectionEngine(database: database, labels: labels)
         self.assembler = PromptAssembler(labels: labels)
         self.visibility = visibility
         self.goals = goals
+        self.registry = registry
+        self.keychain = keychain
+        self.sendSpikeAlerts = sendSpikeAlerts
     }
 
     // MARK: - Actions
@@ -61,7 +62,7 @@ final class RunViewModel {
     ///   back as each platform allows; there is no longer a `nil` that means
     ///   something different per collector (#96).
     func startCollection(since: Date) async {
-        let collectors = CollectorRegistry.configured()
+        let collectors = CollectorRegistry.configured(registry: registry, keychain: keychain)
         guard !collectors.isEmpty else {
             state = .idle
             return
@@ -75,8 +76,8 @@ final class RunViewModel {
         do {
             let summary = try await engine.run(
                 collectors: collectors,
-                credentials: { instance in
-                    try KeychainStore.shared.load(for: instance)
+                credentials: { [keychain] instance in
+                    try keychain.load(for: instance)
                 },
                 since: since,
                 progress: { [weak self] result in
@@ -101,7 +102,7 @@ final class RunViewModel {
 
         // Detect spikes — compare the latest two snapshots for each platform
         // that succeeded in this run and fire a notification if anything is notable.
-        await SpikeNotifier(database: database).notifySpikes(for: summary)
+        await SpikeNotifier(database: database, send: sendSpikeAlerts).notifySpikes(for: summary)
 
         // Build a [PlatformInstance: PlatformSnapshot] dictionary from successful results.
         var snapshotsByInstance: [PlatformInstance: PlatformSnapshot] = [:]
@@ -117,7 +118,7 @@ final class RunViewModel {
         // platform (default instance only).  These aren't fetched live — the user
         // imports them manually — but they should still appear in the prompt.
         let fileExportPlatforms = Platform.allCases.filter {
-            $0.authType == .fileExport && KeychainStore.shared.hasCredentials(for: $0)
+            $0.authType == .fileExport && keychain.hasCredentials(for: $0)
         }
         for platform in fileExportPlatforms {
             let inst = PlatformInstance(platform: platform)
