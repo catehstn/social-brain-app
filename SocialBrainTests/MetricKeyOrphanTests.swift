@@ -41,8 +41,8 @@ struct MetricKeyOrphanTests {
     private static let emitted: [Platform: Set<String>] = [
         .bluesky: ["avg_likes", "avg_replies", "avg_reposts", "followers_count",
                    "follows_count", "posts_count", "posts_truncated", "recent_posts"],
-        .buffer: ["posts_sampled", "profiles_count", "scheduled_updates", "sent_updates",
-                  "total_clicks", "total_likes", "total_reach", "top_profile_1"],
+        .buffer: ["engagement_unavailable", "posts_sampled", "profiles_count", "scheduled_updates",
+                  "sent_updates", "total_clicks", "total_likes", "total_reach", "top_profile_1"],
         .buttondown: ["avg_click_rate", "avg_open_rate", "emails_sampled", "emails_sent",
                       "new_subscribers", "subscriber_count"],
         .calendly: ["cancelled_count", "events_count", "unique_invitees", "top_event_type_1"],
@@ -193,7 +193,8 @@ struct MetricKeyOrphanTests {
     private static func sample(for key: String) -> MetricValue {
         if key.hasPrefix("avg_") || key == "ctr" { return .double(9.0) }
         if numberedFamilies.contains(where: { key.hasPrefix($0) }) { return .string("/sample") }
-        if key.hasSuffix("_truncated") || key.hasSuffix("_sampled") || key.hasSuffix("_window") {
+        if key.hasSuffix("_truncated") || key.hasSuffix("_sampled") || key.hasSuffix("_window")
+            || key.hasSuffix("_unavailable") {
             return .string("a note")
         }
         return .int(9_000)

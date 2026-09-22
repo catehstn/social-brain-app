@@ -171,10 +171,10 @@ struct PlatformCredentialSheet: View {
                   help: "Exactly as shown in Search Console — e.g. https://example.com/ or sc-domain:example.com")
 
         case .buffer:
-            permissionsNote("Permissions needed: read access to profiles and sent updates")
-            field("Access Token", key: "api_key", secure: true,
-                  help: "Create one at buffer.com/developers/api",
-                  helpURL: URL(string: "https://buffer.com/developers/api"))
+            permissionsNote("Permissions needed: read access to posts, plus insights for clicks, reach and likes")
+            field("API Key", key: "api_key", secure: true,
+                  help: "Create one in Buffer under Settings → API",
+                  helpURL: URL(string: "https://publish.buffer.com/settings/api"))
 
         case .hackerNews:
             permissionsNote("No authentication required — uses the public Algolia HN Search API")

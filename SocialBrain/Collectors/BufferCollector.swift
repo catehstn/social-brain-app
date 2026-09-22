@@ -1,43 +1,85 @@
 import Foundation
 
-/// Collects scheduled and sent post analytics from Buffer.
+/// Collects scheduled and sent post analytics from Buffer's GraphQL API.
 ///
-/// **This talks to Buffer's v1 REST API, which is retired on 1 February 2027 —
-/// with brownouts on 11 November and 9 December 2026**, short scheduled
-/// interruptions where legacy requests error out. Those are the dates this file
-/// breaks first, and they are much nearer than the sunset.
-/// The API says so itself, in a `sunset:` header and in the body:
-/// *"The Buffer legacy REST API is deprecated and will be retired on 1 February
-/// 2027. Please migrate to the GraphQL API before then."*
+/// This replaced the v1 REST collector, which Buffer retires on **1 February
+/// 2027** with brownouts on 11 November and 9 December 2026 (#117). The v1
+/// API also rejects the keys Buffer now issues — *"Public API tokens are not
+/// accepted for REST API access"* — so a user who creates a key today could
+/// not have used the old collector at all.
 ///
-/// Only on a request that carries a token, though — a bare unauthenticated call
-/// is answered by OAuth middleware with a plain 401 and none of those headers.
-/// Anyone re-checking this with a plain `curl` will conclude the note is wrong.
+/// Everything below was checked against the live API on 2026-09-21, because
+/// Buffer's migration guide disagrees with it in two places (and is silent on
+/// the page-size cap, documented at `pageSize`):
 ///
-/// Migration is tracked in #117. The migration guide maps *endpoints*, not
-/// fields: it never mentions `sent_at` or `due_at`, and its GraphQL examples
-/// simply use `sentAt` and `dueAt`. The correspondence is the obvious inference
-/// and not something the guide states — worth knowing before planning against
-/// it. Worth knowing before investing in this file at all.
+/// - The guide says analytics are dashboard-only. The schema has
+///   `Post.metrics` and `aggregatedPostMetrics`; they need an **`insights:read`
+///   scope** that the authentication docs never list, and that a key without
+///   it is refused per field.
+/// - The guide maps endpoints, not fields, and says nothing about errors.
+///   GraphQL reports a bad query, a missing scope or an unknown field with
+///   **HTTP 200** and an `errors` array beside partial `data`. Treating a 200
+///   as success would reproduce the silent zeros #115 and #133 fixed, so any
+///   error fails the collection — with one exception, below.
+///
+/// **Engagement is optional.** A key without `insights:read` still yields
+/// counts; the only tolerated errors are `INSUFFICIENT_SCOPE` on a post's
+/// `metrics`, and then the totals are left out and `engagement_unavailable`
+/// says why. Omitting them rather than writing zero is the point: zero is a
+/// plausible quiet month.
+///
+/// The engagement mapping is **unverified against live data** — the key this
+/// was built with lacks the scope. What is known comes from the schema:
+/// `likes` is Facebook's Like-reaction subcount, and the cross-network
+/// equivalent of the old `likes`/`favorites` is `reactions`. And a metric's
+/// `value` "defaults to 0 when the network did not report the metric", so a
+/// network that does not report reach may read as zero reach. See
+/// `engagementTotals`.
 ///
 /// Required credentials key:
-/// - `"api_key"` – Buffer access token
-///   (create at https://buffer.com/developers/apps or via the Buffer Developer dashboard)
+/// - `"api_key"` – a Buffer API key, from publish.buffer.com/settings/api.
+///   Give it insights access to collect clicks, reach and likes.
 ///
 /// Metrics returned:
-/// - `profiles_count`      – number of connected social profiles
-/// - `sent_updates`        – posts sent in the period
-/// - `scheduled_updates`   – posts currently in the queue
-/// - `total_clicks`        – sum of clicks across sent posts
-/// - `total_reach`         – sum of reach across sent posts
-/// - `total_likes`         – sum of likes/favourites across sent posts
-/// - `top_profile_1..3`    – top profiles by sent count (as `"network (N posts)"` strings)
+/// - `profiles_count`         – number of connected channels
+/// - `sent_updates`           – posts sent in the period
+/// - `scheduled_updates`      – posts currently in the queue
+/// - `total_clicks`           – sum of clicks across sent posts   } only with
+/// - `total_reach`            – sum of reach across sent posts    } insights
+/// - `total_likes`            – sum of reactions across sent posts} access
+/// - `engagement_unavailable` – why the three above are missing, when they are
+/// - `posts_sampled`          – set when a page cap cut a walk short
+/// - `top_profile_1..3`       – top channels by sent count (as `"Service (name) (N posts)"`)
 struct BufferCollector: Collector {
     let platform: Platform = .buffer
     var instanceName: String = "default"
     private let session: any URLSessionProtocol
 
-    static let apiBase = URL(string: "https://api.bufferapp.com/1")!
+    static let endpoint = URL(string: "https://api.buffer.com")!
+
+    /// Buffer's maximum for `first`; 101 is refused with "Pagination limit
+    /// exceeded. Maximum 100 items per request."
+    static let pageSize = 100
+
+    /// A bound on any one walk, so an account with an enormous history cannot
+    /// hold a collection open indefinitely. 5,000 posts; the account this was
+    /// built against has 1,062 sent in total since 2015.
+    static let maxPages = 50
+
+    /// How far before `since` the server-side `dueAt` filter starts.
+    ///
+    /// The filter the API offers is on `dueAt` (or `createdAt`), not
+    /// `sentAt`, so the server narrows by schedule and `sentAt` decides
+    /// membership here. A post goes out slightly after it is due — at most 252
+    /// seconds across all 1,062 posts checked — and one sent *before* its
+    /// `dueAt` is still caught by the `sentAt` check. The slack covers a post
+    /// that went out late, such as one held in a paused queue.
+    ///
+    /// `dueAt` is nullable in the schema, and the filter excludes a post
+    /// without one, so a windowed run would miss it while "All time" counted
+    /// it. None of those 1,062 sent posts lacked a `dueAt` — share-now posts
+    /// included — so this is a known edge, not an observed one.
+    static let dueAtSlack: TimeInterval = 7 * 24 * 60 * 60
 
     init(session: any URLSessionProtocol = URLSession.shared) {
         self.session = session
@@ -45,13 +87,8 @@ struct BufferCollector: Collector {
 
     func fetchLabel(credentials: Credentials) async -> String? {
         guard let token = credentials.apiKey else { return nil }
-        var comps = URLComponents(url: Self.apiBase.appendingPathComponent("user.json"), resolvingAgainstBaseURL: false)!
-        comps.queryItems = [URLQueryItem(name: "access_token", value: token)]
-        guard let url = comps.url else { return nil }
-        guard let (data, response) = try? await session.data(for: URLRequest(url: url)),
-              let http = response as? HTTPURLResponse, http.statusCode == 200 else { return nil }
-        struct User: Decodable { let name: String? }
-        return try? JSONDecoder().decode(User.self, from: data).name
+        let account = try? await query(AccountData.self, Queries.account, variables: [:], token: token)
+        return account?.data.account.name
     }
 
     func collect(since: Date, credentials: Credentials) async throws -> PlatformData {
@@ -59,265 +96,322 @@ struct BufferCollector: Collector {
             throw CollectorError.missingCredential("api_key")
         }
 
-        let profiles = try await fetchProfiles(token: token)
+        let organizations = try await query(AccountData.self, Queries.account, variables: [:], token: token)
+            .data.account.organizations
 
-        // Fetch sent updates for each profile concurrently.
-        let sentPerProfile = try await withThrowingTaskGroup(
-            of: (profile: ProfileInfo, updates: [Update], pageWasFull: Bool).self
-        ) { group in
-            for profile in profiles {
-                group.addTask {
-                    let page = try await self.fetchSentUpdates(
-                        profileID: profile.id,
-                        token: token,
-                        since: since
-                    )
-                    return (profile, page.updates, page.pageWasFull)
-                }
+        let lowerBound = CollectionWindow.lowerBound(since)
+        var channels: [Channel] = []
+        var sent: [SentPost] = []
+        var scheduled = 0
+        var truncated = false
+        var engagementUnavailable = false
+
+        // Sequential, not concurrent: every query goes to the same URL, and
+        // Buffer rate-limits per key (3,000 at the time of writing).
+        for org in organizations {
+            channels += try await query(ChannelsData.self, Queries.channels,
+                                        variables: ["organizationId": org.id], token: token)
+                .data.channels
+
+            var dueAt: Any = NSNull()
+            if let lowerBound {
+                dueAt = ["start": Self.dateTime(lowerBound.addingTimeInterval(-Self.dueAtSlack))]
             }
-            var results: [(ProfileInfo, [Update], Bool)] = []
-            for try await item in group { results.append((item.profile, item.updates, item.pageWasFull)) }
-            return results
+            let sentWalk = try await walk(SentPost.self, Queries.sentPosts,
+                                          variables: ["organizationId": org.id, "dueAt": dueAt],
+                                          token: token)
+            sent += sentWalk.nodes
+            truncated = truncated || sentWalk.truncated
+            engagementUnavailable = engagementUnavailable || sentWalk.metricsRefused
+
+            let queueWalk = try await walk(ScheduledPost.self, Queries.scheduledPosts,
+                                           variables: ["organizationId": org.id], token: token)
+            scheduled += queueWalk.nodes.count
+            truncated = truncated || queueWalk.truncated
         }
 
-        // Aggregate totals.
-        var totalSent      = 0
-        var totalClicks    = 0
-        var totalReach     = 0
-        var totalLikes     = 0
-        var profileCounts: [(name: String, count: Int)] = []
-
-        // If any profile filled its page, the numbers below cover a page rather
-        // than a period — and saying so is the whole point: a count that is
-        // really a page size looks exactly like a quiet month.
-        var anyPageWasFull = false
-
-        for (profile, updates, pageWasFull) in sentPerProfile {
-            if pageWasFull { anyPageWasFull = true }
-            totalSent   += updates.count
-            totalClicks += updates.compactMap(\.statistics?.clicks).reduce(0, +)
-            totalReach  += updates.compactMap(\.statistics?.reach).reduce(0, +)
-            totalLikes  += updates.compactMap(\.statistics?.likes).reduce(0, +)
-            if !updates.isEmpty {
-                profileCounts.append((profile.formattedService, updates.count))
-            }
+        // A sent post without a sentAt cannot be placed in a window, so it is
+        // excluded once there is one — and counted when there is not, as the
+        // v1 collector did.
+        let inWindow = sent.filter { post in
+            guard let lowerBound else { return true }
+            guard let sentAt = post.sentAt else { return false }
+            return sentAt >= lowerBound
         }
-
-        let scheduledCounts = try await fetchScheduledCounts(profiles: profiles, token: token)
 
         var metrics: [String: MetricValue] = [
-            "profiles_count":    .int(profiles.count),
-            "sent_updates":      .int(totalSent),
-            "scheduled_updates": .int(scheduledCounts),
-            "total_clicks":      .int(totalClicks),
-            "total_reach":       .int(totalReach),
-            "total_likes":       .int(totalLikes)
+            "profiles_count":    .int(channels.count),
+            "sent_updates":      .int(inWindow.count),
+            "scheduled_updates": .int(scheduled)
         ]
 
-        if anyPageWasFull {
-            metrics["posts_sampled"] = .string(
-                "at least one profile returned a full page of \(Self.pageSize) sent posts — the period may hold more")
+        if engagementUnavailable {
+            // "Some or all": the schema scopes insights access per channel, so
+            // one refused post drops every total — omitting is safe, but the
+            // note must not claim the whole key lacks access.
+            metrics["engagement_unavailable"] = .string(
+                "the Buffer API key lacks insights access for some or all channels, so clicks, reach and likes were not collected")
+        } else {
+            metrics.merge(Self.engagementTotals(inWindow)) { _, new in new }
         }
 
-        for (i, (name, count)) in profileCounts
-                .sorted(by: { $0.count > $1.count })
+        if truncated {
+            metrics["posts_sampled"] = .string(
+                "stopped reading after \(Self.maxPages * Self.pageSize) posts — the sent or queued counts may be higher")
+        }
+
+        let names = Dictionary(channels.map { ($0.id, $0.formatted) }, uniquingKeysWith: { first, _ in first })
+        let counts = Dictionary(grouping: inWindow, by: \.channelId).mapValues(\.count)
+        for (i, (channelID, count)) in counts
+                .sorted(by: { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key })
                 .prefix(3)
                 .enumerated() {
+            // A post can outlive its channel: the account this was built on has
+            // sent posts back to 2015, from channels long since disconnected.
+            let name = names[channelID]
+                ?? inWindow.first { $0.channelId == channelID }.map { Channel.capitalised($0.channelService) }
+                ?? "Unknown channel"
             metrics["top_profile_\(i + 1)"] = .string("\(name) (\(count) posts)")
         }
 
         return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)
     }
 
-    // MARK: - Endpoints
-
-    private func fetchProfiles(token: String) async throws -> [ProfileInfo] {
-        let url = Self.apiBase.appendingPathComponent("profiles.json")
-        let req = authorizedRequest(url: url, token: token)
-        let (data, response) = try await session.data(for: req)
-        return try decodeJSON([ProfileInfo].self, from: data, response: response)
-    }
-
-    /// Buffer's own maximum for `count` on this endpoint.
-    private static let pageSize = 100
-
-    /// Fetches one page of sent updates, and reports whether the page was full.
+    /// Sums clicks, reach and reactions across `posts`.
     ///
-    /// Deliberately **not** paginated, unlike Mastodon, Bluesky and Hacker News
-    /// in #73 — a choice, not a limitation. Buffer documents a `page` parameter
-    /// on this endpoint and #138 already landed a page-number walk for Hacker
-    /// News, so the pattern exists. The reason to skip it is that this file is
-    /// dying: the legacy REST API is retired on **1 February 2027**, with
-    /// **brownouts on 11 November and 9 December 2026** when legacy requests
-    /// error out outright, and the replacement is a different protocol. A page
-    /// walk written here gets written twice.
+    /// A total is left out when posts exist and **none** of them carried that
+    /// metric, rather than reported as zero — a network that does not report
+    /// reach is not a network with no reach. With no posts at all, every
+    /// total is a true zero.
     ///
-    /// What the undercount actually needs is to stop being *silent*, and that
-    /// survives the migration as a requirement even though this code will not.
-    ///
-    /// A full page is the signal, not the envelope's `total`. Buffer's own
-    /// reference shows `total` in an example response and never defines it —
-    /// there is no response-parameters table on that page — so what it counts is
-    /// a guess. A page that comes back at exactly `count` might have more behind
-    /// it; a short one certainly does not, and that needs no documentation to
-    /// be true.
-    ///
-    /// (`fetchScheduledCounts` does use `total`, for pending posts. That is not
-    /// a contradiction so much as a different bet: there, being wrong means a
-    /// queue count is off; here it would mean silently mislabelling every narrow
-    /// window.)
-    private func fetchSentUpdates(
-        profileID: String,
-        token: String,
-        since: Date
-    ) async throws -> (updates: [Update], pageWasFull: Bool) {
-        var url = Self.apiBase
-            .appendingPathComponent("profiles/\(profileID)/updates/sent.json")
-        url.append(queryItems: [URLQueryItem(name: "count", value: "\(Self.pageSize)")])
-        let req = authorizedRequest(url: url, token: token)
-        let (data, response) = try await session.data(for: req)
-        let envelope = try decodeJSON(UpdatesEnvelope.self, from: data, response: response)
-        let updates = envelope.updates
-
-        let pageWasFull = updates.count >= Self.pageSize
-        // With no lower bound, everything counts — including updates with no
-        // sent_at, which the filter below drops. That was the behaviour when
-        // `since` was nil and it is still right: a post that cannot be placed
-        // in a window is only a problem when there is a window to place it in.
-        guard let since = CollectionWindow.lowerBound(since) else {
-            return (updates, pageWasFull)
+    /// This cannot catch the case the schema warns of, where a metric is
+    /// present with a defaulted 0 because the network did not report it.
+    /// Telling those apart needs live data from a key with insights access.
+    static func engagementTotals(_ posts: [SentPost]) -> [String: MetricValue] {
+        let mapping: [(key: String, type: String)] = [
+            ("total_clicks", "clicks"),
+            ("total_reach",  "reach"),
+            ("total_likes",  "reactions")
+        ]
+        var totals: [String: MetricValue] = [:]
+        for (key, type) in mapping {
+            let values = posts.compactMap { $0.metrics?.first { $0.type == type }?.value }
+            guard posts.isEmpty || !values.isEmpty else { continue }
+            totals[key] = .int(Int(values.reduce(0, +).rounded()))
         }
-        // A sent post without a sent_at cannot be placed in the window, so it is
-        // excluded rather than silently counted as in-period.
-        let filtered = updates.filter { update in
-            guard let sentAt = update.sentAt else { return false }
-            return sentAt >= since
-        }
-        return (filtered, pageWasFull)
+        return totals
     }
 
-    /// Counts pending posts across every profile.
-    ///
-    /// Errors propagate, matching `fetchSentUpdates` — the two used to disagree,
-    /// and this was the one that lied. Both the request and the decode were
-    /// wrapped in `try?`, so any failure produced 0.
-    ///
-    /// Zero is the problem. It is not an obviously-wrong value the user will
-    /// question; it is a plausible answer that means "nothing queued", so the
-    /// metric read as working while reporting nothing. #115 found it had been
-    /// doing exactly that for every collection ever run: `Update.sentAt` was
-    /// required and pending posts carry no `sent_at`, so the decode threw every
-    /// time. Fixing that field left the swallow in place, ready to do the same
-    /// for the next field Buffer stops sending.
-    ///
-    /// One unreachable profile now fails the whole Buffer collection. That is
-    /// the same bargain `fetchSentUpdates` already makes, and a loud failure the
-    /// user can act on beats a silent number they cannot.
-    private func fetchScheduledCounts(profiles: [ProfileInfo], token: String) async throws -> Int {
-        var total = 0
-        for profile in profiles {
-            let url = Self.apiBase
-                .appendingPathComponent("profiles/\(profile.id)/updates/pending.json")
-            let req = authorizedRequest(url: url, token: token)
-            let (data, response) = try await session.data(for: req)
-            let envelope = try decodeJSON(UpdatesEnvelope.self, from: data, response: response)
-            total += envelope.total ?? envelope.updates.count
+    // MARK: - Transport
+
+    /// Walks a `posts` connection to the end, or to `maxPages`.
+    private func walk<Node: Decodable>(
+        _ node: Node.Type,
+        _ document: Query,
+        variables: [String: Any],
+        token: String
+    ) async throws -> (nodes: [Node], truncated: Bool, metricsRefused: Bool) {
+        var nodes: [Node] = []
+        var after: Any = NSNull()
+        var metricsRefused = false
+        for _ in 0..<Self.maxPages {
+            var vars = variables
+            vars["first"] = Self.pageSize
+            vars["after"] = after
+            let result = try await query(PostsData<Node>.self, document, variables: vars, token: token)
+            metricsRefused = metricsRefused || result.metricsRefused
+            let page = result.data.posts
+            nodes += (page.edges ?? []).map(\.node)
+            guard page.pageInfo.hasNextPage, let cursor = page.pageInfo.endCursor else {
+                return (nodes, false, metricsRefused)
+            }
+            after = cursor
         }
-        return total
+        return (nodes, true, metricsRefused)
     }
 
-    private func authorizedRequest(url: URL, token: String) -> URLRequest {
-        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
-        var items = components.queryItems ?? []
-        items.append(URLQueryItem(name: "access_token", value: token))
-        components.queryItems = items
-        return URLRequest(url: components.url!)
+    /// Runs one query, and fails on any GraphQL error except a refused
+    /// `metrics` field — which it reports rather than hides.
+    private func query<T: Decodable>(
+        _ type: T.Type,
+        _ document: Query,
+        variables: [String: Any],
+        token: String
+    ) async throws -> (data: T, metricsRefused: Bool) {
+        var request = URLRequest(url: Self.endpoint)
+        request.httpMethod = "POST"
+        request.setBearerToken(token)
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "operationName": document.name,
+            "query": document.text,
+            "variables": variables
+        ])
+
+        let (body, response) = try await session.data(for: request)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601Flexible
+        let envelope = try decodeJSON(GraphQLResponse<T>.self, from: body, response: response, decoder: decoder)
+
+        let errors = envelope.errors ?? []
+        let refused = errors.filter(\.isRefusedMetrics)
+        if let fatal = errors.first(where: { !$0.isRefusedMetrics }) {
+            collectorLog.error("""
+                Buffer \(document.name, privacy: .public) failed: \
+                \(fatal.extensions?.code ?? "no code", privacy: .public) \
+                \(fatal.message ?? "", privacy: .private)
+                """)
+            throw CollectorError.serviceError(code: fatal.extensions?.code ?? "unknown")
+        }
+        guard let data = envelope.data else {
+            throw CollectorError.decodingError("response carried neither data nor errors")
+        }
+        return (data, !refused.isEmpty)
     }
+
+    private static func dateTime(_ date: Date) -> String {
+        ISO8601DateFormatter().string(from: date)
+    }
+}
+
+// MARK: - Queries
+
+/// Named so a request says what it is, in logs and in tests: every query goes
+/// to the same URL, so the path cannot tell them apart.
+private struct Query {
+    let name: String
+    let text: String
+}
+
+private enum Queries {
+    static let account = Query(name: "Account", text: """
+        query Account { account { name organizations { id } } }
+        """)
+
+    static let channels = Query(name: "Channels", text: """
+        query Channels($organizationId: OrganizationId!) {
+          channels(input: { organizationId: $organizationId }) { id name service }
+        }
+        """)
+
+    /// Sorted by `dueAt`, the field the filter is on; `sentAt` is not
+    /// sortable.
+    static let sentPosts = Query(name: "SentPosts", text: """
+        query SentPosts($organizationId: OrganizationId!, $first: Int!, $after: String, $dueAt: DateTimeComparator) {
+          posts(first: $first, after: $after, input: {
+            organizationId: $organizationId,
+            filter: { status: [sent], dueAt: $dueAt },
+            sort: [{ field: dueAt, direction: desc }]
+          }) {
+            edges { node { channelId channelService sentAt metrics { type value } } }
+            pageInfo { hasNextPage endCursor }
+          }
+        }
+        """)
+
+    static let scheduledPosts = Query(name: "ScheduledPosts", text: """
+        query ScheduledPosts($organizationId: OrganizationId!, $first: Int!, $after: String) {
+          posts(first: $first, after: $after, input: {
+            organizationId: $organizationId,
+            filter: { status: [scheduled] }
+          }) {
+            edges { node { id } }
+            pageInfo { hasNextPage endCursor }
+          }
+        }
+        """)
 }
 
 // MARK: - Response models
 
-private struct ProfileInfo: Decodable {
-    let id: String
-    let service: String
-    let serviceUsername: String?
+/// No dictionaries anywhere in here: `DecodingError.fieldPath` renders coding
+/// keys as safe schema names, which stops being true for a `[String: T]`.
+private struct GraphQLResponse<T: Decodable>: Decodable {
+    let data: T?
+    let errors: [GraphQLError]?
+}
 
-    var formattedService: String {
-        let name = service.prefix(1).uppercased() + service.dropFirst()
-        if let username = serviceUsername, !username.isEmpty {
-            return "\(name) (\(username))"
+private struct GraphQLError: Decodable {
+    let message: String?
+    let path: [PathElement]?
+    let extensions: Extensions?
+
+    struct Extensions: Decodable { let code: String? }
+
+    enum PathElement: Decodable, Equatable {
+        case key(String)
+        case index(Int)
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.singleValueContainer()
+            if let i = try? c.decode(Int.self) { self = .index(i) } else { self = .key(try c.decode(String.self)) }
         }
-        return name
     }
 
-    enum CodingKeys: String, CodingKey {
-        case id
-        case service
-        case serviceUsername = "service_username"
+    /// The one tolerated error: a key without `insights:read`, refused a
+    /// post's `metrics`. Live, it arrives once per post at
+    /// `posts.edges[i].node.metrics`, with `metrics: null` and everything
+    /// else in the node intact.
+    var isRefusedMetrics: Bool {
+        extensions?.code == "INSUFFICIENT_SCOPE" && path?.last == .key("metrics")
     }
 }
 
-private struct UpdatesEnvelope: Decodable {
-    let updates: [Update]
-    let total: Int?
+private struct AccountData: Decodable {
+    struct Account: Decodable {
+        let name: String?
+        let organizations: [Organization]
+    }
+    struct Organization: Decodable { let id: String }
+    let account: Account
 }
 
-private struct Update: Decodable {
+private struct ChannelsData: Decodable {
+    let channels: [Channel]
+}
+
+private struct Channel: Decodable {
     let id: String
-    /// Optional because a *pending* post has not been sent and carries no
-    /// `sent_at`. It was required, so decoding `pending.json` threw, the `try?`
-    /// in `fetchScheduledCounts` swallowed it, and `scheduled_updates` was
-    /// always 0 — a metric that has never reported anything but zero.
-    let sentAt: Date?
-    let statistics: UpdateStats?
+    let name: String
+    let service: String
 
-    enum CodingKeys: String, CodingKey {
-        case id
-        case sentAt     = "sent_at"
-        case statistics
+    var formatted: String {
+        name.isEmpty ? Self.capitalised(service) : "\(Self.capitalised(service)) (\(name))"
     }
 
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        id = try c.decode(String.self, forKey: .id)
-
-        // `decodeIfPresent`, not `try?`. Both yield nil for an absent key, which
-        // is the case that matters — a pending post carries no `sent_at`. They
-        // differ on a key that is present but the *wrong type*: `try?` swallows
-        // that too, so if Buffer ever sent `sent_at` as a string, every post
-        // would silently fall outside the `since` window and `sent_updates`
-        // would report 0. Zero is a plausible answer for a quiet month, which is
-        // why nobody would notice (#133).
-        //
-        // Buffer returns it as a Unix timestamp, when present.
-        sentAt = try c.decodeIfPresent(Double.self, forKey: .sentAt)
-            .map(Date.init(timeIntervalSince1970:))
-
-        // Same reasoning, wider blast radius: one malformed field used to nil
-        // the whole block, and the sums downstream then contributed nothing —
-        // so clicks, reach and likes all read zero while `sent_updates` looked
-        // healthy.
-        statistics = try c.decodeIfPresent(UpdateStats.self, forKey: .statistics)
+    static func capitalised(_ service: String) -> String {
+        service.prefix(1).uppercased() + service.dropFirst()
     }
 }
 
-private struct UpdateStats: Decodable {
-    let clicks:  Int?
-    let reach:   Int?
-    /// Buffer's v1 documentation shows `favorites`, not `likes`, and says so
-    /// explicitly: *"'favorites' is equivalent to 'likes'. We have left this as
-    /// 'favorites' for now for backward compatibility."* Only `likes` was
-    /// decoded, so on any service that sends the documented name the count was
-    /// silently zero. Both are read; whichever arrives wins.
-    private let likesField: Int?
-    private let favoritesField: Int?
-    var likes: Int? { likesField ?? favoritesField }
-    let comments: Int?
-    let shares:  Int?
-
-    enum CodingKeys: String, CodingKey {
-        case clicks, reach, comments, shares
-        case likesField = "likes"
-        case favoritesField = "favorites"
+private struct PostsData<Node: Decodable>: Decodable {
+    struct Posts: Decodable {
+        struct Edge: Decodable { let node: Node }
+        struct PageInfo: Decodable {
+            let hasNextPage: Bool
+            let endCursor: String?
+        }
+        let edges: [Edge]?
+        let pageInfo: PageInfo
     }
+    let posts: Posts
+}
+
+extension BufferCollector {
+    struct SentPost: Decodable {
+        let channelId: String
+        let channelService: String
+        let sentAt: Date?
+        /// `nil` when the key lacks insights access, and for a post not yet sent.
+        let metrics: [Metric]?
+
+        struct Metric: Decodable {
+            let type: String
+            let value: Double
+        }
+    }
+}
+
+private struct ScheduledPost: Decodable {
+    let id: String
 }

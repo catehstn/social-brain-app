@@ -146,6 +146,13 @@ Grouped by how much work they are to connect:
 - **File export** — LinkedIn (XLSX), O'Reilly (email), Substack (CSV)
 - **No auth** — Hacker News
 
+Buffer is read through its GraphQL API, with a key from Buffer's Settings → API
+page. Give the key insights access to collect clicks, reach and likes; without
+it the collection still succeeds with post counts, and the prompt says the
+engagement numbers are missing. An access token from Buffer's retired v1
+developer apps has not been tested against the new API — if Buffer fails with
+HTTP 401, create a key on that page.
+
 Groupings come from `Platform.authType` in `SocialBrain/Models/Platform.swift` —
 check there rather than trusting this list.
 

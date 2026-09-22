@@ -212,7 +212,7 @@ app, and a documented test command that silently skipped and exited 0.
 
 | Change | Expected test |
 |---|---|
-| New collector | Mock `URLSession` (see `SocialBrainTests/TestSupport/MockURLSession.swift`): happy path, `since` filter, error propagation. **Also add its metric keys to `MetricKeyOrphanTests.emitted`** — see below |
+| New collector | Mock `URLSession` (see `SocialBrainTests/TestSupport/MockURLSession.swift`, or `GraphQLMockSession.swift` beside it for a GraphQL API, where every query shares one URL): happy path, `since` filter, error propagation. **Also add its metric keys to `MetricKeyOrphanTests.emitted`** — see below |
 | New metric key on an existing collector | Add it to `MetricKeyOrphanTests.emitted`, and make some consumer read it |
 | New database migration | Schema upgrade preserves existing rows |
 | New parser or file importer | Real fixture, plus malformed and empty input — these read untrusted files |

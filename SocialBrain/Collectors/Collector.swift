@@ -143,6 +143,11 @@ enum CollectorError: LocalizedError, Sendable {
     /// there is nothing the user can re-enter to fix it.
     case persistenceFailed(underlying: any Error)
     case httpError(statusCode: Int, body: String)
+    /// An error reported inside a successful response — GraphQL answers a bad
+    /// query or a missing scope with HTTP 200 and an `errors` array. Only the
+    /// machine-readable code is shown; the message goes to the log, since like
+    /// an HTTP error body it can carry account details.
+    case serviceError(code: String)
     case decodingError(String)
     case networkError(underlying: Error)
 
@@ -160,6 +165,8 @@ enum CollectorError: LocalizedError, Sendable {
             // rendered on the Run screen — the screen most likely to end up in
             // a screenshot. It goes to the log instead; see decodeJSON.
             "HTTP \(code)\(Self.hint(forStatus: code))"
+        case .serviceError(let code):
+            "The service reported an error (\(code))"
         case .decodingError(let msg):
             "Failed to decode response: \(msg)"
         case .networkError(let err):
