@@ -7,46 +7,144 @@ struct ButtondownCollectorTests {
 
     // MARK: - Fixtures
 
+    // Shapes captured from the live API on 2026-09-22: field names, nesting and
+    // types are Buttondown's. Every string is invented (allowlist redaction —
+    // see CLAUDE.md), and rows are trimmed to a representative subset of their
+    // fields; the collector reads only the envelope's `count` and `next`, and
+    // each email's `analytics`.
+
+    /// The envelope keys are in Buttondown's order. A real `results` row carries
+    /// ~50 fields of subscriber data; the collector reads none of them.
     private static let subscribersJSON = """
     {
-      "count": 1500,
-      "next": null,
-      "previous": null,
-      "results": []
-    }
-    """
-
-    private static let newSubscribersJSON = """
-    {
-      "count": 42,
-      "next": null,
-      "previous": null,
-      "results": []
-    }
-    """
-
-    private static let emailsJSON = """
-    {
-      "count": 3,
-      "next": null,
-      "previous": null,
       "results": [
         {
-          "id": "abc123",
-          "subject": "Issue 10",
-          "email_stats": { "open_rate": 0.45, "click_rate": 0.12 }
-        },
-        {
-          "id": "abc124",
-          "subject": "Issue 11",
-          "email_stats": { "open_rate": 0.50, "click_rate": 0.10 }
-        },
-        {
-          "id": "abc125",
-          "subject": "Issue 12",
-          "email_stats": null
+          "id": "00000000-0000-4000-8000-000000000001",
+          "creation_date": "2026-01-02T10:00:00.000000Z",
+          "email_address": "reader@example.com",
+          "type": "regular",
+          "source": "form",
+          "tags": [],
+          "metadata": {},
+          "open_rate": null,
+          "click_rate": null,
+          "delivered_count": 3,
+          "open_count": 2,
+          "clicked_count": 1
         }
-      ]
+      ],
+      "next": "https://api.buttondown.email/v1/subscribers?page=2",
+      "previous": null,
+      "count": 91
+    }
+    """
+
+    /// One email's `analytics` object, every field the live response carries.
+    private static func analytics(
+        recipients: Int, deliveries: Int, opens: Int, clicks: Int
+    ) -> String {
+        """
+        {
+          "recipients": \(recipients), "deliveries": \(deliveries),
+          "opens": \(opens), "clicks": \(clicks),
+          "temporary_failures": \(recipients - deliveries), "permanent_failures": 0,
+          "unsubscriptions": 0, "complaints": 0, "survey_responses": 0,
+          "webmentions": 0, "page_views_lifetime": 0, "page_views_30": 0,
+          "page_views_7": 0, "subscriptions": 1, "paid_subscriptions": 0,
+          "replies": 0, "comments": 0, "social_mentions": 0,
+          "temporary_failure_breakdown": [], "permanent_failure_breakdown": []
+        }
+        """
+    }
+
+    private static func email(id: Int, analytics: String) -> String {
+        """
+        {
+          "id": "00000000-0000-4000-8000-00000000010\(id)",
+          "creation_date": "2026-0\(id)-01T09:00:00.000000Z",
+          "absolute_url": "https://example.com/archive/issue-\(id)/",
+          "analytics": \(analytics),
+          "body": "Body \(id)",
+          "canonical_url": "",
+          "commenting_mode": "enabled",
+          "description": "",
+          "email_type": "public",
+          "featured": false,
+          "filters": { "filters": [], "groups": [], "predicate": "and" },
+          "metadata": {},
+          "publish_date": "2026-0\(id)-02T10:30:00Z",
+          "secondary_id": \(id),
+          "slug": "issue-\(id)",
+          "source": "app",
+          "status": "sent",
+          "subject": "Issue \(id)",
+          "suppression_reason": null,
+          "template": null
+        }
+        """
+    }
+
+    /// Three sent emails. Rates are opens and clicks over **deliveries**:
+    ///
+    /// - 1: 60/100 opened, 20/100 clicked — and 103 recipients, so an
+    ///   opens-over-recipients rate would read 0.583, not 0.6
+    /// - 2: 20/50 opened, 5/50 clicked
+    /// - 3: 0 opens against 2 clicks — open tracking was off (a click without
+    ///   an open cannot happen when it is on), so no open rate, but a click rate
+    ///   of 2/40. The live archive has one of these.
+    ///
+    /// avg_open_rate = (0.6 + 0.4) / 2 = 0.5
+    /// avg_click_rate = (0.2 + 0.1 + 0.05) / 3 ≈ 0.11667
+    private static let emailsJSON = """
+    {
+      "results": [
+        \(email(id: 3, analytics: analytics(recipients: 40, deliveries: 40, opens: 0, clicks: 2))),
+        \(email(id: 2, analytics: analytics(recipients: 50, deliveries: 50, opens: 20, clicks: 5))),
+        \(email(id: 1, analytics: analytics(recipients: 103, deliveries: 100, opens: 60, clicks: 20)))
+      ],
+      "next": null,
+      "previous": null,
+      "count": 3
+    }
+    """
+
+    /// `/v1/newsletters` — every newsletter on the account, each with its own
+    /// `api_key`. A real row carries ~60 fields of settings and templates.
+    private static let newslettersJSON = """
+    {
+      "results": [
+        {
+          "id": "00000000-0000-4000-8000-000000000201",
+          "creation_date": "2025-01-01T00:00:00.000000Z",
+          "api_key": "other-newsletter-key",
+          "description": "",
+          "domain": "",
+          "email_address": "",
+          "enabled_features": [],
+          "from_name": "",
+          "metadata": {},
+          "name": "Other Newsletter",
+          "test_mode": false,
+          "username": "other"
+        },
+        {
+          "id": "00000000-0000-4000-8000-000000000202",
+          "creation_date": "2025-01-01T00:00:00.000000Z",
+          "api_key": "test-key",
+          "description": "",
+          "domain": "",
+          "email_address": "",
+          "enabled_features": [],
+          "from_name": "",
+          "metadata": {},
+          "name": "Example Letters",
+          "test_mode": false,
+          "username": "exampleletters"
+        }
+      ],
+      "next": null,
+      "previous": null,
+      "count": 2
     }
     """
 
@@ -106,22 +204,144 @@ struct ButtondownCollectorTests {
         let data = try await collector.collect(since: .distantPast, credentials: credentials)
 
         #expect(data.platform == .buttondown)
-        #expect(data.intMetric("subscriber_count") == 1500)
+        #expect(data.intMetric("subscriber_count") == 91)
         #expect(data.intMetric("emails_sent") == 3)
 
-        // avg_open_rate should be (0.45 + 0.50) / 2 = 0.475
-        if let avgOpen = data.doubleMetric("avg_open_rate") {
-            #expect(abs(avgOpen - 0.475) < 0.001)
-        } else {
-            Issue.record("avg_open_rate metric is missing")
-        }
+        // Per-email stats live in `analytics` as counts. The collector used to
+        // decode an `email_stats` object with `open_rate` / `click_rate`, which
+        // the live API does not send, so neither rate ever appeared — across
+        // nine real sent emails. See `emailsJSON` for the arithmetic.
+        let avgOpen = try #require(data.doubleMetric("avg_open_rate"))
+        #expect(abs(avgOpen - 0.5) < 0.0001)
+        let avgClick = try #require(data.doubleMetric("avg_click_rate"))
+        #expect(abs(avgClick - 0.35 / 3) < 0.0001)
+    }
 
-        // avg_click_rate should be (0.12 + 0.10) / 2 = 0.11
-        if let avgClick = data.doubleMetric("avg_click_rate") {
-            #expect(abs(avgClick - 0.11) < 0.001)
-        } else {
-            Issue.record("avg_click_rate metric is missing")
+    @Test("An email with no opens has no open rate, rather than a rate of zero")
+    func zeroOpensIsNotAnOpenRate() async throws {
+        // Live: one sent email reports 0 opens against 48 deliveries and 1
+        // click. A click without an open means open tracking was not recording,
+        // so 0% is a plausible-looking number that describes nothing — and
+        // averaged in, it drags every all-time open rate down.
+        let emails = """
+            {"results": [\(Self.email(id: 1, analytics: Self.analytics(
+                recipients: 48, deliveries: 48, opens: 0, clicks: 1)))],
+             "next": null, "previous": null, "count": 1}
+            """
+        let session = MockURLSession([
+            "/v1/subscribers": (Self.subscribersJSON, 200),
+            "/v1/emails":      (emails, 200)
+        ])
+        let data = try await ButtondownCollector(session: session)
+            .collect(since: .distantPast, credentials: Credentials(["api_key": "k"]))
+
+        #expect(data.metrics["avg_open_rate"] == nil)
+        let click = try #require(data.doubleMetric("avg_click_rate"))
+        #expect(abs(click - 1.0 / 48) < 0.0001)
+    }
+
+    @Test("An email with no deliveries contributes no rates")
+    func noDeliveriesContributesNothing() async throws {
+        // `analytics` is documented as null until an email is sent, and a sent
+        // email can still have zero deliveries. Neither has a rate; both still
+        // count towards emails_sent.
+        let emails = """
+            {"results": [
+               \(Self.email(id: 1, analytics: "null")),
+               \(Self.email(id: 2, analytics: Self.analytics(
+                   recipients: 3, deliveries: 0, opens: 0, clicks: 0)))
+             ],
+             "next": null, "previous": null, "count": 2}
+            """
+        let session = MockURLSession([
+            "/v1/subscribers": (Self.subscribersJSON, 200),
+            "/v1/emails":      (emails, 200)
+        ])
+        let data = try await ButtondownCollector(session: session)
+            .collect(since: .distantPast, credentials: Credentials(["api_key": "k"]))
+
+        #expect(data.intMetric("emails_sent") == 2)
+        #expect(data.metrics["avg_open_rate"] == nil)
+        #expect(data.metrics["avg_click_rate"] == nil)
+    }
+
+    @Test("Subscriber counts cover active subscribers, not every record")
+    func subscriberCountsAreFilteredToActiveTypes() async throws {
+        // Unfiltered, /v1/subscribers counts unconfirmed and unsubscribed
+        // records too: live, 112 against 91 regular (15 unactivated, 6
+        // unsubscribed). The doc comment always said "active"; the request
+        // never did.
+        let session = MockURLSession([
+            "/v1/subscribers": (Self.subscribersJSON, 200),
+            "/v1/emails":      (Self.emailsJSON, 200)
+        ])
+        _ = try await ButtondownCollector(session: session).collect(
+            since: Date(timeIntervalSince1970: 1_767_225_600),
+            credentials: Credentials(["api_key": "k"])
+        )
+
+        let requests = session.requests(path: "/v1/subscribers")
+        #expect(requests.count == 2)
+        // Both requests — the total and the new count — so `new_subscribers`
+        // can never exceed `subscriber_count` by counting people who have since
+        // left.
+        for request in requests {
+            let url = try #require(request.url)
+            let types = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.filter { $0.name == "type" }.compactMap(\.value) ?? []
+            #expect(Set(types) == ["regular", "premium", "churning", "gifted", "trialed", "past_due"],
+                    "\(url)")
         }
+    }
+
+    @Test("Only sent emails are counted")
+    func onlySentEmailsAreRequested() async throws {
+        // `/v1/emails` returns drafts and scheduled emails too unless filtered,
+        // and an all-time run sends no date filter to exclude them.
+        let session = MockURLSession([
+            "/v1/subscribers": (Self.subscribersJSON, 200),
+            "/v1/emails":      (Self.emailsJSON, 200)
+        ])
+        _ = try await ButtondownCollector(session: session)
+            .collect(since: .distantPast, credentials: Credentials(["api_key": "k"]))
+
+        #expect(session.queryValues("status", path: "/v1/emails") == ["sent"])
+    }
+
+    // MARK: - Label
+
+    @Test("The label is the name of the newsletter this key belongs to")
+    func labelIsTheKeysNewsletterName() async throws {
+        // It used to read `username` off /v1/metadata, which is a 404 on the
+        // live API — so every Buttondown instance went unlabelled. The key is
+        // per newsletter and /v1/newsletters lists every newsletter on the
+        // account, so the one whose `api_key` matches is this one.
+        let session = MockURLSession(["/v1/newsletters": (Self.newslettersJSON, 200)])
+        let label = await ButtondownCollector(session: session)
+            .fetchLabel(credentials: Credentials(["api_key": "test-key"]))
+
+        #expect(label == "Example Letters")
+        #expect(session.headerValues("Authorization", path: "/v1/newsletters") == ["Token test-key"])
+    }
+
+    @Test("No label when no newsletter matches the key")
+    func noLabelWithoutAMatch() async throws {
+        // Not the first newsletter: on a multi-newsletter account that would
+        // label every instance with the same, usually wrong, name.
+        let session = MockURLSession(["/v1/newsletters": (Self.newslettersJSON, 200)])
+        let label = await ButtondownCollector(session: session)
+            .fetchLabel(credentials: Credentials(["api_key": "unknown-key"]))
+
+        #expect(label == nil)
+    }
+
+    @Test("No label on an error response")
+    func noLabelOnError() async throws {
+        let session = MockURLSession(["/v1/newsletters": ("{\"detail\": \"Invalid token\"}", 401)])
+        let label = await ButtondownCollector(session: session)
+            .fetchLabel(credentials: Credentials(["api_key": "test-key"]))
+
+        #expect(label == nil)
     }
 
     @Test("Throws missingCredential when api_key is absent")
@@ -209,11 +429,10 @@ struct ButtondownCollectorTests {
     private static func emailPage(
         count: Int, rows: Int, next: String?, openRate: Double
     ) -> String {
-        let results = (0..<rows).map { i in
-            """
-            {"id":"e\(i)","subject":"Issue \(i)",
-             "email_stats":{"open_rate":\(openRate),"click_rate":0.1}}
-            """
+        // Over 100 deliveries, so `openRate` is exactly opens / deliveries.
+        let results = (0..<rows).map { _ in
+            email(id: 1, analytics: analytics(
+                recipients: 100, deliveries: 100, opens: Int((openRate * 100).rounded()), clicks: 10))
         }
         let nextField = next.map { "\"\($0)\"" } ?? "null"
         return """
@@ -368,8 +587,8 @@ struct ButtondownCollectorTests {
         // parameter on either endpoint. Probed: sending date__start to /emails
         // passed a global check.
         let documented: [String: Set<String>] = [
-            "/v1/subscribers": ["date__start", "page"],
-            "/v1/emails":      ["publish_date__start", "page", "ordering"]
+            "/v1/subscribers": ["date__start", "page", "type"],
+            "/v1/emails":      ["publish_date__start", "page", "ordering", "status"]
         ]
         // Guards the loop: an empty requestedURLs would satisfy every assertion
         // inside it.
@@ -382,26 +601,24 @@ struct ButtondownCollectorTests {
         }
     }
 
-    @Test("An email with an open rate but no click rate does not produce NaN")
-    func openRateWithoutClickRateIsNotNaN() async throws {
-        // The exact shape that aborted every collection run: the guard checked
-        // openRates while the divisor was clickRates.count, so 0/0 = NaN, and
-        // JSONEncoder refuses NaN when the snapshot is persisted.
-        // open_rate present, click_rate absent — Buttondown omits click_rate for
-        // an email containing no links.
-        let emails = """
-            {
-              "count": 1,
-              "next": null,
-              "previous": null,
-              "results": [
-                { "id": "e1", "subject": "No links", "email_stats": { "open_rate": 0.45 } }
-              ]
-            }
-            """
+    /// The one asymmetric shape the live API produces: clicks measured, opens
+    /// not (open tracking off), so the two averages have different divisors.
+    private static let clickWithoutOpenJSON = """
+        {"results": [\(email(id: 1, analytics: analytics(
+            recipients: 48, deliveries: 48, opens: 0, clicks: 1)))],
+         "next": null, "previous": null, "count": 1}
+        """
+
+    @Test("An email with a click rate but no open rate does not produce NaN")
+    func clickRateWithoutOpenRateIsNotNaN() async throws {
+        // The shape that once aborted every collection run: one guard covered
+        // both averages while each divided by its own count, so 0/0 = NaN, and
+        // JSONEncoder refuses NaN when the snapshot is persisted. The fixture
+        // was open-without-click under the old `email_stats` shape; against
+        // the real `analytics` counts the one-sided case is the reverse.
         let session = MockURLSession([
             "/v1/subscribers": (ButtondownCollectorTests.subscribersJSON, 200),
-            "/v1/emails":      (emails, 200)
+            "/v1/emails":      (Self.clickWithoutOpenJSON, 200)
         ])
         let collector = ButtondownCollector(
             session: session,
@@ -416,28 +633,17 @@ struct ButtondownCollectorTests {
                 #expect(d.isFinite, "\(key) is not finite")
             }
         }
-        // The metric is omitted rather than reported as zero: no clicks were
-        // measured, which is not the same as a zero click rate.
-        #expect(data.metrics["avg_click_rate"] == nil)
+        // Omitted rather than reported as zero: no opens were measured, which
+        // is not the same as a zero open rate.
+        #expect(data.metrics["avg_open_rate"] == nil)
+        #expect(data.doubleMetric("avg_click_rate") != nil)
     }
 
     @Test("Metrics survive JSON encoding, which is what a NaN breaks")
     func metricsAreEncodable() async throws {
-        // open_rate present, click_rate absent — Buttondown omits click_rate for
-        // an email containing no links.
-        let emails = """
-            {
-              "count": 1,
-              "next": null,
-              "previous": null,
-              "results": [
-                { "id": "e1", "subject": "No links", "email_stats": { "open_rate": 0.45 } }
-              ]
-            }
-            """
         let session = MockURLSession([
             "/v1/subscribers": (ButtondownCollectorTests.subscribersJSON, 200),
-            "/v1/emails":      (emails, 200)
+            "/v1/emails":      (Self.clickWithoutOpenJSON, 200)
         ])
         let collector = ButtondownCollector(
             session: session,

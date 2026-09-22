@@ -5,11 +5,15 @@ import Foundation
 /// Required credentials key: `"api_key"`
 ///
 /// Metrics returned:
-/// - `subscriber_count`     – total active subscribers
-/// - `new_subscribers`      – subscribers added since the `since` date
+/// - `subscriber_count`     – active subscribers (see `activeSubscriberTypes`)
+/// - `new_subscribers`      – active subscribers created since the `since` date
 /// - `emails_sent`          – newsletters sent since `since`
-/// - `avg_open_rate`        – mean open rate across those newsletters (0–1)
-/// - `avg_click_rate`       – mean click rate across those newsletters (0–1)
+/// - `avg_open_rate`        – mean per-email unique opens / deliveries (0–1),
+///                            over emails with any opens recorded
+/// - `avg_click_rate`       – mean per-email unique clicks / deliveries (0–1)
+/// - `emails_sampled`       – a note, only when the email walk hit its page cap
+///
+/// Response shapes were checked against the live API on 2026-09-22 (#75).
 struct ButtondownCollector: Collector {
     let platform: Platform = .buttondown
     var instanceName: String = "default"
@@ -22,16 +26,33 @@ struct ButtondownCollector: Collector {
         self.baseURL = baseURL
     }
 
+    /// The name of the newsletter this key belongs to.
+    ///
+    /// Buttondown API keys are per newsletter, and `/v1/newsletters` lists
+    /// every newsletter on the account with its own `api_key` — so the row
+    /// whose key matches is this instance. This used to read `username` off
+    /// `/v1/metadata`, which is a 404 on the live API, so the label was always
+    /// nil. Only the first page is read; the live account has three
+    /// newsletters, well inside one page.
     func fetchLabel(credentials: Credentials) async -> String? {
         guard let apiKey = credentials.apiKey else { return nil }
-        // The /v1/metadata endpoint returns newsletter-level info including the username.
-        let url = baseURL.appendingPathComponent("metadata")
-        var req = URLRequest(url: url)
+        var req = URLRequest(url: baseURL.appendingPathComponent("newsletters"))
         req.setTokenAuth(apiKey)
         guard let (data, response) = try? await session.data(for: req),
               let http = response as? HTTPURLResponse, http.statusCode == 200 else { return nil }
-        struct Metadata: Decodable { let username: String? }
-        return try? JSONDecoder().decode(Metadata.self, from: data).username
+        struct Newsletter: Decodable {
+            let name: String?
+            let username: String?
+            let apiKey: String?
+            enum CodingKeys: String, CodingKey {
+                case name, username
+                case apiKey = "api_key"
+            }
+        }
+        guard let page = try? JSONDecoder().decode(PagedResponse<Newsletter>.self, from: data),
+              let mine = page.results.first(where: { $0.apiKey == apiKey })
+        else { return nil }
+        return [mine.name, mine.username].compactMap { $0 }.first { !$0.isEmpty }
     }
 
     func collect(since: Date, credentials: Credentials) async throws -> PlatformData {
@@ -73,12 +94,29 @@ struct ButtondownCollector: Collector {
 
     // MARK: - Private
 
+    /// The subscriber types counted as active: those receiving the newsletter.
+    ///
+    /// Unfiltered, `/v1/subscribers` counts every record, including
+    /// `unactivated` (never confirmed) and `unsubscribed`. Live on 2026-09-22
+    /// that was 112 records against 91 `regular`, so `subscriber_count` — whose
+    /// doc always said "active" — overstated the list by 23%. Repeated `type`
+    /// parameters are OR'd (checked live: `type=regular&type=unactivated`
+    /// returned their sum). Which of the rarer types receive email is inferred
+    /// from their names; only `regular` has been seen on a real account.
+    static let activeSubscriberTypes = ["regular", "premium", "churning", "gifted", "trialed", "past_due"]
+
+    private var activeTypeItems: [URLQueryItem] {
+        Self.activeSubscriberTypes.map { URLQueryItem(name: "type", value: $0) }
+    }
+
     private func fetchSubscriberCount(apiKey: String) async throws -> Int {
         // No page-size parameter: Buttondown's reference lists `page` and no
         // `count`, so the `count=1` this used to send was never a request
         // parameter at all. The total is read off the envelope, which carries it
-        // regardless of how many rows come back.
-        let url = baseURL.appendingPathComponent("subscribers")
+        // regardless of how many rows come back — and is the *filtered* total
+        // (live: `date__start=2099-01-01` gives `count: 0`).
+        var url = baseURL.appendingPathComponent("subscribers")
+        url.append(queryItems: activeTypeItems)
         var req = URLRequest(url: url)
         req.setTokenAuth(apiKey)
         let (data, response) = try await session.data(for: req)
@@ -97,15 +135,21 @@ struct ButtondownCollector: Collector {
     /// is ignored rather than rejected by default in Django REST Framework, so
     /// the filtered request was very likely the same request as the unfiltered
     /// one, and this returned the *total* subscriber count for every collection
-    /// ever run. See #142 — the consequence is unconfirmed without a live key,
-    /// but the parameter name is wrong either way.
+    /// ever run (#142). `date__start` is honoured: live on 2026-09-22 it
+    /// returned 4 for a 30-day window against 112 unfiltered, while an unknown
+    /// parameter returned the unfiltered 112.
+    ///
+    /// Filtered to the same active types as `subscriber_count`, so this can
+    /// never exceed it by counting people who joined and then left. On an
+    /// all-time run there is no date filter, so the two are equal by
+    /// definition — every active subscriber joined at some point.
     private func fetchNewSubscriberCount(apiKey: String, since: Date) async throws -> Int {
-        var items: [URLQueryItem] = []
+        var items = activeTypeItems
         if let lowerBound = CollectionWindow.lowerBound(since) {
             items.append(URLQueryItem(name: "date__start", value: iso8601Date(lowerBound)))
         }
         var url = baseURL.appendingPathComponent("subscribers")
-        if !items.isEmpty { url.append(queryItems: items) }
+        url.append(queryItems: items)
         var req = URLRequest(url: url)
         req.setTokenAuth(apiKey)
         let (data, response) = try await session.data(for: req)
@@ -145,6 +189,14 @@ struct ButtondownCollector: Collector {
     /// analytics described the beginning of the archive rather than the
     /// requested window, which is a stranger failure than averaging everything
     /// and worth naming precisely.
+    ///
+    /// Per-email stats are the `analytics` object on each list row: unique
+    /// `opens` and `clicks` as counts, plus `deliveries`. This used to decode
+    /// `email_stats.open_rate` / `click_rate`, which the live API does not
+    /// send, so neither average ever appeared. Rates are over deliveries,
+    /// which is Buttondown's own denominator: its server-side
+    /// `open_rate__start=0.66` filter matched an email at 56 opens / 84
+    /// deliveries (0.667), where 56 / 87 recipients would be 0.644.
     private func fetchEmailStats(apiKey: String, since: Date) async throws -> EmailStatsAccumulator {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -159,7 +211,11 @@ struct ButtondownCollector: Collector {
                 // a read that stops early used to describe the beginning of the
                 // archive — the opposite of what a reader wants. With this, a
                 // truncated read still covers the most recent newsletters.
-                URLQueryItem(name: "ordering", value: "-publish_date")
+                URLQueryItem(name: "ordering", value: "-publish_date"),
+                // `/emails` documents a `status` filter, so drafts and
+                // scheduled emails are presumably listed without it — and an
+                // all-time run sends no date filter to exclude them.
+                URLQueryItem(name: "status", value: "sent")
             ]
             if let lowerBound = CollectionWindow.lowerBound(since) {
                 items.append(URLQueryItem(name: "publish_date__start", value: iso8601Date(lowerBound)))
@@ -182,10 +238,17 @@ struct ButtondownCollector: Collector {
             fetched += decoded.results.count
 
             for email in decoded.results {
-                if let stats = email.emailStats {
-                    if let openRate = stats.openRate { acc.openRates.append(openRate) }
-                    if let clickRate = stats.clickRate { acc.clickRates.append(clickRate) }
-                }
+                // Null until sent, and a sent email can have no deliveries;
+                // neither has a rate.
+                guard let stats = email.analytics, stats.deliveries > 0 else { continue }
+                let deliveries = Double(stats.deliveries)
+                // Zero opens means open tracking was not recording, not that
+                // nobody opened it: live, one email reports 0 opens against 48
+                // deliveries and 1 click, which cannot happen with tracking on.
+                // Buttondown itself calls that a 0% open rate; averaged in, it
+                // drags every all-time figure down, so it is left out instead.
+                if stats.opens > 0 { acc.openRates.append(Double(stats.opens) / deliveries) }
+                acc.clickRates.append(Double(stats.clicks) / deliveries)
             }
 
             // An empty page ends the walk whatever `next` says. Without this a
@@ -227,13 +290,16 @@ private struct PagedResponse<T: Decodable>: Decodable {
 private struct EmptyObject: Decodable {}
 
 private struct ButtondownEmail: Decodable {
-    let id: String
-    let subject: String
-    let emailStats: EmailStats?
+    /// Null until the email has been sent, per Buttondown's schema.
+    let analytics: Analytics?
 
-    struct EmailStats: Decodable {
-        let openRate: Double?
-        let clickRate: Double?
+    /// A subset of the live object, which also carries recipients, failures,
+    /// unsubscriptions, page views and more. Buttondown documents `opens` and
+    /// `clicks` as unique counts.
+    struct Analytics: Decodable {
+        let deliveries: Int
+        let opens: Int
+        let clicks: Int
     }
 }
 
