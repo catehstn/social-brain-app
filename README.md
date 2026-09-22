@@ -74,7 +74,10 @@ xcodebuild test -scheme SocialBrainMCP -destination 'platform=macOS'
 
 One suite is opt-in: `SetupURLTests` checks the platform setup links against
 the live web, so it's skipped by default to keep the suite hermetic. Run it
-deliberately when you change a setup URL. The `TEST_RUNNER_` prefix is required —
+deliberately when you change a setup URL. (`SetupURLCoverageTests` is the
+hermetic half — it reads the credential sheet's source and fails if a help URL
+there is neither checked by that suite nor excluded with a reason. It runs
+with everything else.) The `TEST_RUNNER_` prefix is required —
 xcodebuild strips it and forwards the rest to the test host; without it the
 variable never arrives and the suite silently skips:
 

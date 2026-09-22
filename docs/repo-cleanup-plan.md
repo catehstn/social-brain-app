@@ -156,7 +156,10 @@ Milestones created and populated:
 
 - #58 P2 — Make test isolation structural rather than order-dependent
 - #59 P2 — CI and project-file housekeeping
-- #60 P2 — Decide what to do with SetupURLTests (it has never passed)
+~~#60 P2 — Decide what to do with SetupURLTests~~ — settled. It passes on a
+  normal network (all seven URLs, 2026-09-22); what needed fixing was that its
+  list is a second copy of the sheet's URLs, now guarded by
+  `SetupURLCoverageTests`.
 
 **M2 — Design pass** *(the five screens, rebuilt from the brief)*
 - #38–#42 P1 — Design pass: Feed, Run, Platforms, Dashboard, Onboarding
@@ -228,7 +231,9 @@ Six branches remain besides `main`, all deliberately:
   CI on the runner default (16.4) is the stricter check, and it caught the
   ISO8601 fractional-seconds bug that would have failed against live APIs. See
   CLAUDE.md's CI section.
-- **Whether `SetupURLTests` is worth keeping** (issue #60) — it has never passed.
+- ~~**Whether `SetupURLTests` is worth keeping** (issue #60)~~ — settled: kept.
+  It passes against the live web; the drift between its list and the credential
+  sheet is what mattered, and a source-grep test now catches it.
 - **Mentions synthesis** (issue #61) — the brief no longer promises it, because
   the code has never had it and #123 cut the line. What is left is the actual
   question: do we want one? Settle before M2 starts.
