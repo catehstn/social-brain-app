@@ -53,7 +53,7 @@ private func call(
     params: [String: Any],
     store: any SnapshotStore
 ) async throws -> [String: Any] {
-    let server = MCPServer(store: store)
+    let server = MCPServer(store: store, labels: InstanceLabels(defaults: MemoryStore()))
     var body: [String: Any] = [
         "jsonrpc": "2.0",
         "id": id,
@@ -100,7 +100,7 @@ struct MCPServerTests {
 
     @Test("notifications/initialized returns nil (no response)")
     func initializedNotification() async throws {
-        let server = MCPServer(store: StubStore())
+        let server = MCPServer(store: StubStore(), labels: InstanceLabels(defaults: MemoryStore()))
         let body = try JSONSerialization.data(withJSONObject: [
             "jsonrpc": "2.0",
             "method": "notifications/initialized"
@@ -118,7 +118,7 @@ struct MCPServerTests {
 
     @Test("malformed JSON returns -32700 parse error")
     func parseError() async throws {
-        let server = MCPServer(store: StubStore())
+        let server = MCPServer(store: StubStore(), labels: InstanceLabels(defaults: MemoryStore()))
         let garbage = Data("not-json".utf8)
         // #require, not #expect plus `!`: #expect does not halt, so a nil
         // response would walk into the force unwrap and kill the runner
@@ -303,6 +303,14 @@ struct MCPServerTests {
         #expect(text?.contains("Mastodon") == true)
     }
 
+    // There is deliberately no test here that a label reaches a prompt.
+    // `PromptAssembler` consults labels only for a platform with more than one
+    // instance, and `SnapshotStore.latestSnapshots()` is keyed by `Platform`,
+    // so this server can never present two instances of one platform (#174).
+    // Until that is fixed, the injected store is unobservable through the MCP
+    // surface, and a test asserting otherwise would be asserting the bug.
+    // `AppPreferencesTests` below covers the store itself.
+
     @Test("generate_prompt with no data returns helpful message")
     func generatePromptEmpty() async throws {
         let response = try await call(
@@ -364,4 +372,128 @@ struct DatabaseLocationTests {
         #expect(first.contains("/Containers/" + DatabaseProxy.bundleIdentifier + "/"))
         #expect(!first.contains("/Containers//"), "the identifier must not be empty")
     }
+}
+
+
+// MARK: - Where the app's preferences are looked for (#183)
+
+@Suite("App preferences")
+struct AppPreferencesTests {
+
+    private let home = URL(fileURLWithPath: "/Users/someone")
+    private var preferences: URL { home.appendingPathComponent("Library/Preferences") }
+
+    @Test("The sandboxed container is searched first")
+    func containerPathComesFirst() throws {
+        // Measured on 2026-09-22: an unsandboxed process reading
+        // UserDefaults(suiteName: "com.catehuston.SocialBrain") saw none of the
+        // keys the app had written, because the app is sandboxed and its plist
+        // lives in its container. #183 proposed that suite as the fix; it is
+        // not one. This is the preferences half of #47.
+        let candidates = AppPreferences.preferenceCandidates(home: home, preferences: preferences)
+
+        let first = try #require(candidates.first).path
+        #expect(first == "/Users/someone/Library/Containers/com.catehuston.SocialBrain"
+                       + "/Data/Library/Preferences/com.catehuston.SocialBrain.plist")
+    }
+
+    @Test("The unsandboxed location is still searched, second")
+    func plainPathComesSecond() throws {
+        let candidates = AppPreferences.preferenceCandidates(home: home, preferences: preferences)
+        let second = try #require(candidates.dropFirst().first).path
+        #expect(second == "/Users/someone/Library/Preferences/com.catehuston.SocialBrain.plist")
+    }
+
+    /// A container plist in a temporary directory, and the store that reads it.
+    private func makeStore(_ contents: [String: Any]) throws -> (AppPreferences, URL) {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("app-prefs-\(UUID().uuidString)", isDirectory: true)
+        let dir = root
+            .appendingPathComponent("Library/Containers/com.catehuston.SocialBrain", isDirectory: true)
+            .appendingPathComponent("Data/Library/Preferences", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let plist = dir.appendingPathComponent("com.catehuston.SocialBrain.plist")
+        try PropertyListSerialization
+            .data(fromPropertyList: contents, format: .binary, options: 0)
+            .write(to: plist)
+        return (AppPreferences(home: root, preferences: root.appendingPathComponent("none")), plist)
+    }
+
+    @Test("Reads values the app wrote into its container")
+    func readsContainerPlist() throws {
+        let (store, _) = try makeStore([
+            "instanceLabel_mastodon:default": "The Work Account",
+            "instanceNames_mastodon": ["default", "work"],
+            "hasCompletedOnboarding": true
+        ])
+
+        #expect(store.string(forKey: "instanceLabel_mastodon:default") == "The Work Account")
+        #expect(store.stringArray(forKey: "instanceNames_mastodon") == ["default", "work"])
+        #expect(store.bool(forKey: "hasCompletedOnboarding"))
+        #expect(store.string(forKey: "absent") == nil)
+        #expect(store.bool(forKey: "absent") == false)
+    }
+
+    @Test("A label set while the server is running is picked up")
+    func rereadsWhenTheFileChanges() throws {
+        // The server is long-lived, so reading once at startup would pin
+        // whatever labels existed when Claude launched it.
+        let (store, plist) = try makeStore(["instanceLabel_mastodon:default": "Before"])
+        #expect(store.string(forKey: "instanceLabel_mastodon:default") == "Before")
+
+        // A second apart, because the cache compares modification dates and
+        // HFS+ timestamps have one-second resolution.
+        try PropertyListSerialization
+            .data(fromPropertyList: ["instanceLabel_mastodon:default": "After"], format: .binary, options: 0)
+            .write(to: plist)
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date().addingTimeInterval(5)], ofItemAtPath: plist.path)
+
+        #expect(store.string(forKey: "instanceLabel_mastodon:default") == "After")
+    }
+
+    @Test("Writes do not touch the app's preferences")
+    func writesAreRefused() throws {
+        // The server is a read-only view of the app's data. KeyValueStore
+        // requires setters; these must not write a file the app owns.
+        let (store, plist) = try makeStore(["instanceLabel_mastodon:default": "Untouched"])
+        let before = try Data(contentsOf: plist)
+
+        store.set("Overwritten", forKey: "instanceLabel_mastodon:default")
+        store.set(["a"], forKey: "instanceNames_mastodon")
+        store.set(true, forKey: "hasCompletedOnboarding")
+        store.removeObject(forKey: "instanceLabel_mastodon:default")
+
+        #expect(try Data(contentsOf: plist) == before)
+        #expect(store.string(forKey: "instanceLabel_mastodon:default") == "Untouched")
+    }
+
+    @Test("No plist at all reads as no values, not a crash")
+    func missingFileIsEmpty() {
+        let nowhere = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("app-prefs-missing-\(UUID().uuidString)", isDirectory: true)
+        let store = AppPreferences(home: nowhere, preferences: nowhere)
+
+        #expect(store.string(forKey: "instanceLabel_mastodon:default") == nil)
+        #expect(store.stringArray(forKey: "instanceNames_mastodon") == nil)
+    }
+}
+
+
+/// A throwaway `KeyValueStore`, so no test reaches a real preferences domain.
+///
+/// The app's suite has one in `SocialBrainTests/TestSupport`, which is not a
+/// member of this target; a copy is cheaper than sharing a file whose other
+/// contents this target does not need.
+final class MemoryStore: KeyValueStore, @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [String: Any] = [:]
+
+    func stringArray(forKey key: String) -> [String]? { lock.withLock { values[key] as? [String] } }
+    func string(forKey key: String) -> String? { lock.withLock { values[key] as? String } }
+    func bool(forKey key: String) -> Bool { lock.withLock { values[key] as? Bool ?? false } }
+    func set(_ value: [String], forKey key: String) { lock.withLock { values[key] = value } }
+    func set(_ value: String, forKey key: String) { lock.withLock { values[key] = value } }
+    func set(_ value: Bool, forKey key: String) { lock.withLock { values[key] = value } }
+    func removeObject(forKey key: String) { lock.withLock { values[key] = nil } }
 }

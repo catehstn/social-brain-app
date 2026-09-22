@@ -41,7 +41,8 @@ import Foundation
 // missing one is reported instead of trapping. stdout is the JSON-RPC channel,
 // so the message goes to stderr, which Claude surfaces as server output.
 do {
-    let server = MCPServer(store: try DatabaseProxy())
+    let server = MCPServer(store: try DatabaseProxy(),
+                           labels: InstanceLabels(defaults: AppPreferences.shared))
     await server.run()
 } catch {
     FileHandle.standardError.write(Data("SocialBrainMCP: \(error.localizedDescription)\n".utf8))

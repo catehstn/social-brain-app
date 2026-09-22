@@ -124,13 +124,26 @@ struct AnyCodable: Codable {
 actor MCPServer {
 
     private let store: any SnapshotStore
+    private let labels: InstanceLabels
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
     /// No default store: constructing one can fail, and a default argument
     /// cannot throw. `main.swift` builds it and reports the failure.
-    init(store: any SnapshotStore) {
+    ///
+    /// `labels` has no default either. It used to be `InstanceLabels.shared`,
+    /// which reads `UserDefaults.standard` — this tool's own domain, not the
+    /// app's, so prompts never carried a label the user had set (#183).
+    /// `main.swift` passes the app's preferences.
+    ///
+    /// That fix is **necessary but not yet sufficient**: a label is rendered
+    /// only for a platform with several instances, and `latestSnapshots()` is
+    /// keyed by `Platform`, so this server cannot present two instances of one
+    /// platform at all (#174). Until that lands, no label reaches a prompt
+    /// from here, whatever store is passed.
+    init(store: any SnapshotStore, labels: InstanceLabels) {
         self.store = store
+        self.labels = labels
     }
 
     func run() async {
@@ -422,7 +435,7 @@ actor MCPServer {
             return "No platforms have data within the requested period."
         }
 
-        let assembler = PromptAssembler(labels: .shared)
+        let assembler = PromptAssembler(labels: labels)
         let input = PromptAssembler.Input(
             periodLabel: periodLabel,
             reportDate: .now,

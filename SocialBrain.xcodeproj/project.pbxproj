@@ -35,6 +35,8 @@
 		83F309C8B34A4E739AD3DA65 /* DatabaseLocationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 038EC78810E84F1D8EA4B807 /* DatabaseLocationTests.swift */; };
 		89C769B555A5A38972AEC683 /* DatabaseMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D72B5277A4EB60AACEB252E /* DatabaseMigrationTests.swift */; };
 		6C8E25611CE74576A98BFC1E /* DatabaseProxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 904EEDE0BFB741309F8ABA92 /* DatabaseProxy.swift */; };
+		B1293F2C8D950525DAB4716C /* AppPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE9ED991782A8D0ED41FE477 /* AppPreferences.swift */; };
+		80C0EFF49F26EA8807F8489F /* AppPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE9ED991782A8D0ED41FE477 /* AppPreferences.swift */; };
 		C322E0F847904168810DB18D /* DatabaseProxy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 904EEDE0BFB741309F8ABA92 /* DatabaseProxy.swift */; };
 		7D5E2248AB7A4C74814F5AEB /* DatabaseUnavailableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CE8AC862AA74655A24A0042 /* DatabaseUnavailableView.swift */; };
 		3F8A21C74B0D95E6A1730C42 /* DecodeJSONTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C21D9E05A47B8132FE60D91 /* DecodeJSONTests.swift */; };
@@ -209,6 +211,7 @@
 		038EC78810E84F1D8EA4B807 /* DatabaseLocationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseLocationTests.swift; sourceTree = "<group>"; };
 		9D72B5277A4EB60AACEB252E /* DatabaseMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseMigrationTests.swift; sourceTree = "<group>"; };
 		904EEDE0BFB741309F8ABA92 /* DatabaseProxy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseProxy.swift; sourceTree = "<group>"; };
+		AE9ED991782A8D0ED41FE477 /* AppPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferences.swift; sourceTree = "<group>"; };
 		5CE8AC862AA74655A24A0042 /* DatabaseUnavailableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DatabaseUnavailableView.swift; sourceTree = "<group>"; };
 		6C21D9E05A47B8132FE60D91 /* DecodeJSONTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecodeJSONTests.swift; sourceTree = "<group>"; };
 		ED753319985B448BAE38297D /* DroppedFileRoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DroppedFileRoutingTests.swift; sourceTree = "<group>"; };
@@ -368,6 +371,7 @@
 			isa = PBXGroup;
 			children = (
 				7A221023099745349776A4FC /* MCPServer.swift */,
+				AE9ED991782A8D0ED41FE477 /* AppPreferences.swift */,
 				904EEDE0BFB741309F8ABA92 /* DatabaseProxy.swift */,
 				4AB71AD7DD2443EFB4399C2A /* main.swift */,
 			);
@@ -868,6 +872,7 @@
 				70572612430045D9905EF9DE /* CollectionRun.swift in Sources */,
 				D5844BC305914945AF750015 /* MCPServer.swift in Sources */,
 				6C8E25611CE74576A98BFC1E /* DatabaseProxy.swift in Sources */,
+				B1293F2C8D950525DAB4716C /* AppPreferences.swift in Sources */,
 				EAB77E5F74CB489AA5241222 /* main.swift in Sources */,
 				B8149722B197458F8F6CC2F3 /* Platform.swift in Sources */,
 				ABF49666B8AC4B5DB1D19138 /* PlatformData.swift in Sources */,
@@ -887,6 +892,7 @@
 				B7E4BF5F622E4CC797F156C5 /* CollectionRun.swift in Sources */,
 				494BCE731CD44C989B9F51E2 /* MCPServer.swift in Sources */,
 				C322E0F847904168810DB18D /* DatabaseProxy.swift in Sources */,
+				80C0EFF49F26EA8807F8489F /* AppPreferences.swift in Sources */,
 				848B69F5119542529DE7EDE1 /* Platform.swift in Sources */,
 				882D1B43F83B41DFB602C6D0 /* PlatformData.swift in Sources */,
 				31C8158F976B4439BC7D928C /* AnalyticsGoal.swift in Sources */,
