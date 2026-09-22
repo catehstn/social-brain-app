@@ -67,9 +67,9 @@ struct JetpackCollector: Collector {
         let vis = visitResult.totals
 
         var metrics: [String: MetricValue] = [:]
-        if let v = sum.followersBlog     { metrics["followers_blog"]    = .int(v) }
-        if let v = sum.followersComments { metrics["followers_comment"] = .int(v) }
-        if let v = sum.comments          { metrics["total_comments"]    = .int(v) }
+        metrics["followers_blog"]    = .int(sum.followersBlog)
+        metrics["followers_comment"] = .int(sum.followersComments)
+        metrics["total_comments"]    = .int(sum.comments)
         if let v = vis.views             { metrics["total_views"]       = .int(v) }
         if let v = vis.visitors          { metrics["total_visitors"]    = .int(v) }
         if let v = vis.likes             { metrics["total_likes"]       = .int(v) }
@@ -178,12 +178,17 @@ private struct StatsEnvelope: Decodable {
     let stats: SiteStats
 }
 
-/// Every field optional: one missing field used to fail the whole decode,
-/// which is how a `likes_today` the API does not send took down every metric.
+/// Only fields the live API sends (checked 2026-09-22). `likes_today` was
+/// required here and is not sent, which failed every Jetpack collection; it
+/// is gone, and likes come from the visits columns instead.
+///
+/// The three that remain stay required on purpose. If WordPress.com drops
+/// one, a decode error naming the field is better than the follower count
+/// silently vanishing from the prompt, the Dashboard and spike detection.
 private struct SiteStats: Decodable {
-    let followersBlog: Int?
-    let followersComments: Int?
-    let comments: Int?
+    let followersBlog: Int
+    let followersComments: Int
+    let comments: Int
 
     enum CodingKeys: String, CodingKey {
         case followersBlog     = "followers_blog"

@@ -117,19 +117,19 @@ struct JetpackCollectorTests {
         #expect(data.intMetric("total_views") == 500)
     }
 
-    @Test("A summary field the response lacks is omitted, not zeroed")
-    func missingSummaryFieldsAreOmitted() async throws {
-        // One absent field used to fail the decode; failing open must not mean
-        // reporting a plausible zero instead.
+    @Test("A missing summary field fails loudly and names the field")
+    func missingSummaryFieldFails() async throws {
+        // Deliberately not tolerated: a follower count that silently vanishes
+        // is worse than a decode error naming it.
         let sess = MockURLSession([
-            "/rest/v1.1/sites/\(Self.siteID)/stats":        ("{ \"stats\": {} }", 200),
+            "/rest/v1.1/sites/\(Self.siteID)/stats":        ("{ \"stats\": {\"followers_comments\": 1, \"comments\": 2} }", 200),
             "/rest/v1.1/sites/\(Self.siteID)/stats/visits": (Self.visitsJSON, 200)
         ])
-        let data = try await JetpackCollector(session: sess).collect(since: .distantPast, credentials: credentials)
-        #expect(data.metrics["followers_blog"] == nil)
-        #expect(data.metrics["followers_comment"] == nil)
-        #expect(data.metrics["total_comments"] == nil)
-        #expect(data.intMetric("total_views") == 500)
+        await #expect {
+            try await JetpackCollector(session: sess).collect(since: .distantPast, credentials: self.credentials)
+        } throws: { error in
+            error.localizedDescription.contains("followers_blog")
+        }
     }
 
     @Test("Likes are omitted when the visits response has no likes column")

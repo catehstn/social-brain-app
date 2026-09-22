@@ -251,6 +251,8 @@ struct PromptAssemblerTests {
         #expect(prompt.contains("Followers: 1,240 (85 comment subscribers)"))
         #expect(prompt.contains("Views: 500"))
         #expect(prompt.contains("Visitors: 135"))
+        #expect(prompt.contains("Likes: 12"))
+        #expect(prompt.contains("Comments (all time): 342"))
     }
 
     @Test("LinkedIn section formats impressions and engagement")
