@@ -16,8 +16,9 @@ struct PromptAssembler {
     /// `PromptAssembler()` reads real preferences, and a stored label silently
     /// changes the prompt under test. That is not hypothetical — it is how a
     /// `PromptAssemblerTests` case came to be passing by luck (#58, #90).
-    /// `RunViewModel` passes the store it was given; `MCPServer` passes
-    /// `.shared` (#183).
+    /// `RunViewModel` passes the store it was given; `MCPServer` passes the
+    /// app's own preferences, read from its container — `UserDefaults` in that
+    /// unsandboxed tool resolves to a different domain entirely (#183).
     let labels: InstanceLabels
 
     init(labels: InstanceLabels) {

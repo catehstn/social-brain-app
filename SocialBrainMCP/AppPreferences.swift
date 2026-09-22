@@ -32,12 +32,15 @@ struct AppPreferences: KeyValueStore {
 
     private let source: PlistSource
 
+    /// `preferences` defaults to `home`'s own `Library/Preferences`, so a test
+    /// passing only `home:` cannot leave the real one as the second candidate.
     init(home: URL = FileManager.default.homeDirectoryForCurrentUser,
-         preferences: URL = FileManager.default
-            .homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Preferences", isDirectory: true)) {
+         preferences: URL? = nil) {
         self.source = PlistSource(
-            candidates: Self.preferenceCandidates(home: home, preferences: preferences))
+            candidates: Self.preferenceCandidates(
+                home: home,
+                preferences: preferences
+                    ?? home.appendingPathComponent("Library/Preferences", isDirectory: true)))
     }
 
     /// Where to look for the app's preferences, in order.
@@ -82,12 +85,46 @@ struct AppPreferences: KeyValueStore {
 /// startup would pin whatever labels existed then, and a label set in the app
 /// afterwards would never appear. Re-reading on every lookup would parse the
 /// file once per metric, so the modification date decides.
+///
+/// "When the file changes" is the limit of the promise: the app writes
+/// preferences through `cfprefsd`, which flushes them lazily, so a label set
+/// in the app reaches this file — and therefore this server — some time later
+/// rather than at once.
+///
+/// A file that cannot be read or parsed reads as no values, and says so on
+/// stderr. Empty is the right answer for the server (no labels, so plain
+/// platform names), but a silent empty would look identical to a user who has
+/// set none.
 private final class PlistSource: @unchecked Sendable {
     private let candidates: [URL]
     private let lock = NSLock()
     private var cached: [String: Any] = [:]
     private var cachedFrom: Date?
     private var loaded = false
+
+    /// The plist as a dictionary, or empty — with a line on stderr — when it
+    /// cannot be read, is not a property list, or is not a dictionary at its
+    /// root. A truncated or half-written file lands here.
+    private static func read(_ url: URL) -> [String: Any] {
+        guard let data = try? Data(contentsOf: url) else {
+            complain("could not read \(url.lastPathComponent)")
+            return [:]
+        }
+        guard let parsed = try? PropertyListSerialization.propertyList(from: data, format: nil) else {
+            complain("could not parse \(url.lastPathComponent)")
+            return [:]
+        }
+        guard let dictionary = parsed as? [String: Any] else {
+            complain("\(url.lastPathComponent) is not a dictionary")
+            return [:]
+        }
+        return dictionary
+    }
+
+    private static func complain(_ message: String) {
+        FileHandle.standardError.write(Data(
+            "SocialBrainMCP: \(message); continuing without the app's preferences\n".utf8))
+    }
 
     init(candidates: [URL]) {
         self.candidates = candidates
@@ -98,13 +135,16 @@ private final class PlistSource: @unchecked Sendable {
             guard let url = candidates.first(where: { FileManager.default.fileExists(atPath: $0.path) })
             else { return nil }
 
+            // The modification date alone: it carries sub-second precision, so
+            // two writes cannot share one. (Round-tripping such a date through
+            // `setAttributes` does lose precision — which is why a test trying
+            // to pin a same-timestamp rewrite passed without testing anything,
+            // and was removed rather than kept.)
             let modified = try? FileManager.default
                 .attributesOfItem(atPath: url.path)[.modificationDate] as? Date
             if !loaded || modified != cachedFrom {
-                cached = (try? Data(contentsOf: url))
-                    .flatMap { try? PropertyListSerialization.propertyList(from: $0, format: nil) }
-                    as? [String: Any] ?? [:]
-                cachedFrom = modified ?? nil
+                cached = Self.read(url)
+                cachedFrom = modified
                 loaded = true
             }
             return cached[key]

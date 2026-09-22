@@ -405,7 +405,10 @@ struct AppPreferencesTests {
     }
 
     /// A container plist in a temporary directory, and the store that reads it.
-    private func makeStore(_ contents: [String: Any]) throws -> (AppPreferences, URL) {
+    ///
+    /// Returns the root too, so each test can delete its tree: this repo has
+    /// already accumulated 266 stray plists once.
+    private func makeStore(_ contents: [String: Any]) throws -> (AppPreferences, URL, URL) {
         let root = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("app-prefs-\(UUID().uuidString)", isDirectory: true)
         let dir = root
@@ -416,12 +419,24 @@ struct AppPreferencesTests {
         try PropertyListSerialization
             .data(fromPropertyList: contents, format: .binary, options: 0)
             .write(to: plist)
-        return (AppPreferences(home: root, preferences: root.appendingPathComponent("none")), plist)
+        return (AppPreferences(home: root), plist, root)
+    }
+
+    /// A store whose container plist holds `bytes`, whatever they are.
+    private func makeStore(rawPlist bytes: Data) throws -> (AppPreferences, URL) {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("app-prefs-\(UUID().uuidString)", isDirectory: true)
+        let dir = root
+            .appendingPathComponent("Library/Containers/com.catehuston.SocialBrain", isDirectory: true)
+            .appendingPathComponent("Data/Library/Preferences", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try bytes.write(to: dir.appendingPathComponent("com.catehuston.SocialBrain.plist"))
+        return (AppPreferences(home: root), root)
     }
 
     @Test("Reads values the app wrote into its container")
     func readsContainerPlist() throws {
-        let (store, _) = try makeStore([
+        let (store, _, root) = try makeStore([
             "instanceLabel_mastodon:default": "The Work Account",
             "instanceNames_mastodon": ["default", "work"],
             "hasCompletedOnboarding": true
@@ -432,13 +447,14 @@ struct AppPreferencesTests {
         #expect(store.bool(forKey: "hasCompletedOnboarding"))
         #expect(store.string(forKey: "absent") == nil)
         #expect(store.bool(forKey: "absent") == false)
+        try? FileManager.default.removeItem(at: root)
     }
 
     @Test("A label set while the server is running is picked up")
     func rereadsWhenTheFileChanges() throws {
         // The server is long-lived, so reading once at startup would pin
         // whatever labels existed when Claude launched it.
-        let (store, plist) = try makeStore(["instanceLabel_mastodon:default": "Before"])
+        let (store, plist, root) = try makeStore(["instanceLabel_mastodon:default": "Before"])
         #expect(store.string(forKey: "instanceLabel_mastodon:default") == "Before")
 
         // A second apart, because the cache compares modification dates and
@@ -450,13 +466,14 @@ struct AppPreferencesTests {
             [.modificationDate: Date().addingTimeInterval(5)], ofItemAtPath: plist.path)
 
         #expect(store.string(forKey: "instanceLabel_mastodon:default") == "After")
+        try? FileManager.default.removeItem(at: root)
     }
 
     @Test("Writes do not touch the app's preferences")
     func writesAreRefused() throws {
         // The server is a read-only view of the app's data. KeyValueStore
         // requires setters; these must not write a file the app owns.
-        let (store, plist) = try makeStore(["instanceLabel_mastodon:default": "Untouched"])
+        let (store, plist, root) = try makeStore(["instanceLabel_mastodon:default": "Untouched"])
         let before = try Data(contentsOf: plist)
 
         store.set("Overwritten", forKey: "instanceLabel_mastodon:default")
@@ -466,13 +483,52 @@ struct AppPreferencesTests {
 
         #expect(try Data(contentsOf: plist) == before)
         #expect(store.string(forKey: "instanceLabel_mastodon:default") == "Untouched")
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    @Test("A plist that is not a property list reads as no values")
+    func malformedPlistIsEmpty() throws {
+        // The app owns this file and rewrites it through cfprefsd, so a read
+        // can land on a half-written one. CLAUDE.md requires malformed and
+        // empty input for anything that reads a file.
+        let (store, root) = try makeStore(rawPlist: Data("this is not a plist".utf8))
+        #expect(store.string(forKey: "instanceLabel_mastodon:default") == nil)
+        #expect(store.bool(forKey: "hasCompletedOnboarding") == false)
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    @Test("A truncated plist reads as no values")
+    func truncatedPlistIsEmpty() throws {
+        let full = try PropertyListSerialization.data(
+            fromPropertyList: ["instanceLabel_mastodon:default": "The Work Account"],
+            format: .binary, options: 0)
+        let (store, root) = try makeStore(rawPlist: full.prefix(full.count / 2))
+        #expect(store.string(forKey: "instanceLabel_mastodon:default") == nil)
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    @Test("A plist whose root is not a dictionary reads as no values")
+    func nonDictionaryPlistIsEmpty() throws {
+        let array = try PropertyListSerialization.data(
+            fromPropertyList: ["one", "two"], format: .binary, options: 0)
+        let (store, root) = try makeStore(rawPlist: array)
+        #expect(store.string(forKey: "instanceLabel_mastodon:default") == nil)
+        #expect(store.stringArray(forKey: "instanceNames_mastodon") == nil)
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    @Test("An empty plist reads as no values")
+    func emptyPlistIsEmpty() throws {
+        let (store, root) = try makeStore(rawPlist: Data())
+        #expect(store.string(forKey: "instanceLabel_mastodon:default") == nil)
+        try? FileManager.default.removeItem(at: root)
     }
 
     @Test("No plist at all reads as no values, not a crash")
     func missingFileIsEmpty() {
         let nowhere = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("app-prefs-missing-\(UUID().uuidString)", isDirectory: true)
-        let store = AppPreferences(home: nowhere, preferences: nowhere)
+        let store = AppPreferences(home: nowhere)
 
         #expect(store.string(forKey: "instanceLabel_mastodon:default") == nil)
         #expect(store.stringArray(forKey: "instanceNames_mastodon") == nil)
