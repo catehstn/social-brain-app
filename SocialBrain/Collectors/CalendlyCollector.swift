@@ -9,7 +9,9 @@ import Foundation
 /// - `cancelled_count`    – of those, events whose `status` is `"canceled"`
 /// - `unique_invitees`    – distinct invitee emails across the period's
 ///   non-cancelled events. **Omitted** when the period holds more than
-///   `maximumInviteeLookups` of them — see that constant.
+///   `maximumInviteeLookups` of them — see that constant — or when any
+///   invitee lookup fails. "All time" has no upper bound, so upcoming events
+///   and their invitees count too, as they do in `events_count`.
 /// - `top_event_type_1` … `top_event_type_3` – names of the most-booked event
 ///   types, cancelled events included
 ///
@@ -34,10 +36,15 @@ struct CalendlyCollector: Collector {
     ///
     /// A scheduled event carries only `invitees_counter` — how many invitees,
     /// not who — so counting distinct people costs one
-    /// `/scheduled_events/{uuid}/invitees` request per event. The live API
-    /// reported `x-ratelimit-limit: 500` per 60 seconds on 2026-09-22
-    /// (`x-ratelimit-tier: standard`), and 400 leaves headroom for the event
-    /// pages and `/users/me` inside the same minute.
+    /// `/scheduled_events/{uuid}/invitees` request per event (more for a group
+    /// event whose invitees span pages).
+    ///
+    /// The bound is time, not the rate limit. Lookups run one after another,
+    /// and 103 of them took about 30 seconds live on 2026-09-22 — some 3.5 a
+    /// second — so 400 is roughly two minutes on the Run screen, and a
+    /// sequential walk cannot reach the `x-ratelimit-limit: 500` per minute
+    /// the API reported. Should lookups become concurrent, the rate limit
+    /// becomes the binding constraint and this needs revisiting.
     ///
     /// Past it the metric is left out rather than counted from a sample: a
     /// partial count would read as a real one, and an absent metric does not.
@@ -73,14 +80,23 @@ struct CalendlyCollector: Collector {
 
         let held = events.filter { $0.status != "canceled" }
         if held.count <= Self.maximumInviteeLookups {
-            var emails = Set<String>()
-            for event in held {
-                for invitee in try await fetchInvitees(apiKey: apiKey, eventURI: event.uri)
-                where invitee.status == "active" {
-                    emails.insert(invitee.email.lowercased())
+            // A failed lookup costs this one metric, not the whole platform:
+            // the event counts above are already complete, and one 429 or
+            // dropped connection among hundreds of requests should not discard
+            // them. Omitted rather than partial, for the same reason as the cap.
+            do {
+                var emails = Set<String>()
+                for event in held {
+                    for invitee in try await fetchInvitees(apiKey: apiKey, eventURI: event.uri)
+                    where invitee.status == "active" {
+                        emails.insert(invitee.email.lowercased())
+                    }
                 }
+                metrics["unique_invitees"] = .int(emails.count)
+            } catch {
+                collectorLog.error(
+                    "Calendly invitee lookup failed; unique_invitees omitted: \(error.localizedDescription, privacy: .public)")
             }
-            metrics["unique_invitees"] = .int(emails.count)
         }
 
         for (index, name) in topEventTypes(events).enumerated() {
@@ -97,8 +113,9 @@ struct CalendlyCollector: Collector {
     /// Tallied by the `event_type` URI, not by `name`. An event's `name` is the
     /// type's name *when it was booked*, so a renamed type shows up under two
     /// names — one of the account's five types did, live — and tallying by name
-    /// would split it. The label is the name on the most recent event of that
-    /// type; events arrive newest first.
+    /// would split it. The label is the name on the latest-starting event of
+    /// that type, since events arrive sorted by `start_time` descending —
+    /// which, for "All time", can be an upcoming booking.
     private func topEventTypes(_ events: [CalendlyEvent]) -> [String] {
         var counts: [String: Int] = [:]
         var names: [String: String] = [:]
@@ -166,6 +183,7 @@ struct CalendlyCollector: Collector {
 
         var collected: [Item] = []
         var pageToken: String?
+        var seenTokens = Set<String>()
         repeat {
             var url = baseURL.appendingPathComponent(path)
             var query = items
@@ -178,6 +196,11 @@ struct CalendlyCollector: Collector {
             let page = try decodeJSON(Page<Item>.self, from: data, response: response, decoder: decoder)
             collected.append(contentsOf: page.collection)
             pageToken = page.pagination.nextPageToken
+            // A token handed back twice would loop forever, re-counting the
+            // same page each time.
+            if let pageToken, !seenTokens.insert(pageToken).inserted {
+                throw CollectorError.decodingError("pagination repeated a page token")
+            }
         } while pageToken != nil
         return collected
     }

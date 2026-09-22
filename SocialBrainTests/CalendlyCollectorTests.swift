@@ -313,6 +313,49 @@ struct CalendlyCollectorTests {
         #expect(session.requestedURLs.allSatisfy { !$0.path.hasSuffix("/invitees") })
     }
 
+    @Test("At exactly the lookup cap, unique_invitees is still counted")
+    func atTheCapInviteesAreCounted() async throws {
+        // Pins the boundary: `<=`, not `<`.
+        let n = CalendlyCollector.maximumInviteeLookups
+        let ids = (1...n).map { "EVT-\($0)" }
+        var fixtures: [String: (String, Int)] = [
+            "/users/me":         (Self.userJSON, 200),
+            "/scheduled_events": (Self.page(ids.map { Self.event($0, name: "Coffee Chat", type: Self.coffeeType) }), 200)
+        ]
+        for id in ids {
+            fixtures[Self.inviteesPath(id)] = (Self.page([Self.invitee("\(id)@example.com", event: id)]), 200)
+        }
+        let data = try await makeCollector(MockURLSession(fixtures)).collect(since: .distantPast, credentials: apiCredentials)
+        #expect(data.intMetric("unique_invitees") == n)
+    }
+
+    @Test("A failed invitee lookup omits unique_invitees and keeps the event counts")
+    func failedLookupOmitsOnlyInvitees() async throws {
+        var fixtures = Self.baseFixtures
+        fixtures[Self.inviteesPath("EVT-2")] = ("{}", 429)
+        let data = try await makeCollector(MockURLSession(fixtures)).collect(since: .distantPast, credentials: apiCredentials)
+
+        #expect(data.intMetric("events_count") == 3)
+        #expect(data.intMetric("cancelled_count") == 1)
+        #expect(data.intMetric("unique_invitees") == nil)
+        #expect(data.stringMetric("top_event_type_1") == "Coffee Chat")
+    }
+
+    @Test("A page token handed back twice is an error, not an endless walk")
+    func repeatedPageTokenThrows() async throws {
+        let first = Self.page([Self.event("EVT-1", name: "Coffee Chat", type: Self.coffeeType)], next: "TOKEN-A")
+        let session = MockURLSession([
+            "/users/me":         [MockURLSession.Response(Self.userJSON)],
+            // The last entry repeats, so every later page names TOKEN-A again.
+            "/scheduled_events": [MockURLSession.Response(first)],
+            Self.inviteesPath("EVT-1"): [MockURLSession.Response(Self.page([Self.invitee("a@example.com", event: "EVT-1")]))]
+        ])
+        await #expect(throws: CollectorError.self) {
+            try await makeCollector(session).collect(since: .distantPast, credentials: apiCredentials)
+        }
+        #expect(session.requests(path: "/scheduled_events").count == 2)
+    }
+
     // MARK: - What goes on the wire
     //
     // This suite had no request assertions at all (#102). Every test above
