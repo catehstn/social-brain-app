@@ -6,14 +6,14 @@
 /// Exposed tools:
 ///   • list_platforms      — which platform instances have data
 ///   • get_latest_snapshot — latest metrics for one instance
-///   • get_all_snapshots   — latest metrics for every platform with data
+///   • get_all_snapshots   — latest metrics for every instance with data
 ///   • get_history         — snapshots for one instance within a date range
+///   • generate_prompt     — run PromptAssembler and return the text
 ///
 /// The tools that take a platform also take an optional `instance`, for an
 /// account or newsletter that is not the only one of its platform. Asked
 /// without it where there are several, they say which exist rather than
 /// answering for whichever row won (#174).
-///   • generate_prompt     — run PromptAssembler and return the text
 ///
 /// Usage (add to Claude's MCP config at ~/Library/Application Support/Claude/claude_desktop_config.json):
 ///   {
@@ -41,7 +41,8 @@
 /// container, so neither can see what the app wrote (#183). Preferences are
 /// flushed by `cfprefsd` rather than written immediately, so a label set in
 /// the app can take a little while to appear here.
-/// Run a collection in the app before querying via MCP.
+/// Run a collection in the app before querying via MCP — and if you have not,
+/// the tools say so rather than the server failing to start.
 
 import Foundation
 

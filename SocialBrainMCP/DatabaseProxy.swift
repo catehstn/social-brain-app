@@ -94,30 +94,22 @@ final class DatabaseProxy: SnapshotStore, @unchecked Sendable {
                     \(searched.map { "  " + $0 }.joined(separator: "\n"))
 
                     The app creates it on its first collection. Open Social Brain \
-                    and run one, then restart this server.
+                    and run one; this server picks it up on the next question,
+                    with no restart.
                     """
             case let .cannotOpenDatabase(path, underlying):
                 return """
                     Cannot open the Social Brain database at \(path): \(underlying)
 
                     The app creates it on its first collection. Open Social Brain \
-                    and run one, then restart this server.
+                    and run one; this server picks it up on the next question,
+                    with no restart.
                     """
             }
         }
     }
 
     // MARK: - Read operations (mirror AppDatabase)
-
-    func latestSnapshot(for instance: PlatformInstance) throws -> PlatformSnapshot? {
-        try dbWriter.read { db in
-            try PlatformSnapshot
-                .filter(Column("platform") == instance.platform.rawValue)
-                .filter(Column("instanceName") == instance.instanceName)
-                .order(Column("collectedAt").desc)
-                .fetchOne(db)
-        }
-    }
 
     func snapshots(for instance: PlatformInstance, from: Date, to: Date = .now) throws -> [PlatformSnapshot] {
         try dbWriter.read { db in

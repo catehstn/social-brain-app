@@ -11,7 +11,6 @@ import Foundation
 /// `generate_prompt` could never render an instance label because a label is
 /// only shown when a platform has more than one instance (#174, #183).
 protocol SnapshotStore: Sendable {
-    func latestSnapshot(for instance: PlatformInstance) throws -> PlatformSnapshot?
     func snapshots(for instance: PlatformInstance, from: Date, to: Date) throws -> [PlatformSnapshot]
     func latestSnapshots() throws -> [PlatformInstance: PlatformSnapshot]
 }
@@ -252,7 +251,7 @@ actor MCPServer {
         let tools: [[String: Any]] = [
             [
                 "name": "list_platforms",
-                "description": "Returns the list of platforms that have analytics data stored in the local database.",
+                "description": "Returns every platform instance that has analytics data stored in the local database — each account or newsletter separately, under the label the app stored for it.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [:] as [String: Any],
@@ -261,7 +260,7 @@ actor MCPServer {
             ],
             [
                 "name": "get_latest_snapshot",
-                "description": "Returns the most recent analytics metrics for a single platform.",
+                "description": "Returns the most recent analytics metrics for one platform instance.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -279,7 +278,7 @@ actor MCPServer {
             ],
             [
                 "name": "get_all_snapshots",
-                "description": "Returns the most recent analytics metrics for every platform that has data.",
+                "description": "Returns the most recent analytics metrics for every instance that has data.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [:] as [String: Any],
@@ -288,7 +287,7 @@ actor MCPServer {
             ],
             [
                 "name": "get_history",
-                "description": "Returns historical analytics snapshots for a platform within a date range.",
+                "description": "Returns historical analytics snapshots for one platform instance within a date range.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -310,7 +309,7 @@ actor MCPServer {
             ],
             [
                 "name": "generate_prompt",
-                "description": "Assembles and returns a structured analytics prompt using the most recent snapshot for every platform. Pass the result to Claude for analysis.",
+                "description": "Assembles and returns a structured analytics prompt using the most recent snapshot for every instance. Pass the result to Claude for analysis.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -452,12 +451,15 @@ actor MCPServer {
         guard let platform = Platform(rawValue: platformRaw) else {
             return "Unknown platform '\(platformRaw)'. Use list_platforms to see available platforms."
         }
-        let known = Array(try store().latestSnapshots().keys)
-        switch resolveInstance(platform: platform, requested: instanceRaw, among: known) {
+        // One query: `resolveInstance` only returns an instance that appears
+        // in this dictionary, so the snapshot is already in hand. Fetching it
+        // again would add a query and an unreachable `else`.
+        let latest = try store().latestSnapshots()
+        switch resolveInstance(platform: platform, requested: instanceRaw, among: Array(latest.keys)) {
         case .explain(let message):
             return message
         case .found(let instance):
-            guard let snapshot = try store().latestSnapshot(for: instance) else {
+            guard let snapshot = latest[instance] else {
                 return "No data for \(instance.displayName(using: labels)). Run a collection in the Social Brain app first."
             }
             let metrics = try snapshot.decodedMetrics()

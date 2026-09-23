@@ -16,14 +16,13 @@ struct StubStore: SnapshotStore, Sendable {
     }
 
     /// Keyed by platform, for the many tests that have one instance each.
-    init(_ byPlatform: [Platform: PlatformSnapshot]) {
+    ///
+    /// Labelled: `StubStore([:])` is ambiguous between the two otherwise, and
+    /// picking the wrong one would be silent.
+    init(platforms byPlatform: [Platform: PlatformSnapshot]) {
         self.snapshots = Dictionary(uniqueKeysWithValues: byPlatform.map {
             (PlatformInstance(platform: $0.key), $0.value)
         })
-    }
-
-    func latestSnapshot(for instance: PlatformInstance) throws -> PlatformSnapshot? {
-        snapshots[instance]
     }
 
     func snapshots(for instance: PlatformInstance, from: Date, to: Date) throws -> [PlatformSnapshot] {
@@ -209,7 +208,7 @@ struct MCPServerTests {
         let response = try await call(
             method: "tools/call",
             params: ["name": "list_platforms", "arguments": [:] as [String: Any]],
-            store: StubStore([.mastodon: snap])
+            store: StubStore(platforms: [.mastodon: snap])
         )
         let text = toolText(from: response)
         #expect(text?.contains("Mastodon") == true)
@@ -227,7 +226,7 @@ struct MCPServerTests {
         let response = try await call(
             method: "tools/call",
             params: ["name": "get_latest_snapshot", "arguments": ["platform": "bluesky"]],
-            store: StubStore([.bluesky: snap])
+            store: StubStore(platforms: [.bluesky: snap])
         )
         let text = toolText(from: response)
         #expect(text?.contains("Bluesky") == true)
@@ -282,7 +281,7 @@ struct MCPServerTests {
         let response = try await call(
             method: "tools/call",
             params: ["name": "get_all_snapshots", "arguments": [:] as [String: Any]],
-            store: StubStore([.mastodon: mastodonSnap, .bluesky: blueskySnap])
+            store: StubStore(platforms: [.mastodon: mastodonSnap, .bluesky: blueskySnap])
         )
         let text = toolText(from: response)
         #expect(text?.contains("Mastodon") == true)
@@ -302,7 +301,7 @@ struct MCPServerTests {
         let response = try await call(
             method: "tools/call",
             params: ["name": "get_history", "arguments": ["platform": "buttondown", "days": 7]],
-            store: StubStore([.buttondown: snap])
+            store: StubStore(platforms: [.buttondown: snap])
         )
         let text = toolText(from: response)
         #expect(text?.contains("Buttondown") == true)
@@ -331,7 +330,7 @@ struct MCPServerTests {
         let response = try await call(
             method: "tools/call",
             params: ["name": "get_history", "arguments": ["platform": "buttondown", "days": 7]],
-            store: StubStore([.buttondown: old])
+            store: StubStore(platforms: [.buttondown: old])
         )
         let text = toolText(from: response)
         #expect(text?.contains("No history") == true)
@@ -350,7 +349,7 @@ struct MCPServerTests {
         let response = try await call(
             method: "tools/call",
             params: ["name": "generate_prompt", "arguments": ["period_label": "Last 30 days"]],
-            store: StubStore([.mastodon: snap])
+            store: StubStore(platforms: [.mastodon: snap])
         )
         let text = toolText(from: response)
         #expect(text?.contains("Social Media & Publishing Analytics Report") == true)
@@ -429,7 +428,7 @@ struct MCPServerTests {
 
     @Test("A single instance still needs no instance argument")
     func singleInstanceNeedsNoArgument() async throws {
-        let store = StubStore([.mastodon: try makeSnapshot(platform: .mastodon,
+        let store = StubStore(platforms: [.mastodon: try makeSnapshot(platform: .mastodon,
                                                            metrics: ["followers_count": .int(7)])])
         let server = MCPServer(store: { store }, labels: InstanceLabels(defaults: MemoryStore()))
 
@@ -582,6 +581,39 @@ struct DatabaseLocationTests {
 
 
 // MARK: - Where the app's preferences are looked for (#183)
+
+// MARK: - What the user is told when there is no database (#174)
+
+@Suite("Missing database message")
+struct ProxyErrorMessageTests {
+
+    @Test("The no-database message does not tell the user to restart the server")
+    func noDatabaseMessageMatchesLazyOpening() throws {
+        // It said "then restart this server", which was true when a missing
+        // database exited at startup. Opening lazily made that false, and no
+        // test caught it: the server test stubs its own error type, so this
+        // string — the only one a real user sees — went unchecked.
+        let message = try #require(
+            DatabaseProxy.ProxyError.noDatabase(searched: ["/tmp/nowhere"]).errorDescription)
+
+        #expect(message.contains("No Social Brain database found"))
+        #expect(message.contains("/tmp/nowhere"))
+        #expect(!message.contains("restart this server"))
+        #expect(message.contains("no restart"))
+    }
+
+    @Test("The cannot-open message says the same")
+    func cannotOpenMessageMatchesLazyOpening() throws {
+        struct Boom: Error {}
+        let message = try #require(
+            DatabaseProxy.ProxyError.cannotOpenDatabase(path: "/tmp/db", underlying: Boom())
+                .errorDescription)
+
+        #expect(message.contains("/tmp/db"))
+        #expect(!message.contains("restart this server"))
+        #expect(message.contains("no restart"))
+    }
+}
 
 @Suite("App preferences")
 struct AppPreferencesTests {
