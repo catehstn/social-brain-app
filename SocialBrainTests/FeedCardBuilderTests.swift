@@ -187,6 +187,59 @@ struct FeedCardBuilderTests {
         #expect(!filtered.contains { $0.platform == .mastodon })
     }
 
+    @Test("A newsletter's open rate no longer wins the engagement card")
+    func openRateDoesNotBeatEngagement() throws {
+        // #81: `max` ranked Buttondown's open rate (0.4-0.7 on a healthy
+        // newsletter) against everyone else's engagement rate (0.01-0.03 on a
+        // healthy account), so Buttondown won whenever it had data and the
+        // card was decoration. The numbers here are realistic, which is the
+        // point: the old code produced one card reading
+        // "Buttondown engagement at 66.0%".
+        let fixedNow = Date(timeIntervalSince1970: 1_700_000_000)
+        let mastodon = try JSONEncoder().encode(
+            MastodonData(latestPostText: nil, followersCount: 1_400, engagementRate: 0.03))
+        let buttondown = try JSONEncoder().encode(
+            ButtondownData(latestSubjectLine: nil, subscriberCount: 91, openRate: 0.66))
+        let snapshots: [PlatformInstance: PlatformSnapshot] = [
+            PlatformInstance(platform: .mastodon):
+                PlatformSnapshot(runID: 1, platform: "mastodon", collectedAt: fixedNow, metricsJSON: mastodon),
+            PlatformInstance(platform: .buttondown):
+                PlatformSnapshot(runID: 1, platform: "buttondown", collectedAt: fixedNow, metricsJSON: buttondown)
+        ]
+
+        let cards = FeedCardBuilder.build(snapshots: snapshots, now: fixedNow, visibility: noneHidden)
+        let highlights = cards.filter { $0.cardType == .metricHighlight }
+
+        // One per kind of rate, each naming what it is.
+        let engagement = try #require(highlights.first { $0.snippet.contains("engagement") })
+        #expect(engagement.platform == .mastodon)
+        let openRate = try #require(highlights.first { $0.snippet.contains("open rate") })
+        #expect(openRate.platform == .buttondown)
+        // Buttondown's number is never called engagement.
+        #expect(!highlights.contains { $0.platform == .buttondown && $0.snippet.contains("engagement") })
+    }
+
+    @Test("The engagement card still picks the best of comparable platforms")
+    func engagementCardStillRanksWithinItsKind() throws {
+        let fixedNow = Date(timeIntervalSince1970: 1_700_000_000)
+        let mastodon = try JSONEncoder().encode(
+            MastodonData(latestPostText: nil, followersCount: 100, engagementRate: 0.02))
+        let bluesky = try JSONEncoder().encode(
+            BlueskyData(latestPostText: nil, followersCount: 100, engagementRate: 0.05))
+        let snapshots: [PlatformInstance: PlatformSnapshot] = [
+            PlatformInstance(platform: .mastodon):
+                PlatformSnapshot(runID: 1, platform: "mastodon", collectedAt: fixedNow, metricsJSON: mastodon),
+            PlatformInstance(platform: .bluesky):
+                PlatformSnapshot(runID: 1, platform: "bluesky", collectedAt: fixedNow, metricsJSON: bluesky)
+        ]
+
+        let highlights = FeedCardBuilder.build(snapshots: snapshots, now: fixedNow, visibility: noneHidden)
+            .filter { $0.cardType == .metricHighlight }
+
+        #expect(highlights.count == 1)
+        #expect(highlights.first?.platform == .bluesky)
+    }
+
     @Test("FeedCardType displayName returns human-readable strings")
     func feedCardTypeDisplayName() {
         #expect(FeedCardType.recentPost.displayName == "Recent Post")

@@ -24,9 +24,10 @@ import Foundation
 /// **These are names, not meanings.** `total_clicks` is LinkedIn's and
 /// Buffer's; `followers_count`, `total_followers`, `followers_blog` and
 /// `subscriber_count` are four spellings of one idea, which is why nothing can
-/// compare across platforms and why "best engagement" compares an open rate
-/// with an engagement rate (#81). Giving each key a meaning and a unit is the
-/// second half of #63 and is not attempted here.
+/// compare across platforms. What a key *means* — its concept, unit and
+/// whether it covers the period or one item — lives in `MetricMeaning`, which
+/// is keyed by these constants. Adding a key here without a meaning there
+/// fails `MetricMeaningTests`.
 enum MetricKey {
 
     // MARK: - Audience
