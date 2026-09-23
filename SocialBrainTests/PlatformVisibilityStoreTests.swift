@@ -80,6 +80,7 @@ struct PlatformVisibilitySuite {
                                                registry: ScratchRegistry.make(),
                                                visibility: store,
                                                labels: InstanceLabels(defaults: InMemoryKeyValueStore()),
+                                               notifications: NotificationManager(center: SilentNotificationCenter()),
                                                labelFetcher: { _, _ in nil })
             viewModel.hidePlatform(.calendly)
             #expect(viewModel.isHidden(.calendly) == true)
@@ -98,6 +99,7 @@ struct PlatformVisibilitySuite {
                                                registry: ScratchRegistry.make(),
                                                visibility: store,
                                                labels: InstanceLabels(defaults: InMemoryKeyValueStore()),
+                                               notifications: NotificationManager(center: SilentNotificationCenter()),
                                                labelFetcher: { _, _ in nil })
             viewModel.hidePlatform(.calendly)
             viewModel.showPlatform(.calendly)
@@ -120,6 +122,7 @@ struct PlatformVisibilitySuite {
                                                registry: ScratchRegistry.make(),
                                                visibility: store,
                                                labels: InstanceLabels(defaults: InMemoryKeyValueStore()),
+                                               notifications: NotificationManager(center: SilentNotificationCenter()),
                                                labelFetcher: { _, _ in nil })
             // Write directly to store (simulating prior app session)
             store.hide(.mastodon)
@@ -145,6 +148,7 @@ struct PlatformVisibilitySuite {
                                                registry: ScratchRegistry.make(),
                                                visibility: store,
                                                labels: InstanceLabels(defaults: InMemoryKeyValueStore()),
+                                               notifications: NotificationManager(center: SilentNotificationCenter()),
                                                labelFetcher: { _, _ in nil })
             viewModel.hidePlatform(.buttondown)
             #expect(viewModel.isHidden(.buttondown) == true)
@@ -177,6 +181,7 @@ struct PlatformVisibilitySuite {
                                                registry: ScratchRegistry.make(),
                                                visibility: store,
                                                labels: labelStore,
+                                               notifications: NotificationManager(center: SilentNotificationCenter()),
                                                labelFetcher: { _, _ in nil })
 
             #expect(labelStore.label(for: instance) == "Scratch Newsletter")

@@ -30,23 +30,30 @@ final class PlatformsViewModel {
     private let visibility: PlatformVisibilityStore
     private let labels: InstanceLabels
     private let labelFetcher: LabelFetcher
+    private let notifications: NotificationManager
 
     /// No parameter defaults to production on purpose. A default would let a new
     /// test write `PlatformsViewModel(database: db)` and silently reach the real
     /// Keychain, the real preferences and the live network — which is exactly
     /// how the suite came to be destroying credentials. Production passes
     /// `.shared` explicitly at the one call site; tests must choose.
+    ///
+    /// `notifications` was the one that got away: `saveImport` reached
+    /// `NotificationManager.shared` at call time, so a test driving an import
+    /// would have scheduled a real reminder on the developer's machine (#192).
     init(database: AppDatabase,
          keychain: KeychainStore,
          registry: InstanceRegistry,
          visibility: PlatformVisibilityStore,
          labels: InstanceLabels,
+         notifications: NotificationManager,
          labelFetcher: @escaping LabelFetcher) {
         self.database = database
         self.keychain = keychain
         self.registry = registry
         self.visibility = visibility
         self.labels = labels
+        self.notifications = notifications
         self.labelFetcher = labelFetcher
     }
 
@@ -233,9 +240,8 @@ final class PlatformsViewModel {
         hiddenPlatforms.remove(instance.platform)
 
         // Reset the stale-export reminder clock.
-        let notificationManager = NotificationManager.shared
-        await notificationManager.cancelStaleExportReminder(for: instance.platform)
-        await notificationManager.scheduleStaleExportReminder(for: instance.platform, lastImportDate: .now)
+        await notifications.cancelStaleExportReminder(for: instance.platform)
+        await notifications.scheduleStaleExportReminder(for: instance.platform, lastImportDate: .now)
     }
 
     // MARK: - Private

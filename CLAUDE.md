@@ -149,15 +149,15 @@ app, and a documented test command that silently skipped and exited 0.
   **Nothing that reaches persistent state takes a production default.** That
   includes the initialisers of `PlatformsViewModel`, `RunViewModel`,
   `DashboardViewModel`, `FeedViewModel`, `PromptAssembler`, `CollectionEngine`
-  and `SpikeNotifier`, `MastodonOAuth.authenticate`'s `registrations:`, and
-  three static functions: `FeedCardBuilder.build`, `CollectorRegistry.configured`
+  `SpikeNotifier` and `NotificationManager`,
+  `MastodonOAuth.authenticate`'s `registrations:`, and three static functions: `FeedCardBuilder.build`, `CollectorRegistry.configured`
   and `AppDelegate.runBackgroundRefresh`. The outermost production call sites
   — views and the scheduler — pass `.shared` (or `SpikeNotifier.system`)
   explicitly. The static functions are why "check the inits" is not enough
-  (#184). **One known exception**: `PlatformsViewModel.saveImport` reaches
-  `NotificationManager.shared` at call time to re-arm stale-export reminders.
-  `NotificationManager` has no seam to inject yet (#192); no test reaches it,
-  because the import path runs only from `NSOpenPanel`.
+  (#184). The last exception went in #192: `PlatformsViewModel.saveImport`
+  reached `NotificationManager.shared` at call time, so a test driving an
+  import would have scheduled a real reminder. `NotificationManager` now takes
+  a `NotificationScheduling`, which is also what gave it tests.
   `PlatformsViewModel` says so in a comment recording the run where the suite destroyed real
   credentials — and then grew `labels: InstanceLabels = .shared` anyway,
   directly under that comment, in the branch that added the injection. Four
