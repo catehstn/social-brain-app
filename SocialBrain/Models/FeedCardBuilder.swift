@@ -127,22 +127,33 @@ struct FeedCardBuilder {
             }
         }
 
-        // 4. Metric highlights — instance with engagement notably above baseline
-        let engagementCandidates: [Platform] = [.mastodon, .bluesky, .buttondown, .jetpack]
-        let engagementEntries: [(PlatformInstance, Double)] = snapshots.compactMap { (instance, snapshot) in
-            guard engagementCandidates.contains(instance.platform),
-                  let rate = engagementRate(platform: instance.platform, data: snapshot.metricsJSON)
-            else { return nil }
-            return (instance, rate)
-        }
-        if let best = engagementEntries.max(by: { $0.1 < $1.1 }) {
-            let pct = String(format: "%.1f%%", best.1 * 100)
+        // 4. Metric highlights — the best rate of each kind
+        //
+        // Grouped by what the rate *is*, because ranking them together was
+        // nonsense: Buttondown contributes an open rate (0.4–0.7 on a healthy
+        // newsletter) and everyone else an engagement rate (0.01–0.03 on a
+        // healthy account), so `max` picked Buttondown whenever it had data and
+        // the card said nothing (#81). `MetricMeaning` is what makes the two
+        // distinguishable rather than both being "a Double".
+        let rateEntries: [(instance: PlatformInstance, concept: MetricMeaning.Concept, rate: Double)] =
+            snapshots.compactMap { (instance, snapshot) in
+                guard let rate = engagementRate(platform: instance.platform, data: snapshot.metricsJSON),
+                      let concept = rateConcept(for: instance.platform)
+                else { return nil }
+                return (instance, concept, rate)
+            }
+        // One card per concept, so a newsletter's open rate no longer buries a
+        // social account's engagement, and both are described as what they are.
+        for concept in MetricMeaning.Concept.allCases {
+            let ofThisKind = rateEntries.filter { $0.concept == concept }
+            guard let best = ofThisKind.max(by: { $0.rate < $1.rate }) else { continue }
+            let pct = String(format: "%.1f%%", best.rate * 100)
             cards.append(FeedCard(
-                platform: best.0.platform,
-                instanceName: best.0.instanceName,
+                platform: best.instance.platform,
+                instanceName: best.instance.instanceName,
                 cardType: .metricHighlight,
-                snippet: "\(best.0.platform.rawValue.capitalized) engagement at \(pct) — your best this period.",
-                navigationTarget: best.0.platform
+                snippet: "\(best.instance.platform.rawValue.capitalized) \(Self.rateName(concept)) at \(pct) — your best this period.",
+                navigationTarget: best.instance.platform
             ))
         }
 
@@ -220,6 +231,28 @@ struct FeedCardBuilder {
             return metricString(MetricKey.latestSubjectLine, from: data)
         default:
             return nil
+        }
+    }
+
+    /// Which rate `engagementRate(platform:data:)` returns for a platform.
+    ///
+    /// It returns Buttondown's *open* rate, which is the whole point: the
+    /// function name has always been a lie about one of its branches.
+    private static func rateConcept(for platform: Platform) -> MetricMeaning.Concept? {
+        switch platform {
+        case .mastodon, .bluesky, .jetpack: .engagementRate
+        case .buttondown:                   .openRate
+        default:                            nil
+        }
+    }
+
+    /// How a rate reads in a sentence.
+    private static func rateName(_ concept: MetricMeaning.Concept) -> String {
+        switch concept {
+        case .engagementRate: "engagement"
+        case .openRate:       "open rate"
+        case .clickRate:      "click rate"
+        default:              concept.rawValue
         }
     }
 

@@ -64,6 +64,10 @@ struct MetricKeyOrphanTests {
         .substack: ["avg_click_rate", "avg_open_rate", "posts_published"]
     ]
 
+    /// Every emitted key, flattened — read by `MetricMeaningTests`, which
+    /// checks each one means something.
+    static var emittedForMeanings: Set<String> { emitted.values.reduce(into: []) { $0.formUnion($1) } }
+
     /// Emitted keys that nothing reads, each with the issue that owns it.
     ///
     /// Deliberately an allowlist: an orphan has to be written down, with a
@@ -372,5 +376,88 @@ struct MetricKeyLiteralTests {
         let duplicates = Dictionary(grouping: declarations, by: \.value).filter { $0.value.count > 1 }
         let message: Comment = "\(duplicates.map { "\($0.key): \($0.value.map(\.name))" }.sorted())"
         #expect(duplicates.isEmpty, message)
+    }
+}
+
+// MARK: - Every key means something (#63)
+
+/// `MetricKey` made the spelling single-source; `MetricMeaning` says what each
+/// spelling means. A key with no meaning is invisible to anything that reasons
+/// about kinds — which is how an open rate came to be ranked against an
+/// engagement rate and won every time (#81).
+@Suite("Metric meanings")
+struct MetricMeaningTests {
+
+    /// Every `static let` in `MetricKey.swift`, read from source so a new
+    /// constant cannot be added without a meaning.
+    private static func declaredKeys() -> [String] {
+        let file = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("SocialBrain/Models/MetricKey.swift")
+        guard let text = try? String(contentsOf: file, encoding: .utf8),
+              let regex = try? NSRegularExpression(pattern: #"static let \w+\s*=\s*"([^"]+)""#)
+        else { return [] }
+        return regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+            .compactMap { Range($0.range(at: 1), in: text).map { String(text[$0]) } }
+    }
+
+    @Test("Every declared metric key has a meaning")
+    func everyKeyHasAMeaning() {
+        let declared = Self.declaredKeys()
+        #expect(declared.count > 40, "Found \(declared.count) keys — the parser has drifted")
+
+        let missing = declared.filter { MetricKey.meaning(of: $0) == nil }.sorted()
+        let message: Comment = "\(missing) have no entry in MetricKey.meanings"
+        #expect(missing.isEmpty, message)
+    }
+
+    @Test("No meaning is declared for a key that no longer exists")
+    func noMeaningOutlivesItsKey() {
+        // So the table shrinks with the keys rather than accumulating entries
+        // for spellings nothing writes.
+        let declared = Set(Self.declaredKeys())
+        let orphaned = MetricKey.meanings.keys.filter { !declared.contains($0) }.sorted()
+        let message: Comment = "\(orphaned) have meanings but are not declared in MetricKey"
+        #expect(orphaned.isEmpty, message)
+    }
+
+    @Test("Every key a collector emits has a meaning")
+    func everyEmittedKeyHasAMeaning() {
+        // The numbered families resolve through the `top_` prefix.
+        let emitted = MetricKeyOrphanTests.emittedForMeanings
+        let missing = emitted.filter { MetricKey.meaning(of: $0) == nil }.sorted()
+        let message: Comment = "\(missing) are emitted but mean nothing"
+        #expect(missing.isEmpty, message)
+    }
+
+    @Test("An open rate is not comparable with an engagement rate")
+    func ratesOfDifferentKindsAreNotComparable() {
+        // The distinction the type exists for. Both are fractions in 0...1,
+        // which is exactly why `Double` alone could not tell them apart.
+        let open = try? #require(MetricKey.meaning(of: MetricKey.avgOpenRate))
+        let engagement = try? #require(MetricKey.meaning(of: MetricKey.engagementRate))
+        #expect(open?.isComparable(with: engagement ?? open!) == false)
+        #expect(open?.unit == .fraction)
+        #expect(engagement?.unit == .fraction)
+    }
+
+    @Test("The same idea on two platforms is comparable")
+    func sameConceptIsComparable() {
+        let mastodon = try? #require(MetricKey.meaning(of: MetricKey.followersCount))
+        let linkedin = try? #require(MetricKey.meaning(of: MetricKey.totalFollowers))
+        #expect(mastodon?.isComparable(with: linkedin ?? mastodon!) == true)
+    }
+
+    @Test("A count and a rate of one concept are not comparable")
+    func unitMattersAsWellAsConcept() {
+        let count = MetricMeaning(concept: .clicks, unit: .count)
+        let rate = MetricMeaning(concept: .clicks, unit: .fraction)
+        #expect(!count.isComparable(with: rate))
+    }
+
+    @Test("Search position is a rank, where lower is better")
+    func positionIsARank() {
+        #expect(MetricKey.meaning(of: MetricKey.avgPosition)?.unit == .rank)
     }
 }
