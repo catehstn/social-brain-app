@@ -24,8 +24,13 @@ struct NotificationManagerTests {
     func reminderFiresAtTheStaleDate() async throws {
         // LinkedIn's threshold is three days, so an import today is due a
         // reminder in three days — not now, and not at some fixed hour.
+        //
+        // Relative to now, not a fixed instant: production takes
+        // `max(staleDate, now + 5s)`, so a pinned date silently stops testing
+        // the stale date once the wall clock passes it, and the test turns red
+        // on its own with nothing changed.
         let center = RecordingNotificationCenter()
-        let importedAt = Date(timeIntervalSince1970: 1_800_000_000)
+        let importedAt = Date()
         await manager(center).scheduleStaleExportReminder(for: .linkedin, lastImportDate: importedAt)
 
         let request = try #require(center.onlyRequest)
@@ -34,6 +39,8 @@ struct NotificationManagerTests {
             [.year, .month, .day, .hour, .minute],
             from: importedAt.addingTimeInterval(3 * 24 * 3600))
         #expect(trigger.dateComponents == expected)
+        // Deliberate today, and wrong: the reminder fires once and is never
+        // re-armed, which is #87. That fix changes this assertion.
         #expect(trigger.repeats == false)
     }
 

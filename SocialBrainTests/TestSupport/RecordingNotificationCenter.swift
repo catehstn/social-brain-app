@@ -46,12 +46,3 @@ final class RecordingNotificationCenter: NotificationScheduling, @unchecked Send
         lock.withLock { _removed.append(contentsOf: identifiers) }
     }
 }
-
-/// A centre that drops everything, for suites that only need a view model to
-/// have one.
-final class SilentNotificationCenter: NotificationScheduling, @unchecked Sendable {
-    func authorizationStatus() async -> UNAuthorizationStatus { .denied }
-    func requestAuthorization() async {}
-    func add(_ request: UNNotificationRequest) async throws {}
-    func removePending(withIdentifiers identifiers: [String]) {}
-}

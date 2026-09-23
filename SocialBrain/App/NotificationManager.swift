@@ -18,8 +18,11 @@ protocol NotificationScheduling: Sendable {
     func removePending(withIdentifiers identifiers: [String])
 }
 
-/// `@unchecked`: Apple documents `UNUserNotificationCenter` as thread-safe but
-/// does not annotate it, the same position `UserDefaults` is in.
+/// `@unchecked`: `UNUserNotificationCenter` is a singleton whose methods are
+/// callable from any thread, and it is not annotated `Sendable`. Apple does
+/// not state thread-safety for it as plainly as for `UserDefaults`, so this is
+/// the usual assumption about an Objective-C singleton rather than a
+/// documented guarantee.
 extension UNUserNotificationCenter: @unchecked @retroactive Sendable {}
 
 extension UNUserNotificationCenter: NotificationScheduling {
