@@ -9,26 +9,41 @@ import Foundation
 /// In-memory SnapshotStore for testing — seeded with canned snapshots.
 struct StubStore: SnapshotStore, Sendable {
 
-    let snapshots: [Platform: PlatformSnapshot]
+    let snapshots: [PlatformInstance: PlatformSnapshot]
 
-    init(_ snapshots: [Platform: PlatformSnapshot] = [:]) {
+    init(_ snapshots: [PlatformInstance: PlatformSnapshot] = [:]) {
         self.snapshots = snapshots
     }
 
-    func latestSnapshot(for platform: Platform) throws -> PlatformSnapshot? {
-        snapshots[platform]
+    /// Keyed by platform, for the many tests that have one instance each.
+    init(_ byPlatform: [Platform: PlatformSnapshot]) {
+        self.snapshots = Dictionary(uniqueKeysWithValues: byPlatform.map {
+            (PlatformInstance(platform: $0.key), $0.value)
+        })
     }
 
-    func snapshots(for platform: Platform, from: Date, to: Date) throws -> [PlatformSnapshot] {
-        guard let snap = snapshots[platform], snap.collectedAt >= from, snap.collectedAt <= to else {
+    func latestSnapshot(for instance: PlatformInstance) throws -> PlatformSnapshot? {
+        snapshots[instance]
+    }
+
+    func snapshots(for instance: PlatformInstance, from: Date, to: Date) throws -> [PlatformSnapshot] {
+        guard let snap = snapshots[instance], snap.collectedAt >= from, snap.collectedAt <= to else {
             return []
         }
         return [snap]
     }
 
-    func latestSnapshots() throws -> [Platform: PlatformSnapshot] {
+    func latestSnapshots() throws -> [PlatformInstance: PlatformSnapshot] {
         snapshots
     }
+}
+
+/// A store whose opening always fails, for the "no database yet" path.
+struct UnopenableStore {
+    struct NotThere: LocalizedError {
+        var errorDescription: String? { "No Social Brain database found. Run a collection in the app first." }
+    }
+    static func open() throws -> any SnapshotStore { throw NotThere() }
 }
 
 // MARK: - Helpers
@@ -36,10 +51,33 @@ struct StubStore: SnapshotStore, Sendable {
 private func makeSnapshot(
     platform: Platform,
     metrics: [String: MetricValue],
-    collectedAt: Date = Date(timeIntervalSinceReferenceDate: 0)
+    collectedAt: Date = Date(timeIntervalSinceReferenceDate: 0),
+    instanceName: String = "default"
 ) throws -> PlatformSnapshot {
-    let data = PlatformData(platform: platform, collectedAt: collectedAt, metrics: metrics)
+    let data = PlatformData(platform: platform, instanceName: instanceName,
+                            collectedAt: collectedAt, metrics: metrics)
     return try PlatformSnapshot(runID: 1, data: data)
+}
+
+/// One tool call against a server the test built itself, for the cases that
+/// need more than `call(...)`'s fresh-server-per-request shape.
+private func send(
+    _ server: MCPServer, tool: String, arguments: [String: Any] = [:]
+) async throws -> [String: Any] {
+    let body = try JSONSerialization.data(withJSONObject: [
+        "jsonrpc": "2.0", "id": 1, "method": "tools/call",
+        "params": ["name": tool, "arguments": arguments] as [String: Any]
+    ] as [String: Any])
+    guard let response = await server.handle(body) else { return [:] }
+    return json(response)
+}
+
+/// Counts how often a closure ran, across the actor boundary.
+final class Counter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+    func bump() { lock.withLock { count += 1 } }
+    var value: Int { lock.withLock { count } }
 }
 
 private func json(_ bytes: Data) -> [String: Any] {
@@ -53,7 +91,7 @@ private func call(
     params: [String: Any],
     store: any SnapshotStore
 ) async throws -> [String: Any] {
-    let server = MCPServer(store: store, labels: InstanceLabels(defaults: MemoryStore()))
+    let server = MCPServer(store: { store }, labels: InstanceLabels(defaults: MemoryStore()))
     var body: [String: Any] = [
         "jsonrpc": "2.0",
         "id": id,
@@ -100,7 +138,7 @@ struct MCPServerTests {
 
     @Test("notifications/initialized returns nil (no response)")
     func initializedNotification() async throws {
-        let server = MCPServer(store: StubStore(), labels: InstanceLabels(defaults: MemoryStore()))
+        let server = MCPServer(store: { StubStore() }, labels: InstanceLabels(defaults: MemoryStore()))
         let body = try JSONSerialization.data(withJSONObject: [
             "jsonrpc": "2.0",
             "method": "notifications/initialized"
@@ -118,7 +156,7 @@ struct MCPServerTests {
 
     @Test("malformed JSON returns -32700 parse error")
     func parseError() async throws {
-        let server = MCPServer(store: StubStore(), labels: InstanceLabels(defaults: MemoryStore()))
+        let server = MCPServer(store: { StubStore() }, labels: InstanceLabels(defaults: MemoryStore()))
         let garbage = Data("not-json".utf8)
         // #require, not #expect plus `!`: #expect does not halt, so a nil
         // response would walk into the force unwrap and kill the runner
@@ -271,12 +309,29 @@ struct MCPServerTests {
         #expect(text?.contains("subscribers=999") == true)
     }
 
-    @Test("get_history returns no-history message when empty")
+    @Test("get_history says there is no data at all, when there is none")
     func getHistoryEmpty() async throws {
+        // Was "No history for Buttondown in the last 7 days", which is true but
+        // misleading: the platform has never been collected, so the window is
+        // not the reason. Resolving the instance first makes that distinction.
         let response = try await call(
             method: "tools/call",
             params: ["name": "get_history", "arguments": ["platform": "buttondown", "days": 7]],
             store: StubStore()
+        )
+        let text = toolText(from: response)
+        #expect(text?.contains("No data for Buttondown") == true)
+    }
+
+    @Test("get_history says the window is empty when the platform has data outside it")
+    func getHistoryOutsideWindow() async throws {
+        let old = try makeSnapshot(platform: .buttondown,
+                                   metrics: ["subscriber_count": .int(10)],
+                                   collectedAt: Date(timeIntervalSinceNow: -90 * 86400))
+        let response = try await call(
+            method: "tools/call",
+            params: ["name": "get_history", "arguments": ["platform": "buttondown", "days": 7]],
+            store: StubStore([.buttondown: old])
         )
         let text = toolText(from: response)
         #expect(text?.contains("No history") == true)
@@ -303,13 +358,164 @@ struct MCPServerTests {
         #expect(text?.contains("Mastodon") == true)
     }
 
-    // There is deliberately no test here that a label reaches a prompt.
-    // `PromptAssembler` consults labels only for a platform with more than one
-    // instance, and `SnapshotStore.latestSnapshots()` is keyed by `Platform`,
-    // so this server can never present two instances of one platform (#174).
-    // Until that is fixed, the injected store is unobservable through the MCP
-    // surface, and a test asserting otherwise would be asserting the bug.
-    // `AppPreferencesTests` below covers the store itself.
+    // MARK: - Several instances of one platform (#174)
+
+    @Test("Both instances of a platform are listed, under their labels")
+    func listPlatformsShowsEveryInstance() async throws {
+        // Keyed by platform, the second account simply vanished: one line, one
+        // snapshot, and no hint that anything was missing.
+        let labels = InstanceLabels(defaults: MemoryStore())
+        labels.setLabel("The Work Account", for: PlatformInstance(platform: .mastodon, instanceName: "work"))
+        let store = StubStore([
+            PlatformInstance(platform: .mastodon): try makeSnapshot(platform: .mastodon, metrics: [:]),
+            PlatformInstance(platform: .mastodon, instanceName: "work"):
+                try makeSnapshot(platform: .mastodon, metrics: [:], instanceName: "work")
+        ])
+        let server = MCPServer(store: { store }, labels: labels)
+
+        let text = try #require(toolText(from: try await send(server, tool: "list_platforms")))
+        #expect(text.contains("The Work Account"))
+        #expect(text.contains("instance: work"))
+        #expect(text.split(separator: "\n").count == 2)
+    }
+
+    @Test("A platform with two instances asks which one, rather than picking")
+    func ambiguousPlatformExplains() async throws {
+        let store = StubStore([
+            PlatformInstance(platform: .mastodon): try makeSnapshot(platform: .mastodon, metrics: [:]),
+            PlatformInstance(platform: .mastodon, instanceName: "work"):
+                try makeSnapshot(platform: .mastodon, metrics: [:], instanceName: "work")
+        ])
+        let server = MCPServer(store: { store }, labels: InstanceLabels(defaults: MemoryStore()))
+
+        let text = try #require(toolText(from: try await send(
+            server, tool: "get_latest_snapshot", arguments: ["platform": "mastodon"])))
+        #expect(text.contains("2 instances"))
+        #expect(text.contains("default"))
+        #expect(text.contains("work"))
+    }
+
+    @Test("Naming the instance returns that instance's metrics")
+    func namedInstanceIsReturned() async throws {
+        let store = StubStore([
+            PlatformInstance(platform: .mastodon):
+                try makeSnapshot(platform: .mastodon, metrics: ["followers_count": .int(1)]),
+            PlatformInstance(platform: .mastodon, instanceName: "work"):
+                try makeSnapshot(platform: .mastodon, metrics: ["followers_count": .int(222)], instanceName: "work")
+        ])
+        let server = MCPServer(store: { store }, labels: InstanceLabels(defaults: MemoryStore()))
+
+        let text = try #require(toolText(from: try await send(
+            server, tool: "get_latest_snapshot",
+            arguments: ["platform": "mastodon", "instance": "work"])))
+        #expect(text.contains("followers_count: 222"))
+        #expect(!text.contains("followers_count: 1"))
+    }
+
+    @Test("An unknown instance name says which ones exist")
+    func unknownInstanceNamesTheKnownOnes() async throws {
+        let store = StubStore([
+            PlatformInstance(platform: .mastodon, instanceName: "work"):
+                try makeSnapshot(platform: .mastodon, metrics: [:], instanceName: "work")
+        ])
+        let server = MCPServer(store: { store }, labels: InstanceLabels(defaults: MemoryStore()))
+
+        let text = try #require(toolText(from: try await send(
+            server, tool: "get_latest_snapshot",
+            arguments: ["platform": "mastodon", "instance": "personal"])))
+        #expect(text.contains("No instance 'personal'"))
+        #expect(text.contains("work"))
+    }
+
+    @Test("A single instance still needs no instance argument")
+    func singleInstanceNeedsNoArgument() async throws {
+        let store = StubStore([.mastodon: try makeSnapshot(platform: .mastodon,
+                                                           metrics: ["followers_count": .int(7)])])
+        let server = MCPServer(store: { store }, labels: InstanceLabels(defaults: MemoryStore()))
+
+        let text = try #require(toolText(from: try await send(
+            server, tool: "get_latest_snapshot", arguments: ["platform": "mastodon"])))
+        #expect(text.contains("followers_count: 7"))
+    }
+
+    @Test("get_all_snapshots reports every instance, not one per platform")
+    func allSnapshotsCoversEveryInstance() async throws {
+        let store = StubStore([
+            PlatformInstance(platform: .mastodon):
+                try makeSnapshot(platform: .mastodon, metrics: ["followers_count": .int(1)]),
+            PlatformInstance(platform: .mastodon, instanceName: "work"):
+                try makeSnapshot(platform: .mastodon, metrics: ["followers_count": .int(222)], instanceName: "work")
+        ])
+        let server = MCPServer(store: { store }, labels: InstanceLabels(defaults: MemoryStore()))
+
+        let text = try #require(toolText(from: try await send(server, tool: "get_all_snapshots")))
+        #expect(text.contains("followers_count: 1"))
+        #expect(text.contains("followers_count: 222"))
+    }
+
+    @Test("A prompt carries the label the app set, now that instances survive")
+    func promptCarriesTheLabel() async throws {
+        // This is what #183 fixed and could not demonstrate: a label is only
+        // rendered for a platform with several instances, and there could
+        // never be several.
+        let labels = InstanceLabels(defaults: MemoryStore())
+        labels.setLabel("The Work Account", for: PlatformInstance(platform: .mastodon, instanceName: "work"))
+        let store = StubStore([
+            PlatformInstance(platform: .mastodon):
+                try makeSnapshot(platform: .mastodon, metrics: ["followers_count": .int(1)], collectedAt: .now),
+            PlatformInstance(platform: .mastodon, instanceName: "work"):
+                try makeSnapshot(platform: .mastodon, metrics: ["followers_count": .int(222)],
+                                 collectedAt: .now, instanceName: "work")
+        ])
+        let server = MCPServer(store: { store }, labels: labels)
+
+        let text = try #require(toolText(from: try await send(
+            server, tool: "generate_prompt", arguments: ["period_label": "Last 30 days"])))
+        #expect(text.contains("The Work Account"))
+    }
+
+    // MARK: - A database that is not there yet (#174)
+
+    @Test("A missing database answers the question instead of killing the server")
+    func missingDatabaseIsAnAnswer() async throws {
+        // It used to exit(1) at startup, which Claude shows as "server
+        // disconnected" with the explanation only in its own log file.
+        let server = MCPServer(store: { try UnopenableStore.open() },
+                               labels: InstanceLabels(defaults: MemoryStore()))
+
+        let response = try await send(server, tool: "list_platforms")
+        let result = try #require(response["result"] as? [String: Any])
+        #expect(result["isError"] as? Bool == true)
+        let text = try #require(toolText(from: response))
+        #expect(text.contains("No Social Brain database found"))
+    }
+
+    @Test("The store is opened once and kept")
+    func storeIsOpenedOnce() async throws {
+        let opens = Counter()
+        let store = StubStore()
+        let server = MCPServer(store: { opens.bump(); return store },
+                               labels: InstanceLabels(defaults: MemoryStore()))
+
+        _ = try await send(server, tool: "list_platforms")
+        _ = try await send(server, tool: "list_platforms")
+
+        #expect(opens.value == 1)
+    }
+
+    @Test("A failure to open is retried, because the app may have written it since")
+    func failureIsNotCached() async throws {
+        let attempts = Counter()
+        let server = MCPServer(store: {
+            attempts.bump()
+            throw UnopenableStore.NotThere()
+        }, labels: InstanceLabels(defaults: MemoryStore()))
+
+        _ = try await send(server, tool: "list_platforms")
+        _ = try await send(server, tool: "list_platforms")
+
+        #expect(attempts.value == 2)
+    }
 
     @Test("generate_prompt with no data returns helpful message")
     func generatePromptEmpty() async throws {

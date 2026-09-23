@@ -109,19 +109,21 @@ final class DatabaseProxy: SnapshotStore, @unchecked Sendable {
 
     // MARK: - Read operations (mirror AppDatabase)
 
-    func latestSnapshot(for platform: Platform) throws -> PlatformSnapshot? {
+    func latestSnapshot(for instance: PlatformInstance) throws -> PlatformSnapshot? {
         try dbWriter.read { db in
             try PlatformSnapshot
-                .filter(Column("platform") == platform.rawValue)
+                .filter(Column("platform") == instance.platform.rawValue)
+                .filter(Column("instanceName") == instance.instanceName)
                 .order(Column("collectedAt").desc)
                 .fetchOne(db)
         }
     }
 
-    func snapshots(for platform: Platform, from: Date, to: Date = .now) throws -> [PlatformSnapshot] {
+    func snapshots(for instance: PlatformInstance, from: Date, to: Date = .now) throws -> [PlatformSnapshot] {
         try dbWriter.read { db in
             try PlatformSnapshot
-                .filter(Column("platform") == platform.rawValue)
+                .filter(Column("platform") == instance.platform.rawValue)
+                .filter(Column("instanceName") == instance.instanceName)
                 .filter(Column("collectedAt") >= from)
                 .filter(Column("collectedAt") <= to)
                 .order(Column("collectedAt").asc)
@@ -129,27 +131,29 @@ final class DatabaseProxy: SnapshotStore, @unchecked Sendable {
         }
     }
 
-    func latestSnapshots() throws -> [Platform: PlatformSnapshot] {
+    func latestSnapshots() throws -> [PlatformInstance: PlatformSnapshot] {
         try dbWriter.read { db in
             let rows = try PlatformSnapshot
                 .filter(sql: """
-                    (platform, collectedAt) IN (
-                        SELECT platform, MAX(collectedAt)
+                    (platform, instanceName, collectedAt) IN (
+                        SELECT platform, instanceName, MAX(collectedAt)
                         FROM platformSnapshot
-                        GROUP BY platform
+                        GROUP BY platform, instanceName
                     )
                     """)
                 .fetchAll(db)
-            // uniquingKeysWith, not uniqueKeysWithValues, which traps on a
-            // duplicate key. The query groups by platform alone, and two
-            // instances of one platform collected in the same millisecond both
-            // match its MAX(collectedAt) — there is no uniqueness constraint on
-            // (platform, collectedAt). AppDatabase.latestSnapshots hit exactly
-            // this and fixed it the same way; this copy never ran, so it never
-            // had to. Keeping the higher rowid matches the app.
-            return Dictionary(rows.compactMap { row -> (Platform, PlatformSnapshot)? in
-                guard let p = Platform(rawValue: row.platform) else { return nil }
-                return (p, row)
+            // Grouped by instance as well as platform, which is what the app
+            // does. Grouped by platform alone, a user's second Mastodon
+            // account simply vanished from every tool (#174).
+            //
+            // `uniquingKeysWith`, not `uniqueKeysWithValues`, which traps on a
+            // duplicate: two rows for one instance can share a MAX(collectedAt)
+            // — there is no uniqueness constraint on (platform, instanceName,
+            // collectedAt). `AppDatabase.latestSnapshots` hit exactly that.
+            // Keeping the higher rowid matches the app.
+            return Dictionary(rows.compactMap { row -> (PlatformInstance, PlatformSnapshot)? in
+                guard let instance = row.instanceEnum else { return nil }
+                return (instance, row)
             }, uniquingKeysWith: { first, second in
                 (second.id ?? 0) > (first.id ?? 0) ? second : first
             })
