@@ -97,8 +97,8 @@ struct HighReachDetector: Sendable {
         currentMetrics: [String: MetricValue],
         previousMetrics: [String: MetricValue]
     ) -> HighReachItem? {
-        guard let openRate = currentMetrics["avg_open_rate"]?.numberValue else { return nil }
-        let prevOpenRate = previousMetrics["avg_open_rate"]?.numberValue
+        guard let openRate = currentMetrics[MetricKey.avgOpenRate]?.numberValue else { return nil }
+        let prevOpenRate = previousMetrics[MetricKey.avgOpenRate]?.numberValue
 
         // Absolute threshold: >40% open rate
         let absoluteHit = openRate > 0.40
@@ -121,8 +121,8 @@ struct HighReachDetector: Sendable {
         currentMetrics: [String: MetricValue],
         previousMetrics: [String: MetricValue]
     ) -> HighReachItem? {
-        guard let avgFavs = currentMetrics["avg_favourites"]?.numberValue else { return nil }
-        let prevAvgFavs = previousMetrics["avg_favourites"]?.numberValue
+        guard let avgFavs = currentMetrics[MetricKey.avgFavourites]?.numberValue else { return nil }
+        let prevAvgFavs = previousMetrics[MetricKey.avgFavourites]?.numberValue
 
         let absoluteHit = avgFavs >= 5.0
         let relativeHit = prevAvgFavs.map { avgFavs > $0 * (1 + relativeLiftThreshold) } ?? false
@@ -142,8 +142,8 @@ struct HighReachDetector: Sendable {
         currentMetrics: [String: MetricValue],
         previousMetrics: [String: MetricValue]
     ) -> HighReachItem? {
-        guard let avgLikes = currentMetrics["avg_likes"]?.numberValue else { return nil }
-        let prevAvgLikes = previousMetrics["avg_likes"]?.numberValue
+        guard let avgLikes = currentMetrics[MetricKey.avgLikes]?.numberValue else { return nil }
+        let prevAvgLikes = previousMetrics[MetricKey.avgLikes]?.numberValue
 
         let absoluteHit = avgLikes >= 5.0
         let relativeHit = prevAvgLikes.map { avgLikes > $0 * (1 + relativeLiftThreshold) } ?? false
@@ -163,8 +163,8 @@ struct HighReachDetector: Sendable {
         currentMetrics: [String: MetricValue],
         previousMetrics: [String: MetricValue]
     ) -> HighReachItem? {
-        guard let views = currentMetrics["total_views"]?.numberValue else { return nil }
-        let prevViews = previousMetrics["total_views"]?.numberValue
+        guard let views = currentMetrics[MetricKey.totalViews]?.numberValue else { return nil }
+        let prevViews = previousMetrics[MetricKey.totalViews]?.numberValue
 
         let absoluteHit = views >= 1000.0
         let relativeHit = prevViews.map { views > $0 * (1 + relativeLiftThreshold) } ?? false
@@ -185,8 +185,8 @@ struct HighReachDetector: Sendable {
         currentMetrics: [String: MetricValue],
         previousMetrics: [String: MetricValue]
     ) -> HighReachItem? {
-        guard let impressions = currentMetrics["total_impressions"]?.numberValue else { return nil }
-        let prevImpressions = previousMetrics["total_impressions"]?.numberValue
+        guard let impressions = currentMetrics[MetricKey.totalImpressions]?.numberValue else { return nil }
+        let prevImpressions = previousMetrics[MetricKey.totalImpressions]?.numberValue
 
         let absoluteHit = impressions >= 500.0
         let relativeHit = prevImpressions.map { impressions > $0 * (1 + relativeLiftThreshold) } ?? false
@@ -207,8 +207,8 @@ struct HighReachDetector: Sendable {
         currentMetrics: [String: MetricValue],
         previousMetrics: [String: MetricValue]
     ) -> HighReachItem? {
-        guard let openRate = currentMetrics["avg_open_rate"]?.numberValue else { return nil }
-        let prevOpenRate = previousMetrics["avg_open_rate"]?.numberValue
+        guard let openRate = currentMetrics[MetricKey.avgOpenRate]?.numberValue else { return nil }
+        let prevOpenRate = previousMetrics[MetricKey.avgOpenRate]?.numberValue
 
         let absoluteHit = openRate > 0.40
         let relativeHit = prevOpenRate.map { openRate > $0 * (1 + relativeLiftThreshold) } ?? false
@@ -237,8 +237,8 @@ struct HighReachDetector: Sendable {
         currentMetrics: [String: MetricValue],
         previousMetrics: [String: MetricValue]
     ) -> HighReachItem? {
-        guard let visits = currentMetrics["total_visits"]?.numberValue else { return nil }
-        let prevVisits = previousMetrics["total_visits"]?.numberValue
+        guard let visits = currentMetrics[MetricKey.totalVisits]?.numberValue else { return nil }
+        let prevVisits = previousMetrics[MetricKey.totalVisits]?.numberValue
 
         let absoluteHit = visits >= 500.0
         let relativeHit = prevVisits.map { visits > $0 * (1 + relativeLiftThreshold) } ?? false

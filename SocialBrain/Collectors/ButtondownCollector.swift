@@ -77,15 +77,15 @@ struct ButtondownCollector: Collector {
         let (total, new, stats) = try await (totalCount, newCount, emailStats)
 
         var metrics: [String: MetricValue] = [
-            "subscriber_count": .int(total),
-            "new_subscribers":  .int(new),
-            "emails_sent":      .int(stats.count)
+            MetricKey.subscriberCount: .int(total),
+            MetricKey.newSubscribers:  .int(new),
+            MetricKey.emailsSent:      .int(stats.count)
         ]
 
         // The count above is the API's total; these rates are not, when the
         // window holds more emails than the walk fetched.
         if stats.truncated {
-            metrics["emails_sampled"] = .string(
+            metrics[MetricKey.emailsSampled] = .string(
                 "open and click rates cover the most recent \(stats.fetched) of \(stats.count) emails")
         }
         // Each average guards its own divisor. Previously both were gated on
@@ -93,10 +93,10 @@ struct ButtondownCollector: Collector {
         // an open rate and no click rate produced 0/0 = NaN — which JSONEncoder
         // then refuses, aborting the entire collection run.
         if let avgOpen = stats.openRates.mean {
-            metrics["avg_open_rate"] = .double(avgOpen)
+            metrics[MetricKey.avgOpenRate] = .double(avgOpen)
         }
         if let avgClick = stats.clickRates.mean {
-            metrics["avg_click_rate"] = .double(avgClick)
+            metrics[MetricKey.avgClickRate] = .double(avgClick)
         }
 
         return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)

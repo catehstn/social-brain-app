@@ -74,8 +74,8 @@ struct CalendlyCollector: Collector {
 
         let cancelled = events.filter { $0.status == "canceled" }
         var metrics: [String: MetricValue] = [
-            "events_count":    .int(events.count),
-            "cancelled_count": .int(cancelled.count)
+            MetricKey.eventsCount:    .int(events.count),
+            MetricKey.cancelledCount: .int(cancelled.count)
         ]
 
         let held = events.filter { $0.status != "canceled" }
@@ -92,7 +92,7 @@ struct CalendlyCollector: Collector {
                         emails.insert(invitee.email.lowercased())
                     }
                 }
-                metrics["unique_invitees"] = .int(emails.count)
+                metrics[MetricKey.uniqueInvitees] = .int(emails.count)
             } catch {
                 collectorLog.error(
                     "Calendly invitee lookup failed; unique_invitees omitted: \(error.localizedDescription, privacy: .public)")
@@ -100,7 +100,7 @@ struct CalendlyCollector: Collector {
         }
 
         for (index, name) in topEventTypes(events).enumerated() {
-            metrics["top_event_type_\(index + 1)"] = .string(name)
+            metrics[MetricKey.topEventType(index + 1)] = .string(name)
         }
 
         return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)

@@ -50,8 +50,8 @@ struct LinkedInImporter {
 
         let header = rows[0].map { $0.lowercased().trimmingCharacters(in: .whitespaces) }
 
-        // Require at least "impressions" to consider this a LinkedIn share stats file.
-        guard header.contains("impressions") else { throw ImportError.unrecognisedFormat }
+        // Require at least an impressions column to consider this a LinkedIn share stats file.
+        guard header.contains(MetricKey.impressions) else { throw ImportError.unrecognisedFormat }
 
         let col = columnIndex(header)
         let dataRows = Array(rows.dropFirst()).filter { !$0.allSatisfy(\.isEmpty) }
@@ -65,8 +65,8 @@ struct LinkedInImporter {
         var ctrs: [Double]   = []
 
         for row in dataRows {
-            if let v = intValue(row[safe: col("impressions")])  { totalImpressions += v }
-            if let v = intValue(row[safe: col("clicks")])       { totalClicks      += v }
+            if let v = intValue(row[safe: col(MetricKey.impressions)])  { totalImpressions += v }
+            if let v = intValue(row[safe: col(MetricKey.clicks)])       { totalClicks      += v }
             if let v = intValue(row[safe: col("likes")])        { totalLikes       += v }
             if let v = intValue(row[safe: col("comments")])     { totalComments    += v }
             if let v = intValue(row[safe: col("shares")])       { totalShares      += v }
@@ -80,15 +80,15 @@ struct LinkedInImporter {
         }
 
         var metrics: [String: MetricValue] = [
-            "posts_published":   .int(dataRows.count),
-            "total_impressions": .int(totalImpressions),
+            MetricKey.postsPublished:   .int(dataRows.count),
+            MetricKey.totalImpressions: .int(totalImpressions),
         ]
-        if totalClicks   > 0 { metrics["total_clicks"]   = .int(totalClicks) }
-        if totalLikes    > 0 { metrics["total_likes"]    = .int(totalLikes) }
-        if totalComments > 0 { metrics["total_comments"] = .int(totalComments) }
-        if totalShares   > 0 { metrics["total_shares"]   = .int(totalShares) }
+        if totalClicks   > 0 { metrics[MetricKey.totalClicks]   = .int(totalClicks) }
+        if totalLikes    > 0 { metrics[MetricKey.totalLikes]    = .int(totalLikes) }
+        if totalComments > 0 { metrics[MetricKey.totalComments] = .int(totalComments) }
+        if totalShares   > 0 { metrics[MetricKey.totalShares]   = .int(totalShares) }
         if !ctrs.isEmpty {
-            metrics["avg_ctr"] = .double(ctrs.reduce(0, +) / Double(ctrs.count))
+            metrics[MetricKey.avgCTR] = .double(ctrs.reduce(0, +) / Double(ctrs.count))
         }
 
         return PlatformData(platform: .linkedin, metrics: metrics)
@@ -134,7 +134,7 @@ struct LinkedInImporter {
         // Percentage-valued headers first, then fraction-valued, then unknown.
         if let i = col("ctr (%)") { return (i, true) }
         if let i = col("click through rate (ctr)") { return (i, false) }
-        if let i = col("ctr") { return (i, false) }
+        if let i = col(MetricKey.ctr) { return (i, false) }
         return nil
     }
 

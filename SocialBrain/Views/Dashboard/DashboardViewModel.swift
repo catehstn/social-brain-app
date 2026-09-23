@@ -115,29 +115,29 @@ final class DashboardViewModel {
     nonisolated static func metricKeys(for platform: Platform) -> [(key: String, label: String)] {
         switch platform {
         case .mastodon:
-            return [("followers_count", "Followers"),
-                    ("avg_favourites", "Avg Favourites"),
-                    ("avg_reblogs", "Avg Reblogs")]
+            return [(MetricKey.followersCount, "Followers"),
+                    (MetricKey.avgFavourites, "Avg Favourites"),
+                    (MetricKey.avgReblogs, "Avg Reblogs")]
         case .bluesky:
-            return [("followers_count", "Followers"),
-                    ("avg_likes", "Avg Likes"),
-                    ("avg_reposts", "Avg Reposts")]
+            return [(MetricKey.followersCount, "Followers"),
+                    (MetricKey.avgLikes, "Avg Likes"),
+                    (MetricKey.avgReposts, "Avg Reposts")]
         case .buttondown:
-            return [("subscriber_count", "Subscribers"),
-                    ("avg_open_rate", "Open Rate"),
-                    ("avg_click_rate", "Click Rate")]
+            return [(MetricKey.subscriberCount, "Subscribers"),
+                    (MetricKey.avgOpenRate, "Open Rate"),
+                    (MetricKey.avgClickRate, "Click Rate")]
         case .goatCounter:
             // One series, not two: the second entry read `unique_visitors`,
             // a metric the collector invented and GoatCounter has no endpoint
             // for (#156).
-            return [("total_visits", "Visits")]
+            return [(MetricKey.totalVisits, "Visits")]
         case .calendly:
-            return [("events_count", "Events"),
-                    ("unique_invitees", "Invitees")]
+            return [(MetricKey.eventsCount, "Events"),
+                    (MetricKey.uniqueInvitees, "Invitees")]
         case .jetpack:
-            return [("followers_blog", "Followers"),
-                    ("total_views", "Views"),
-                    ("total_visitors", "Visitors")]
+            return [(MetricKey.followersBlog, "Followers"),
+                    (MetricKey.totalViews, "Views"),
+                    (MetricKey.totalVisitors, "Visitors")]
         case .linkedin:
             // Both follower metrics: total_followers is the cumulative level,
             // new_followers the per-period growth, and the growth is the more
@@ -149,17 +149,17 @@ final class DashboardViewModel {
             // total_impressions does not — not because of crowding: each series
             // renders as its own card in an adaptive grid, so one more simply
             // scrolls. Add it if it proves useful.
-            return [("total_impressions", "Impressions"),
-                    ("total_likes", "Likes"),
-                    ("total_comments", "Comments"),
-                    ("total_followers", "Followers"),
-                    ("new_followers", "New Followers")]
+            return [(MetricKey.totalImpressions, "Impressions"),
+                    (MetricKey.totalLikes, "Likes"),
+                    (MetricKey.totalComments, "Comments"),
+                    (MetricKey.totalFollowers, "Followers"),
+                    (MetricKey.newFollowers, "New Followers")]
         case .oreilly:
-            return [("total_page_views", "Page Views"),
-                    ("total_unique_users", "Unique Users")]
+            return [(MetricKey.totalPageViews, "Page Views"),
+                    (MetricKey.totalUniqueUsers, "Unique Users")]
         case .substack:
-            return [("posts_published", "Posts Published"),
-                    ("avg_open_rate", "Avg Open Rate")]
+            return [(MetricKey.postsPublished, "Posts Published"),
+                    (MetricKey.avgOpenRate, "Avg Open Rate")]
         default:
             return []
         }

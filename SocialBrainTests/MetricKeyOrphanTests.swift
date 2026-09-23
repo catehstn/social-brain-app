@@ -248,3 +248,106 @@ struct MetricKeyOrphanTests {
         return read.contains { $0.hasPrefix(family) }
     }
 }
+
+// MARK: - Metric keys are spelled once (#63)
+
+/// Stops the keys drifting back into literals.
+///
+/// `MetricKey` is only worth having while both ends use it. One consumer
+/// written as `intMetric("total_clicks")` is enough to restore the old hazard:
+/// renaming the constant then moves the collector and leaves that reader
+/// asking for a key nobody writes, which is #114, #163 and #170.
+///
+/// Source-grepped rather than type-enforced. Making the dictionary key a type
+/// would carry into the JSON blob in `platformSnapshot.metrics` and every row
+/// already stored; that is a migration, not a rename. So the keys stay
+/// `String` and this test is what keeps them spelled once.
+@Suite("Metric key literals")
+struct MetricKeyLiteralTests {
+
+    /// Where a metric key can be passed: the accessors, the dictionary, and
+    /// the two types that carry one.
+    ///
+    /// Deliberately not a bare `key:` — credentials are keyed by string too
+    /// (`invalidCredential(key: "site_url")`, `field(key: "api_key")`), and a
+    /// detector that cries about those gets switched off.
+    private static let patterns = [
+        #"intMetric\(\s*""#,
+        #"doubleMetric\(\s*""#,
+        #"stringMetric\(\s*""#,
+        #"metricDouble\(\s*""#,
+        #"metricString\(\s*""#,
+        #"metrics\[\s*""#,
+        // A collector usually builds a dictionary literal rather than
+        // assigning into one, so the key sits against a `MetricValue` case.
+        #""[a-z][a-z_0-9]+"\s*:\s*\.(int|double|string)\("#,
+        #"Monitored\(key:\s*""#,
+        #"MetricSeries\(.*key:\s*""#,
+        #"\(key:\s*"[a-z_0-9]+",\s*label:"#
+    ]
+
+    @Test("No metric key is written as a literal outside MetricKey.swift")
+    func metricKeysAreNotLiterals() throws {
+        let roots = ["SocialBrain", "SocialBrainMCP"].map {
+            URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent($0)
+        }
+
+        var offenders: [String] = []
+        var scanned = 0
+        for root in roots {
+            let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)
+            let swift = (files?.allObjects as? [URL] ?? []).filter { $0.pathExtension == "swift" }
+            #expect(!swift.isEmpty, "No Swift sources under \(root.lastPathComponent) — this would pass vacuously")
+
+            for file in swift where file.lastPathComponent != "MetricKey.swift" {
+                guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
+                scanned += 1
+                for (number, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+                    let trimmed = line.trimmingCharacters(in: .whitespaces)
+                    if trimmed.hasPrefix("//") { continue }
+                    for pattern in Self.patterns where trimmed.range(of: pattern, options: .regularExpression) != nil {
+                        offenders.append("\(file.lastPathComponent):\(number + 1): \(trimmed)")
+                    }
+                }
+            }
+        }
+
+        #expect(scanned > 0)
+        let message: Comment = """
+            \(offenders.sorted().joined(separator: "\n")) \
+            — pass a `MetricKey` constant instead of a literal.
+            """
+        #expect(offenders.isEmpty, message)
+    }
+
+    @Test("No two metric keys share a value")
+    func metricKeyValuesAreUnique() throws {
+        // A duplicated value is one metric wearing two names: both consumers
+        // read the same column and one of them is wrong about what it means.
+        let file = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("SocialBrain/Models/MetricKey.swift")
+        let text = try String(contentsOf: file, encoding: .utf8)
+
+        let declarations = text
+            .split(separator: "\n")
+            .compactMap { line -> (name: String, value: String)? in
+                guard let match = line.range(of: #"static let (\w+)\s*=\s*"([^"]+)""#,
+                                             options: .regularExpression) else { return nil }
+                let parts = line[match].split(separator: "\"")
+                guard parts.count >= 2 else { return nil }
+                let name = parts[0].replacingOccurrences(of: "static let ", with: "")
+                    .trimmingCharacters(in: CharacterSet(charactersIn: " ="))
+                return (name, String(parts[1]))
+            }
+        #expect(declarations.count > 40, "Found \(declarations.count) constants — the parser has drifted")
+
+        let duplicates = Dictionary(grouping: declarations, by: \.value).filter { $0.value.count > 1 }
+        let message: Comment = "\(duplicates.map { "\($0.key): \($0.value.map(\.name))" }.sorted())"
+        #expect(duplicates.isEmpty, message)
+    }
+}

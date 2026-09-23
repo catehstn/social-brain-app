@@ -192,32 +192,32 @@ struct FeedCardBuilder {
             if let d = try? JSONDecoder().decode(MastodonData.self, from: data) {
                 return d.latestPostText
             }
-            return metricString("latest_post_text", from: data)
+            return metricString(MetricKey.latestPostText, from: data)
         case .bluesky:
             if let d = try? JSONDecoder().decode(BlueskyData.self, from: data) {
                 return d.latestPostText
             }
-            return metricString("latest_post_text", from: data)
+            return metricString(MetricKey.latestPostText, from: data)
         case .buttondown:
             if let d = try? JSONDecoder().decode(ButtondownData.self, from: data) {
                 return d.latestSubjectLine
             }
-            return metricString("latest_subject_line", from: data)
+            return metricString(MetricKey.latestSubjectLine, from: data)
         case .jetpack:
             if let d = try? JSONDecoder().decode(JetpackData.self, from: data) {
                 return d.latestPostTitle
             }
-            return metricString("latest_post_title", from: data)
+            return metricString(MetricKey.latestPostTitle, from: data)
         case .linkedin:
             if let d = try? JSONDecoder().decode(LinkedInData.self, from: data) {
                 return d.latestPostText
             }
-            return metricString("latest_post_text", from: data)
+            return metricString(MetricKey.latestPostText, from: data)
         case .substack:
             if let d = try? JSONDecoder().decode(SubstackData.self, from: data) {
                 return d.latestSubjectLine
             }
-            return metricString("latest_subject_line", from: data)
+            return metricString(MetricKey.latestSubjectLine, from: data)
         default:
             return nil
         }
@@ -229,22 +229,22 @@ struct FeedCardBuilder {
             if let d = try? JSONDecoder().decode(MastodonData.self, from: data) {
                 return d.engagementRate
             }
-            return metricDouble("engagement_rate", from: data)
+            return metricDouble(MetricKey.engagementRate, from: data)
         case .bluesky:
             if let d = try? JSONDecoder().decode(BlueskyData.self, from: data) {
                 return d.engagementRate
             }
-            return metricDouble("engagement_rate", from: data)
+            return metricDouble(MetricKey.engagementRate, from: data)
         case .buttondown:
             if let d = try? JSONDecoder().decode(ButtondownData.self, from: data) {
                 return d.openRate
             }
-            return metricDouble("avg_open_rate", from: data)
+            return metricDouble(MetricKey.avgOpenRate, from: data)
         case .jetpack:
             if let d = try? JSONDecoder().decode(JetpackData.self, from: data) {
                 return d.engagementRate
             }
-            return metricDouble("engagement_rate", from: data)
+            return metricDouble(MetricKey.engagementRate, from: data)
         default:
             return nil
         }

@@ -213,7 +213,7 @@ app, and a documented test command that silently skipped and exited 0.
 | Change | Expected test |
 |---|---|
 | New collector | Mock `URLSession` (see `SocialBrainTests/TestSupport/MockURLSession.swift`, or `GraphQLMockSession.swift` beside it for a GraphQL API, where every query shares one URL): happy path, `since` filter, error propagation. **Also add its metric keys to `MetricKeyOrphanTests.emitted`** — see below |
-| New metric key on an existing collector | Add it to `MetricKeyOrphanTests.emitted`, and make some consumer read it |
+| New metric key on an existing collector | Declare it in `MetricKey` (never a literal), add it to `MetricKeyOrphanTests.emitted`, and make some consumer read it |
 | New database migration | Schema upgrade preserves existing rows |
 | New parser or file importer | Real fixture, plus malformed and empty input — these read untrusted files |
 | New model logic (detectors, prompt assembly, feed cards) | Unit test on the pure function |
@@ -222,11 +222,27 @@ app, and a documented test command that silently skipped and exited 0.
 | Refactor with no behaviour change | None required |
 | UI / view-layer change | UI test in `SocialBrainUITests/` if it changes a flow, not just appearance |
 
-**A metric nothing reads is a bug, and `MetricKeyOrphanTests` fails the build
-for it.** Keys are plain strings spread across five consumers, so a platform can
-be renamed into invisibility: the import succeeds and contributes nothing to the
-prompt, the charts, the Feed or spike detection. That has happened three times —
-#114, #163 and #170.
+**Every metric key is declared in `SocialBrain/Models/MetricKey.swift`**, and
+`MetricKeyLiteralTests` fails on a metric-shaped literal anywhere else in
+`SocialBrain/` or `SocialBrainMCP/` — in an accessor, a dictionary literal, a
+`Monitored` or a `MetricSeries`. Spelled at both ends, a rename moved one end
+and left the other reading a key nobody writes: the import succeeded and the
+platform contributed nothing to the prompt, the charts, the Feed or spike
+detection, three times over (#114, #163, #170).
+
+**The values are a wire format**, not just names: they are the keys inside the
+JSON blob in `platformSnapshot.metrics`, so every row ever collected holds the
+old spelling. Changing a constant's *value* orphans that history and no test
+can see it — the chart simply stops before today. Add a constant rather than
+rename one unless abandoning the history is the intent.
+
+The constants are `String`, not a key type, deliberately: a type would have to
+be encoded into that same blob, which is a migration rather than a rename.
+`MetricKeyLiteralTests` is what stands in for the type.
+
+**A metric nothing reads is still a bug, and `MetricKeyOrphanTests` fails the
+build for it.** Constants stop the two ends drifting apart; they do not make a
+key that nothing reads any more useful.
 
 It checks **one direction only**. A consumer reading a key that no collector
 emits is the mirror image, is not caught, and has also happened — #171.
@@ -237,7 +253,9 @@ LinkedIn is what emits it. "Is this key read anywhere?" is the wrong question.
 
 Its `emitted` table is hand-maintained, so **adding a key without adding it
 there makes it invisible to the detector** — the same shape as the bug. Hence
-the table rows above; #173 is about removing the need for them. An orphan you mean to keep goes in `knownOrphans` with an
+the table rows above; #173 is about removing the need for them. `MetricKey`
+does not solve it: the table says which *platform* emits what, and a shared
+constant carries no platform. An orphan you mean to keep goes in `knownOrphans` with an
 issue number; two further tests assert each listed orphan is still emitted and
 still unread, so the list shrinks rather than rots.
 

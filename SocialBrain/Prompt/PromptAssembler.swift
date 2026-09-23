@@ -117,18 +117,18 @@ struct PromptAssembler {
 
     private func mastodonLines(_ data: PlatformData) -> [String] {
         var lines: [String] = []
-        if let v = data.intMetric("followers_count")  { lines.append("Followers: \(formatted(v))") }
-        if let v = data.intMetric("following_count")  { lines.append("Following: \(formatted(v))") }
-        if let v = data.intMetric("statuses_count")   { lines.append("All-time posts: \(formatted(v))") }
-        if let v = data.intMetric("recent_posts")     { lines.append("Posts this period: \(v)") }
+        if let v = data.intMetric(MetricKey.followersCount)  { lines.append("Followers: \(formatted(v))") }
+        if let v = data.intMetric(MetricKey.followingCount)  { lines.append("Following: \(formatted(v))") }
+        if let v = data.intMetric(MetricKey.statusesCount)   { lines.append("All-time posts: \(formatted(v))") }
+        if let v = data.intMetric(MetricKey.recentPosts)     { lines.append("Posts this period: \(v)") }
         // Rendered, not merely recorded. Without this the count above reads as
         // the whole period while sitting next to an all-time total many times
         // larger, which is the contradiction the metric exists to prevent.
-        if let note = data.stringMetric("posts_truncated") { lines.append("Note: \(note)") }
+        if let note = data.stringMetric(MetricKey.postsTruncated) { lines.append("Note: \(note)") }
         var engagement: [String] = []
-        if let v = data.doubleMetric("avg_reblogs")    { engagement.append("\(pct1(v)) boosts") }
-        if let v = data.doubleMetric("avg_favourites") { engagement.append("\(pct1(v)) favourites") }
-        if let v = data.doubleMetric("avg_replies")    { engagement.append("\(pct1(v)) replies") }
+        if let v = data.doubleMetric(MetricKey.avgReblogs)    { engagement.append("\(pct1(v)) boosts") }
+        if let v = data.doubleMetric(MetricKey.avgFavourites) { engagement.append("\(pct1(v)) favourites") }
+        if let v = data.doubleMetric(MetricKey.avgReplies)    { engagement.append("\(pct1(v)) replies") }
         if !engagement.isEmpty {
             lines.append("Average engagement per post: \(engagement.joined(separator: ", "))")
         }
@@ -137,15 +137,15 @@ struct PromptAssembler {
 
     private func blueskyLines(_ data: PlatformData) -> [String] {
         var lines: [String] = []
-        if let v = data.intMetric("followers_count") { lines.append("Followers: \(formatted(v))") }
-        if let v = data.intMetric("follows_count")   { lines.append("Following: \(formatted(v))") }
-        if let v = data.intMetric("posts_count")     { lines.append("All-time posts: \(formatted(v))") }
-        if let v = data.intMetric("recent_posts")    { lines.append("Posts this period: \(v)") }
-        if let note = data.stringMetric("posts_truncated") { lines.append("Note: \(note)") }
+        if let v = data.intMetric(MetricKey.followersCount) { lines.append("Followers: \(formatted(v))") }
+        if let v = data.intMetric(MetricKey.followsCount)   { lines.append("Following: \(formatted(v))") }
+        if let v = data.intMetric(MetricKey.postsCount)     { lines.append("All-time posts: \(formatted(v))") }
+        if let v = data.intMetric(MetricKey.recentPosts)    { lines.append("Posts this period: \(v)") }
+        if let note = data.stringMetric(MetricKey.postsTruncated) { lines.append("Note: \(note)") }
         var engagement: [String] = []
-        if let v = data.doubleMetric("avg_likes")    { engagement.append("\(pct1(v)) likes") }
-        if let v = data.doubleMetric("avg_reposts")  { engagement.append("\(pct1(v)) reposts") }
-        if let v = data.doubleMetric("avg_replies")  { engagement.append("\(pct1(v)) replies") }
+        if let v = data.doubleMetric(MetricKey.avgLikes)    { engagement.append("\(pct1(v)) likes") }
+        if let v = data.doubleMetric(MetricKey.avgReposts)  { engagement.append("\(pct1(v)) reposts") }
+        if let v = data.doubleMetric(MetricKey.avgReplies)  { engagement.append("\(pct1(v)) replies") }
         if !engagement.isEmpty {
             lines.append("Average engagement per post: \(engagement.joined(separator: ", "))")
         }
@@ -154,39 +154,39 @@ struct PromptAssembler {
 
     private func buttondownLines(_ data: PlatformData) -> [String] {
         var lines: [String] = []
-        if let total = data.intMetric("subscriber_count") {
+        if let total = data.intMetric(MetricKey.subscriberCount) {
             var sub = "Subscribers: \(formatted(total))"
-            if let new = data.intMetric("new_subscribers"), new > 0 {
+            if let new = data.intMetric(MetricKey.newSubscribers), new > 0 {
                 sub += " (+\(new) new)"
             }
             lines.append(sub)
         }
-        if let v = data.intMetric("emails_sent") { lines.append("Newsletters sent: \(v)") }
+        if let v = data.intMetric(MetricKey.emailsSent) { lines.append("Newsletters sent: \(v)") }
         // Reported independently. Nesting the click rate inside the open rate
         // was safe while the two were always emitted together, but each now
         // guards its own divisor — so an open-absent, click-present snapshot is
         // a real state, and the click rate was being silently dropped.
         var rates: [String] = []
-        if let open = data.doubleMetric("avg_open_rate") {
+        if let open = data.doubleMetric(MetricKey.avgOpenRate) {
             rates.append("Average open rate: \(pct(open))")
         }
-        if let click = data.doubleMetric("avg_click_rate") {
+        if let click = data.doubleMetric(MetricKey.avgClickRate) {
             rates.append("Average click rate: \(pct(click))")
         }
         if !rates.isEmpty {
             lines.append(rates.joined(separator: ", "))
         }
-        if let note = data.stringMetric("emails_sampled") { lines.append("Note: \(note)") }
+        if let note = data.stringMetric(MetricKey.emailsSampled) { lines.append("Note: \(note)") }
         return lines
     }
 
     private func goatCounterLines(_ data: PlatformData) -> [String] {
         var lines: [String] = []
-        if let v = data.intMetric("total_visits")    { lines.append("Visits: \(formatted(v))") }
+        if let v = data.intMetric(MetricKey.totalVisits)    { lines.append("Visits: \(formatted(v))") }
 
         var topPages: [String] = []
         for i in 1...5 {
-            if let page = data.stringMetric("top_page_\(i)") {
+            if let page = data.stringMetric(MetricKey.topPage(i)) {
                 topPages.append(page)
             }
         }
@@ -198,17 +198,17 @@ struct PromptAssembler {
 
     private func calendlyLines(_ data: PlatformData) -> [String] {
         var lines: [String] = []
-        if let total = data.intMetric("events_count") {
+        if let total = data.intMetric(MetricKey.eventsCount) {
             var ev = "Scheduled events: \(total)"
-            if let cancelled = data.intMetric("cancelled_count"), cancelled > 0 {
+            if let cancelled = data.intMetric(MetricKey.cancelledCount), cancelled > 0 {
                 ev += " (\(cancelled) cancelled)"
             }
             lines.append(ev)
         }
-        if let v = data.intMetric("unique_invitees") { lines.append("Unique invitees: \(v)") }
+        if let v = data.intMetric(MetricKey.uniqueInvitees) { lines.append("Unique invitees: \(v)") }
         var types: [String] = []
         for i in 1...3 {
-            if let t = data.stringMetric("top_event_type_\(i)") { types.append(t) }
+            if let t = data.stringMetric(MetricKey.topEventType(i)) { types.append(t) }
         }
         if !types.isEmpty { lines.append("Top event types: \(types.joined(separator: ", "))") }
         return lines
@@ -216,19 +216,19 @@ struct PromptAssembler {
 
     private func jetpackLines(_ data: PlatformData) -> [String] {
         var lines: [String] = []
-        if let followers = data.intMetric("followers_blog") {
+        if let followers = data.intMetric(MetricKey.followersBlog) {
             var s = "Followers: \(formatted(followers))"
-            if let comments = data.intMetric("followers_comment") { s += " (\(comments) comment subscribers)" }
+            if let comments = data.intMetric(MetricKey.followersComment) { s += " (\(comments) comment subscribers)" }
             lines.append(s)
         }
-        if let v = data.intMetric("total_views")    { lines.append("Views: \(formatted(v))") }
-        if let v = data.intMetric("total_visitors")  { lines.append("Visitors: \(formatted(v))") }
-        if let v = data.intMetric("total_likes")     { lines.append("Likes: \(formatted(v))") }
+        if let v = data.intMetric(MetricKey.totalViews)    { lines.append("Views: \(formatted(v))") }
+        if let v = data.intMetric(MetricKey.totalVisitors)  { lines.append("Visitors: \(formatted(v))") }
+        if let v = data.intMetric(MetricKey.totalLikes)     { lines.append("Likes: \(formatted(v))") }
         // All time, unlike the lines above: it comes from the site summary,
         // not the visits window, and saying so stops it reading as a period
         // figure beside "Likes".
-        if let v = data.intMetric("total_comments")  { lines.append("Comments (all time): \(formatted(v))") }
-        if let note = data.stringMetric("views_window") { lines.append("Note: \(note)") }
+        if let v = data.intMetric(MetricKey.totalComments)  { lines.append("Comments (all time): \(formatted(v))") }
+        if let note = data.stringMetric(MetricKey.viewsWindow) { lines.append("Note: \(note)") }
         return lines
     }
 
@@ -240,8 +240,8 @@ struct PromptAssembler {
         // import path #114 is about. Joined so the CSV shape still reads
         // "Posts: 5, 4,200 impressions".
         var posting: [String] = []
-        if let posts = data.intMetric("posts_published") { posting.append("Posts: \(posts)") }
-        if let imp = data.intMetric("total_impressions") {
+        if let posts = data.intMetric(MetricKey.postsPublished) { posting.append("Posts: \(posts)") }
+        if let imp = data.intMetric(MetricKey.totalImpressions) {
             // Labelled when it stands alone, so the XLSX shape does not produce
             // the assembler's only unlabelled line. Joined to the posts count
             // when both exist, which is the CSV shape and what pins the string
@@ -252,11 +252,11 @@ struct PromptAssembler {
         }
         if !posting.isEmpty { lines.append(posting.joined(separator: ", ")) }
         var engagement: [String] = []
-        if let v = data.intMetric("total_likes")    { engagement.append("\(formatted(v)) likes") }
-        if let v = data.intMetric("total_comments") { engagement.append("\(formatted(v)) comments") }
-        if let v = data.intMetric("total_shares")   { engagement.append("\(formatted(v)) shares") }
+        if let v = data.intMetric(MetricKey.totalLikes)    { engagement.append("\(formatted(v)) likes") }
+        if let v = data.intMetric(MetricKey.totalComments) { engagement.append("\(formatted(v)) comments") }
+        if let v = data.intMetric(MetricKey.totalShares)   { engagement.append("\(formatted(v)) shares") }
         if !engagement.isEmpty { lines.append("Engagement: \(engagement.joined(separator: ", "))") }
-        if let v = data.doubleMetric("avg_ctr") { lines.append("Average CTR: \(pct(v))") }
+        if let v = data.doubleMetric(MetricKey.avgCTR) { lines.append("Average CTR: \(pct(v))") }
 
         // The four below come only from the XLSX export; the CSV path cannot
         // produce them. They were collected and stored but read nowhere, so an
@@ -265,8 +265,8 @@ struct PromptAssembler {
         // Follower growth is the reason it mattered: nothing else in the app
         // reports it for LinkedIn at all.
         var followers: [String] = []
-        if let v = data.intMetric("total_followers") { followers.append("\(formatted(v)) total") }
-        if let v = data.intMetric("new_followers")   { followers.append("\(formatted(v)) new this period") }
+        if let v = data.intMetric(MetricKey.totalFollowers) { followers.append("\(formatted(v)) total") }
+        if let v = data.intMetric(MetricKey.newFollowers)   { followers.append("\(formatted(v)) new this period") }
         if !followers.isEmpty { lines.append("Followers: \(followers.joined(separator: ", "))") }
 
         // Not the sum of the likes/comments/shares above — it is the ENGAGEMENT
@@ -274,10 +274,10 @@ struct PromptAssembler {
         // two cannot appear together anyway: LinkedInImporter branches on ZIP
         // magic bytes and delegates wholesale, so a snapshot is XLSX-shaped or
         // CSV-shaped, never both.)
-        if let v = data.intMetric("total_engagements") {
+        if let v = data.intMetric(MetricKey.totalEngagements) {
             lines.append("Total engagements: \(formatted(v))")
         }
-        if let v = data.intMetric("members_reached") {
+        if let v = data.intMetric(MetricKey.membersReached) {
             lines.append("Unique members reached: \(formatted(v))")
         }
         return lines
@@ -285,63 +285,63 @@ struct PromptAssembler {
 
     private func oreillyLines(_ data: PlatformData) -> [String] {
         var lines: [String] = []
-        if let titles = data.intMetric("titles_count") { lines.append("Titles: \(titles)") }
-        if let v = data.intMetric("total_page_views")   { lines.append("Page views: \(formatted(v))") }
-        if let v = data.intMetric("total_unique_users")  { lines.append("Unique users: \(formatted(v))") }
-        if let v = data.intMetric("total_completions")  { lines.append("Course completions: \(formatted(v))") }
+        if let titles = data.intMetric(MetricKey.titlesCount) { lines.append("Titles: \(titles)") }
+        if let v = data.intMetric(MetricKey.totalPageViews)   { lines.append("Page views: \(formatted(v))") }
+        if let v = data.intMetric(MetricKey.totalUniqueUsers)  { lines.append("Unique users: \(formatted(v))") }
+        if let v = data.intMetric(MetricKey.totalCompletions)  { lines.append("Course completions: \(formatted(v))") }
         return lines
     }
 
     private func substackLines(_ data: PlatformData) -> [String] {
         var lines: [String] = []
-        if let total = data.intMetric("subscriber_count") {
+        if let total = data.intMetric(MetricKey.subscriberCount) {
             var sub = "Subscribers: \(formatted(total))"
-            if let paid = data.intMetric("paid_subscribers") { sub += " (\(paid) paid)" }
+            if let paid = data.intMetric(MetricKey.paidSubscribers) { sub += " (\(paid) paid)" }
             lines.append(sub)
         }
-        if let v = data.intMetric("posts_published") { lines.append("Posts published: \(v)") }
-        if let open = data.doubleMetric("avg_open_rate") { lines.append("Average open rate: \(pct(open))") }
+        if let v = data.intMetric(MetricKey.postsPublished) { lines.append("Posts published: \(v)") }
+        if let open = data.doubleMetric(MetricKey.avgOpenRate) { lines.append("Average open rate: \(pct(open))") }
         return lines
     }
 
     private func bufferLines(_ data: PlatformData) -> [String] {
         var lines: [String] = []
-        if let v = data.intMetric("sent_updates")      { lines.append("Posts sent: \(v)") }
-        if let v = data.intMetric("scheduled_updates") { lines.append("Posts scheduled: \(v)") }
-        if let v = data.intMetric("total_clicks")      { lines.append("Total clicks: \(formatted(v))") }
-        if let v = data.intMetric("total_reach")       { lines.append("Total reach: \(formatted(v))") }
-        if let v = data.intMetric("total_likes")       { lines.append("Total likes: \(formatted(v))") }
-        if let note = data.stringMetric("engagement_unavailable") { lines.append("Engagement: not collected — \(note)") }
-        if let note = data.stringMetric("posts_sampled") { lines.append("Note: \(note)") }
+        if let v = data.intMetric(MetricKey.sentUpdates)      { lines.append("Posts sent: \(v)") }
+        if let v = data.intMetric(MetricKey.scheduledUpdates) { lines.append("Posts scheduled: \(v)") }
+        if let v = data.intMetric(MetricKey.totalClicks)      { lines.append("Total clicks: \(formatted(v))") }
+        if let v = data.intMetric(MetricKey.totalReach)       { lines.append("Total reach: \(formatted(v))") }
+        if let v = data.intMetric(MetricKey.totalLikes)       { lines.append("Total likes: \(formatted(v))") }
+        if let note = data.stringMetric(MetricKey.engagementUnavailable) { lines.append("Engagement: not collected — \(note)") }
+        if let note = data.stringMetric(MetricKey.postsSampled) { lines.append("Note: \(note)") }
         for i in 1...3 {
-            if let p = data.stringMetric("top_profile_\(i)") { lines.append("Top profile \(i): \(p)") }
+            if let p = data.stringMetric(MetricKey.topProfile(i)) { lines.append("Top profile \(i): \(p)") }
         }
         return lines
     }
 
     private func hackerNewsLines(_ data: PlatformData) -> [String] {
         var lines: [String] = []
-        if let v = data.intMetric("mention_count")  { lines.append("Mentions: \(v)") }
-        if let v = data.intMetric("total_points")   { lines.append("Total points: \(v)") }
-        if let v = data.intMetric("total_comments") { lines.append("Total comments: \(v)") }
-        if let note = data.stringMetric("mentions_sampled") { lines.append("Note: \(note)") }
+        if let v = data.intMetric(MetricKey.mentionCount)  { lines.append("Mentions: \(v)") }
+        if let v = data.intMetric(MetricKey.totalPoints)   { lines.append("Total points: \(v)") }
+        if let v = data.intMetric(MetricKey.totalComments) { lines.append("Total comments: \(v)") }
+        if let note = data.stringMetric(MetricKey.mentionsSampled) { lines.append("Note: \(note)") }
         for i in 1...3 {
-            if let s = data.stringMetric("top_story_\(i)") { lines.append("Top story \(i): \(s)") }
+            if let s = data.stringMetric(MetricKey.topStory(i)) { lines.append("Top story \(i): \(s)") }
         }
         return lines
     }
 
     private func googleSearchConsoleLines(_ data: PlatformData) -> [String] {
         var lines: [String] = []
-        if let clicks      = data.intMetric("clicks")      { lines.append("Clicks: \(formatted(clicks))") }
-        if let impressions = data.intMetric("impressions") { lines.append("Impressions: \(formatted(impressions))") }
-        if let ctr         = data.doubleMetric("ctr")      { lines.append("CTR: \(pct(ctr))") }
-        if let pos         = data.doubleMetric("avg_position") { lines.append("Avg position: \(String(format: "%.1f", pos))") }
+        if let clicks      = data.intMetric(MetricKey.clicks)      { lines.append("Clicks: \(formatted(clicks))") }
+        if let impressions = data.intMetric(MetricKey.impressions) { lines.append("Impressions: \(formatted(impressions))") }
+        if let ctr         = data.doubleMetric(MetricKey.ctr)      { lines.append("CTR: \(pct(ctr))") }
+        if let pos         = data.doubleMetric(MetricKey.avgPosition) { lines.append("Avg position: \(String(format: "%.1f", pos))") }
         for i in 1...5 {
-            if let q = data.stringMetric("top_query_\(i)") { lines.append("Top query \(i): \(q)") }
+            if let q = data.stringMetric(MetricKey.topQuery(i)) { lines.append("Top query \(i): \(q)") }
         }
         for i in 1...5 {
-            if let p = data.stringMetric("top_page_\(i)") { lines.append("Top page \(i): \(p)") }
+            if let p = data.stringMetric(MetricKey.topPage(i)) { lines.append("Top page \(i): \(p)") }
         }
         return lines
     }

@@ -76,8 +76,8 @@ struct LinkedInXLSXParser {
 
         // -- DISCOVERY (sheet1) --
         if let doc = try parsePart(zip, named: "xl/worksheets/sheet1.xml") {
-            if let v = numericCell(doc, ref: "B2", sharedStrings: sharedStrings) { metrics["total_impressions"] = .int(v) }
-            if let v = numericCell(doc, ref: "B3", sharedStrings: sharedStrings) { metrics["members_reached"]   = .int(v) }
+            if let v = numericCell(doc, ref: "B2", sharedStrings: sharedStrings) { metrics[MetricKey.totalImpressions] = .int(v) }
+            if let v = numericCell(doc, ref: "B3", sharedStrings: sharedStrings) { metrics[MetricKey.membersReached]   = .int(v) }
         }
 
         // -- ENGAGEMENT (sheet2): sum Engagements column from row 2 onward --
@@ -85,14 +85,14 @@ struct LinkedInXLSXParser {
             // Detect which column holds Engagements (typically "C") from the header row.
             let engCol = engagementsColumn(in: doc, sharedStrings: sharedStrings) ?? "C"
             let total  = sumColumn(in: doc, col: engCol, startRow: 2, sharedStrings: sharedStrings)
-            if total > 0 { metrics["total_engagements"] = .int(total) }
+            if total > 0 { metrics[MetricKey.totalEngagements] = .int(total) }
         }
 
         // -- FOLLOWERS (sheet4) --
         if let doc = try parsePart(zip, named: "xl/worksheets/sheet4.xml") {
-            if let v = numericCell(doc, ref: "B1", sharedStrings: sharedStrings) { metrics["total_followers"] = .int(v) }
+            if let v = numericCell(doc, ref: "B1", sharedStrings: sharedStrings) { metrics[MetricKey.totalFollowers] = .int(v) }
             let newF = sumColumn(in: doc, col: "B", startRow: 4, sharedStrings: sharedStrings)
-            if newF > 0 { metrics["new_followers"] = .int(newF) }
+            if newF > 0 { metrics[MetricKey.newFollowers] = .int(newF) }
         }
 
         guard !metrics.isEmpty else { throw ParseError.noUsableData }
