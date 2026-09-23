@@ -131,8 +131,11 @@ app, and a documented test command that silently skipped and exited 0.
   own direct readers, not listed here): `PlatformCredentialSheet` and `PlatformDetailView`
   (`InstanceLabels.shared`, and the sheet's header through the bare `displayName`), `OnboardingView` (`AnalyticsGoalStore.shared`),
   `SocialBrainApp` (`PlatformVisibilityStore.shared.resetAll()`),
-  `PlatformInstance.displayName` (`displayName(using: .shared)`) and
-  `MCPServer` (`PromptAssembler(labels: .shared)` — #183). Views are not under
+  and `PlatformInstance.displayName` (`displayName(using: .shared)`).
+  `MCPServer` was on this list until #183: it is an unsandboxed tool, so
+  `UserDefaults.standard` is its own domain and `.shared` could not see the
+  app's labels at all. It reads the app's container plist instead
+  (`AppPreferences`). Views are not under
   test, so most of this is tolerated rather than wrong; `PlatformInstance` is
   not a view, which is why `displayName` has a `using:` form and tests must
   call it.
