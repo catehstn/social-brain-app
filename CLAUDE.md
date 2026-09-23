@@ -256,9 +256,17 @@ be encoded into that same blob, which is a migration rather than a rename.
 `MetricKeyLiteralTests` is what stands in for the type.
 
 **Every key also declares what it means**, in `MetricMeaning`: a concept
-(audience, views, engagement rate, open rate…) and a unit (count, fraction,
-rank, text). `MetricMeaningTests` fails when a declared key has no meaning, or
-a meaning outlives its key.
+(audience, views, engagement rate, open rate…), a unit (count, fraction, rank,
+text) and a scope (the period, or one item within it). `MetricMeaningTests`
+fails when a declared key has no meaning, or a meaning outlives its key.
+
+All three have to match before two metrics may be ranked or summed, and each
+line of that is a mistake someone has made: **unit**, because a count and a
+rate of one concept are not the same number; **scope**, because `avg_likes`
+(2.3 a post) and `total_likes` (1,400 a month) are both counts of reactions;
+**concept**, because the people you follow are not your audience, a cancelled
+meeting is already inside the booked count, and LinkedIn's `total_engagements`
+contains the likes you would be ranking it against.
 
 That exists because names are not enough. `avg_open_rate` and `engagement_rate`
 are both `Double` in 0–1, and the Feed ranked them against each other with

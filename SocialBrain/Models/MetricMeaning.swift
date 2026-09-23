@@ -27,23 +27,44 @@ struct MetricMeaning: Sendable, Equatable {
     /// platforms; two with different concepts must not be compared, ranked
     /// against each other, or summed.
     enum Concept: String, Sendable, CaseIterable {
-        case audience          // followers, subscribers, connected channels
+        case audience          // followers, subscribers — people who chose to hear from you
+        case accountsFollowed  // who *you* follow. Not an audience, and dividing
+                               // one by the other is a ratio, not a sum
+        case channels          // connected accounts in a tool, not people
         case audienceChange    // new followers or subscribers in the period
-        case published         // posts, emails, updates sent
+        case published         // posts, emails, updates you sent
+        case mentions          // times others posted about you — not yours
         case scheduled         // queued, not yet sent
-        case views             // page views, impressions, visits
-        case uniquePeople      // visitors, unique users, unique invitees
-        case reactions         // likes, favourites, points
+        case views             // page views, impressions, visits; a sum of
+                               // per-day or per-post figures double-counts a
+                               // person who came back, which is why reach and
+                               // visitors live here rather than with uniques
+        case uniquePeople      // de-duplicated over the whole period
+        case reactions         // likes, favourites, points — totals
         case comments
         case shares            // reposts, boosts, shares
         case clicks
+        case engagementsComposite // one platform's own blend of the above; a
+                                  // composite must not be ranked against a part
         case engagementRate    // interactions per follower or per delivery
         case openRate          // emails opened per delivery — not engagement
         case clickRate         // clicks per delivery or per impression
         case searchPosition    // where a page ranks; lower is better
-        case meetings          // scheduled or cancelled events
+        case meetingsBooked
+        case meetingsCancelled // a subset of the booked ones, so not summable
+                               // with them
         case completions
         case note              // prose, not a number
+    }
+
+    /// Whether the number covers the period or one item within it.
+    ///
+    /// `total_likes` (a window sum, 1,400) and `avg_likes` (2.3 per post) are
+    /// both counts of reactions, and ranking them against each other is #81's
+    /// mistake in a second costume. Same concept, same unit, different scope.
+    enum Scope: String, Sendable {
+        case period
+        case perItem
     }
 
     /// How to read the number.
@@ -62,13 +83,20 @@ struct MetricMeaning: Sendable, Equatable {
 
     let concept: Concept
     let unit: Unit
+    let scope: Scope
+
+    init(concept: Concept, unit: Unit, scope: Scope = .period) {
+        self.concept = concept
+        self.unit = unit
+        self.scope = scope
+    }
 
     /// Whether two keys may be compared or ranked against each other.
     ///
-    /// Same concept **and** same unit: a fraction and a count of the same
-    /// concept are not comparable either.
+    /// All three must match. A fraction and a count of one concept are not
+    /// comparable, and neither are a period total and a per-post average.
     func isComparable(with other: MetricMeaning) -> Bool {
-        concept == other.concept && unit == other.unit
+        concept == other.concept && unit == other.unit && scope == other.scope
     }
 }
 
@@ -79,13 +107,13 @@ extension MetricKey {
     static let meanings: [String: MetricMeaning] = [
         // Audience
         followersCount:   .init(concept: .audience, unit: .count),
-        followingCount:   .init(concept: .audience, unit: .count),
-        followsCount:     .init(concept: .audience, unit: .count),
+        followingCount:   .init(concept: .accountsFollowed, unit: .count),
+        followsCount:     .init(concept: .accountsFollowed, unit: .count),
         totalFollowers:   .init(concept: .audience, unit: .count),
         followersBlog:    .init(concept: .audience, unit: .count),
         followersComment: .init(concept: .audience, unit: .count),
         subscriberCount:  .init(concept: .audience, unit: .count),
-        profilesCount:    .init(concept: .audience, unit: .count),
+        profilesCount:    .init(concept: .channels, unit: .count),
         newFollowers:     .init(concept: .audienceChange, unit: .count),
         newSubscribers:   .init(concept: .audienceChange, unit: .count),
         membersReached:   .init(concept: .uniquePeople, unit: .count),
@@ -98,7 +126,7 @@ extension MetricKey {
         sentUpdates:      .init(concept: .published, unit: .count),
         emailsSent:       .init(concept: .published, unit: .count),
         titlesCount:      .init(concept: .published, unit: .count),
-        mentionCount:     .init(concept: .published, unit: .count),
+        mentionCount:     .init(concept: .mentions, unit: .count),
         scheduledUpdates: .init(concept: .scheduled, unit: .count),
 
         // Reach
@@ -107,8 +135,12 @@ extension MetricKey {
         totalPageViews:   .init(concept: .views, unit: .count),
         totalImpressions: .init(concept: .views, unit: .count),
         impressions:      .init(concept: .views, unit: .count),
-        totalReach:       .init(concept: .uniquePeople, unit: .count),
-        totalVisitors:    .init(concept: .uniquePeople, unit: .count),
+        // A sum of per-post reach, so someone who saw two posts counts
+        // twice. Not a unique-people figure despite the name.
+        totalReach:       .init(concept: .views, unit: .count),
+        // Daily uniques summed over the window — a returning visitor is
+        // counted once per day. Unique within a day, not across the period.
+        totalVisitors:    .init(concept: .views, unit: .count),
         totalUniqueUsers: .init(concept: .uniquePeople, unit: .count),
 
         // Engagement
@@ -119,30 +151,31 @@ extension MetricKey {
         totalClicks:      .init(concept: .clicks, unit: .count),
         clicks:           .init(concept: .clicks, unit: .count),
         totalCompletions: .init(concept: .completions, unit: .count),
-        // Interactions per post rather than per follower, but the same idea
-        // and the same scale as the rates below would not be — they are
-        // counts, and stay counts.
-        avgLikes:         .init(concept: .reactions, unit: .count),
-        avgFavourites:    .init(concept: .reactions, unit: .count),
-        avgReplies:       .init(concept: .comments, unit: .count),
-        avgReposts:       .init(concept: .shares, unit: .count),
-        avgReblogs:       .init(concept: .shares, unit: .count),
+        // Per post, not per period: `scope` is what keeps 2.3 likes a post
+        // from being ranked against 1,400 likes a month.
+        avgLikes:         .init(concept: .reactions, unit: .count, scope: .perItem),
+        avgFavourites:    .init(concept: .reactions, unit: .count, scope: .perItem),
+        avgReplies:       .init(concept: .comments, unit: .count, scope: .perItem),
+        avgReposts:       .init(concept: .shares, unit: .count, scope: .perItem),
+        avgReblogs:       .init(concept: .shares, unit: .count, scope: .perItem),
         // LinkedIn's own engagement figure, a count of interactions.
-        totalEngagements: .init(concept: .reactions, unit: .count),
+        totalEngagements: .init(concept: .engagementsComposite, unit: .count),
 
         // Rates. The distinction this whole type exists for: an open rate is
         // not an engagement rate, and #81 is what happens when they are ranked
         // against each other.
         avgOpenRate:      .init(concept: .openRate, unit: .fraction),
         avgClickRate:     .init(concept: .clickRate, unit: .fraction),
-        avgCTR:           .init(concept: .clickRate, unit: .fraction),
+        // An unweighted mean of per-post CTRs, unlike Search Console's
+        // aggregate clicks-over-impressions.
+        avgCTR:           .init(concept: .clickRate, unit: .fraction, scope: .perItem),
         ctr:              .init(concept: .clickRate, unit: .fraction),
         engagementRate:   .init(concept: .engagementRate, unit: .fraction),
         avgPosition:      .init(concept: .searchPosition, unit: .rank),
 
         // Meetings
-        eventsCount:      .init(concept: .meetings, unit: .count),
-        cancelledCount:   .init(concept: .meetings, unit: .count),
+        eventsCount:      .init(concept: .meetingsBooked, unit: .count),
+        cancelledCount:   .init(concept: .meetingsCancelled, unit: .count),
         uniqueInvitees:   .init(concept: .uniquePeople, unit: .count),
 
         // Notes and prose

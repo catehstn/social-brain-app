@@ -142,17 +142,21 @@ struct FeedCardBuilder {
                 else { return nil }
                 return (instance, concept, rate)
             }
-        // One card per concept, so a newsletter's open rate no longer buries a
-        // social account's engagement, and both are described as what they are.
-        for concept in MetricMeaning.Concept.allCases {
+        // One card per kind of rate, so a newsletter's open rate no longer
+        // buries a social account's engagement, and both are described as what
+        // they are. Only the rate concepts, in a fixed order: iterating every
+        // concept would ask for a "best audience rate", and `rateName` would
+        // cheerfully render it.
+        for concept in Self.rateConcepts {
             let ofThisKind = rateEntries.filter { $0.concept == concept }
-            guard let best = ofThisKind.max(by: { $0.rate < $1.rate }) else { continue }
+            guard let best = ofThisKind.max(by: { $0.rate < $1.rate }),
+                  let name = Self.rateName(concept) else { continue }
             let pct = String(format: "%.1f%%", best.rate * 100)
             cards.append(FeedCard(
                 platform: best.instance.platform,
                 instanceName: best.instance.instanceName,
                 cardType: .metricHighlight,
-                snippet: "\(best.instance.platform.rawValue.capitalized) \(Self.rateName(concept)) at \(pct) — your best this period.",
+                snippet: "\(best.instance.platform.rawValue.capitalized) \(name) at \(pct) — your best this period.",
                 navigationTarget: best.instance.platform
             ))
         }
@@ -234,11 +238,14 @@ struct FeedCardBuilder {
         }
     }
 
+    /// The rates a highlight card can be about, in the order they appear.
+    static let rateConcepts: [MetricMeaning.Concept] = [.engagementRate, .openRate]
+
     /// Which rate `engagementRate(platform:data:)` returns for a platform.
     ///
     /// It returns Buttondown's *open* rate, which is the whole point: the
     /// function name has always been a lie about one of its branches.
-    private static func rateConcept(for platform: Platform) -> MetricMeaning.Concept? {
+    static func rateConcept(for platform: Platform) -> MetricMeaning.Concept? {
         switch platform {
         case .mastodon, .bluesky, .jetpack: .engagementRate
         case .buttondown:                   .openRate
@@ -247,16 +254,19 @@ struct FeedCardBuilder {
     }
 
     /// How a rate reads in a sentence.
-    private static func rateName(_ concept: MetricMeaning.Concept) -> String {
+    ///
+    /// Total, over `rateConcepts` rather than every concept, so adding a rate
+    /// without a name is a compile error rather than a card reading
+    /// "Mastodon audience at 3.0%".
+    static func rateName(_ concept: MetricMeaning.Concept) -> String? {
         switch concept {
         case .engagementRate: "engagement"
         case .openRate:       "open rate"
-        case .clickRate:      "click rate"
-        default:              concept.rawValue
+        default:              nil
         }
     }
 
-    private static func engagementRate(platform: Platform, data: Data) -> Double? {
+    static func engagementRate(platform: Platform, data: Data) -> Double? {
         switch platform {
         case .mastodon:
             if let d = try? JSONDecoder().decode(MastodonData.self, from: data) {
