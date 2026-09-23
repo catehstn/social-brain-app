@@ -67,12 +67,12 @@ struct JetpackCollector: Collector {
         let vis = visitResult.totals
 
         var metrics: [String: MetricValue] = [:]
-        metrics["followers_blog"]    = .int(sum.followersBlog)
-        metrics["followers_comment"] = .int(sum.followersComments)
-        metrics["total_comments"]    = .int(sum.comments)
-        if let v = vis.views             { metrics["total_views"]       = .int(v) }
-        if let v = vis.visitors          { metrics["total_visitors"]    = .int(v) }
-        if let v = vis.likes             { metrics["total_likes"]       = .int(v) }
+        metrics[MetricKey.followersBlog]    = .int(sum.followersBlog)
+        metrics[MetricKey.followersComment] = .int(sum.followersComments)
+        metrics[MetricKey.totalComments]    = .int(sum.comments)
+        if let v = vis.views             { metrics[MetricKey.totalViews]       = .int(v) }
+        if let v = vis.visitors          { metrics[MetricKey.totalVisitors]    = .int(v) }
+        if let v = vis.likes             { metrics[MetricKey.totalLikes]       = .int(v) }
 
         // The views, visitors and likes above cover what was asked of the API, which is
         // not what the caller asked for whenever the cap bites. Silently capping
@@ -89,7 +89,7 @@ struct JetpackCollector: Collector {
             let note = CollectionWindow.lowerBound(since) == nil
                 ? "views, visitors and likes cover the last \(visitResult.daysCovered) days, not all time as requested"
                 : "views, visitors and likes cover the last \(visitResult.daysCovered) days, not the \(visitResult.daysRequested) requested"
-            metrics["views_window"] = .string(note)
+            metrics[MetricKey.viewsWindow] = .string(note)
         }
 
         return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)
@@ -191,6 +191,8 @@ private struct SiteStats: Decodable {
     let comments: Int
 
     enum CodingKeys: String, CodingKey {
+        // Literal, not `MetricKey`: this is WordPress.com's field name, which
+        // happens to match ours. They are free to diverge.
         case followersBlog     = "followers_blog"
         case followersComments = "followers_comments"
         case comments

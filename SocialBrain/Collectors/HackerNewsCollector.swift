@@ -49,15 +49,15 @@ struct HackerNewsCollector: Collector {
         var metrics: [String: MetricValue] = [
             // The API's own total, not what was fetched. This used to report
             // exactly 100 for any busy period.
-            "mention_count":  .int(total),
-            "total_points":   .int(totalPoints),
-            "total_comments": .int(totalComments)
+            MetricKey.mentionCount:  .int(total),
+            MetricKey.totalPoints:   .int(totalPoints),
+            MetricKey.totalComments: .int(totalComments)
         ]
 
         // The count above is exact; these sums are not, when the matches exceed
         // what the API will page through.
         if hits.count < total {
-            metrics["mentions_sampled"] = .string(
+            metrics[MetricKey.mentionsSampled] = .string(
                 "points and comments cover \(hits.count) of \(total) mentions — the API pages no further")
         }
 
@@ -69,7 +69,7 @@ struct HackerNewsCollector: Collector {
         for (i, story) in topStories.enumerated() {
             let title = story.title ?? story.storyTitle ?? "(untitled)"
             let pts   = story.points ?? 0
-            metrics["top_story_\(i + 1)"] = .string("\(title) (\(pts) pts)")
+            metrics[MetricKey.topStory(i + 1)] = .string("\(title) (\(pts) pts)")
         }
 
         return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)
