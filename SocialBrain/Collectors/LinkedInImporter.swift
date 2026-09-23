@@ -50,7 +50,11 @@ struct LinkedInImporter {
 
         let header = rows[0].map { $0.lowercased().trimmingCharacters(in: .whitespaces) }
 
-        // Require at least "impressions" to consider this a LinkedIn share stats file.
+        // Literals, not `MetricKey`: these are LinkedIn's CSV column headers.
+        // They happen to read like two of Search Console's keys, and LinkedIn
+        // emits neither — it writes `total_impressions` and `avg_ctr`. Binding
+        // a header to another platform's constant means renaming that constant
+        // stops this importer recognising its own file, with nothing to say so.
         guard header.contains("impressions") else { throw ImportError.unrecognisedFormat }
 
         let col = columnIndex(header)
@@ -80,15 +84,15 @@ struct LinkedInImporter {
         }
 
         var metrics: [String: MetricValue] = [
-            "posts_published":   .int(dataRows.count),
-            "total_impressions": .int(totalImpressions),
+            MetricKey.postsPublished:   .int(dataRows.count),
+            MetricKey.totalImpressions: .int(totalImpressions),
         ]
-        if totalClicks   > 0 { metrics["total_clicks"]   = .int(totalClicks) }
-        if totalLikes    > 0 { metrics["total_likes"]    = .int(totalLikes) }
-        if totalComments > 0 { metrics["total_comments"] = .int(totalComments) }
-        if totalShares   > 0 { metrics["total_shares"]   = .int(totalShares) }
+        if totalClicks   > 0 { metrics[MetricKey.totalClicks]   = .int(totalClicks) }
+        if totalLikes    > 0 { metrics[MetricKey.totalLikes]    = .int(totalLikes) }
+        if totalComments > 0 { metrics[MetricKey.totalComments] = .int(totalComments) }
+        if totalShares   > 0 { metrics[MetricKey.totalShares]   = .int(totalShares) }
         if !ctrs.isEmpty {
-            metrics["avg_ctr"] = .double(ctrs.reduce(0, +) / Double(ctrs.count))
+            metrics[MetricKey.avgCTR] = .double(ctrs.reduce(0, +) / Double(ctrs.count))
         }
 
         return PlatformData(platform: .linkedin, metrics: metrics)

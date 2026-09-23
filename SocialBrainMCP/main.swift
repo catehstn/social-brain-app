@@ -29,6 +29,13 @@
 ///   ~/Library/Containers/com.catehuston.SocialBrain/Data/Library/Application Support/SocialBrain/analytics.sqlite
 /// `DatabaseProxy` falls back to the unsandboxed location if the app is ever
 /// shipped without the sandbox.
+///
+/// Instance labels come from the app's preferences, which are a plist in the
+/// same container. `AppPreferences` reads that file: `UserDefaults` here is
+/// this tool's own domain, and `UserDefaults(suiteName:)` resolves outside the
+/// container, so neither can see what the app wrote (#183). Preferences are
+/// flushed by `cfprefsd` rather than written immediately, so a label set in
+/// the app can take a little while to appear here.
 /// Run a collection in the app before querying via MCP.
 
 import Foundation
@@ -41,7 +48,8 @@ import Foundation
 // missing one is reported instead of trapping. stdout is the JSON-RPC channel,
 // so the message goes to stderr, which Claude surfaces as server output.
 do {
-    let server = MCPServer(store: try DatabaseProxy())
+    let server = MCPServer(store: try DatabaseProxy(),
+                           labels: InstanceLabels(defaults: AppPreferences.shared))
     await server.run()
 } catch {
     FileHandle.standardError.write(Data("SocialBrainMCP: \(error.localizedDescription)\n".utf8))

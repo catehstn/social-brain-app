@@ -65,10 +65,10 @@ struct GoatCounterCollector: Collector {
         // that change; the struct beside it and the OpenAPI description both
         // say visitors. Believe the increment, not the prose.
         var metrics: [String: MetricValue] = [
-            "total_visits": .int(total.total)
+            MetricKey.totalVisits: .int(total.total)
         ]
         for (index, page) in pages.prefix(5).enumerated() {
-            metrics["top_page_\(index + 1)"] = .string(page.path)
+            metrics[MetricKey.topPage(index + 1)] = .string(page.path)
         }
 
         return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)

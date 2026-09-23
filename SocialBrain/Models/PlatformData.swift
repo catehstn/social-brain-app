@@ -73,7 +73,7 @@ public struct PlatformData: Sendable, Codable {
     /// For file imports, the end of the period the export covers. `nil` for live
     /// collectors, whose `collectedAt` already is the period end.
     public let periodEnd: Date?
-    /// Named metrics; keys are platform-specific (e.g. "subscriber_count", "followers").
+    /// Named metrics; keys are platform-specific and spelled in `MetricKey`.
     public let metrics: [String: MetricValue]
 
     public init(

@@ -48,14 +48,14 @@ struct BlueskyCollector: Collector {
         )
 
         var metrics: [String: MetricValue] = [
-            "followers_count": .int(profile.followersCount),
-            "follows_count":   .int(profile.followsCount),
-            "posts_count":     .int(profile.postsCount),
-            "recent_posts":    .int(feed.count)
+            MetricKey.followersCount: .int(profile.followersCount),
+            MetricKey.followsCount:   .int(profile.followsCount),
+            MetricKey.postsCount:     .int(profile.postsCount),
+            MetricKey.recentPosts:    .int(feed.count)
         ]
 
         if truncated {
-            metrics["posts_truncated"] =
+            metrics[MetricKey.postsTruncated] =
                 .string("stopped after \(Self.maximumPages * Self.pageSize) posts — the period holds more")
         }
 
@@ -64,9 +64,9 @@ struct BlueskyCollector: Collector {
             let avgLikes    = feed.map(\.likeCount).reduce(0, +)
             let avgReposts  = feed.map(\.repostCount).reduce(0, +)
             let avgReplies  = feed.map(\.replyCount).reduce(0, +)
-            metrics["avg_likes"]   = .double(Double(avgLikes) / n)
-            metrics["avg_reposts"] = .double(Double(avgReposts) / n)
-            metrics["avg_replies"] = .double(Double(avgReplies) / n)
+            metrics[MetricKey.avgLikes]   = .double(Double(avgLikes) / n)
+            metrics[MetricKey.avgReposts] = .double(Double(avgReposts) / n)
+            metrics[MetricKey.avgReplies] = .double(Double(avgReplies) / n)
         }
 
         return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)

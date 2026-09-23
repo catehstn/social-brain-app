@@ -140,23 +140,23 @@ struct BufferCollector: Collector {
         }
 
         var metrics: [String: MetricValue] = [
-            "profiles_count":    .int(channels.count),
-            "sent_updates":      .int(inWindow.count),
-            "scheduled_updates": .int(scheduled)
+            MetricKey.profilesCount:    .int(channels.count),
+            MetricKey.sentUpdates:      .int(inWindow.count),
+            MetricKey.scheduledUpdates: .int(scheduled)
         ]
 
         if engagementUnavailable {
             // "Some or all": the schema scopes insights access per channel, so
             // one refused post drops every total — omitting is safe, but the
             // note must not claim the whole key lacks access.
-            metrics["engagement_unavailable"] = .string(
+            metrics[MetricKey.engagementUnavailable] = .string(
                 "the Buffer API key lacks insights access for some or all channels, so clicks, reach and likes were not collected")
         } else {
             metrics.merge(Self.engagementTotals(inWindow)) { _, new in new }
         }
 
         if truncated {
-            metrics["posts_sampled"] = .string(
+            metrics[MetricKey.postsSampled] = .string(
                 "stopped reading after \(Self.maxPages * Self.pageSize) posts — the sent or queued counts may be higher")
         }
 
@@ -171,7 +171,7 @@ struct BufferCollector: Collector {
             let name = names[channelID]
                 ?? inWindow.first { $0.channelId == channelID }.map { Channel.capitalised($0.channelService) }
                 ?? "Unknown channel"
-            metrics["top_profile_\(i + 1)"] = .string("\(name) (\(count) posts)")
+            metrics[MetricKey.topProfile(i + 1)] = .string("\(name) (\(count) posts)")
         }
 
         return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)
@@ -188,10 +188,13 @@ struct BufferCollector: Collector {
     /// present with a defaulted 0 because the network did not report it.
     /// Telling those apart needs live data from a key with insights access.
     static func engagementTotals(_ posts: [SentPost]) -> [String: MetricValue] {
+        // Our key on the left, Buffer's `PostMetricType` on the right. The
+        // right-hand side is their vocabulary and stays literal, even where it
+        // coincides with one of ours.
         let mapping: [(key: String, type: String)] = [
-            ("total_clicks", "clicks"),
-            ("total_reach",  "reach"),
-            ("total_likes",  "reactions")
+            (MetricKey.totalClicks, "clicks"),
+            (MetricKey.totalReach,  "reach"),
+            (MetricKey.totalLikes,  "reactions")
         ]
         var totals: [String: MetricValue] = [:]
         for (key, type) in mapping {

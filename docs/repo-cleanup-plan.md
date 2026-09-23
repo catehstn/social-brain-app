@@ -156,7 +156,11 @@ Milestones created and populated:
 
 - #58 P2 — Make test isolation structural rather than order-dependent
 - #59 P2 — CI and project-file housekeeping
-- #60 P2 — Decide what to do with SetupURLTests (it has never passed)
+- ~~#60 P2 — Decide what to do with SetupURLTests~~ — settled: kept. All nine
+  URLs answer on a normal network (2026-09-22), and being opt-in is what makes
+  a vendor's bot protection harmless. What needed fixing was that its list is a
+  second copy of the URLs in the credential sheet and the setup guide, now
+  guarded by `SetupURLCoverageTests`. Deriving them from one declaration is #97.
 
 **M2 — Design pass** *(the five screens, rebuilt from the brief)*
 - #38–#42 P1 — Design pass: Feed, Run, Platforms, Dashboard, Onboarding
@@ -228,7 +232,10 @@ Six branches remain besides `main`, all deliberately:
   CI on the runner default (16.4) is the stricter check, and it caught the
   ISO8601 fractional-seconds bug that would have failed against live APIs. See
   CLAUDE.md's CI section.
-- **Whether `SetupURLTests` is worth keeping** (issue #60) — it has never passed.
+- ~~**Whether `SetupURLTests` is worth keeping** (issue #60)~~ — settled: kept.
+  It passes against the live web, and it is opt-in, so a vendor adding bot
+  protection cannot redden CI. The drift between its list and the two places
+  that declare setup URLs is what mattered; a source-grep test now catches it.
 - **Mentions synthesis** (issue #61) — the brief no longer promises it, because
   the code has never had it and #123 cut the line. What is left is the actual
   question: do we want one? Settle before M2 starts.
