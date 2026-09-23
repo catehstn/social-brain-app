@@ -57,6 +57,7 @@
 		9B9A9B4F859FCE312A21B19E /* FeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFF6DD23BAF88CD6436309C4 /* FeedView.swift */; };
 		945AD598EC52AA09AF56366D /* FeedViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1692A0E6ABD9BB6C437B0BF /* FeedViewModel.swift */; };
 		5A3BC438A6E27326D77E94DA /* FeedViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E3F715FA10EB4303470093 /* FeedViewModelTests.swift */; };
+		D24CF92F4284EF62951D3318 /* HistoryViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16FFA9B095681D002CCA71DD /* HistoryViewModelTests.swift */; };
 		D217FD4C0CAE4ECFBBA0872C /* FixtureRedactionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E6758D8D65A4551938765BC /* FixtureRedactionTests.swift */; };
 		671A13C339113B6931F39DCA /* GoalBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E51178C97A9FDB0FAB33FDA /* GoalBadgeView.swift */; };
 		9495992C98E7C36CE6A1EBC6 /* GoatCounterCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07E6CC0A277E7F1ADDBE207F /* GoatCounterCollector.swift */; };
@@ -161,7 +162,6 @@
 		547445EE2C995915742EAA66 /* SidebarItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA311F586CAE425D2F001776 /* SidebarItem.swift */; };
 		201DD632FD1D2D7811D799F0 /* SidebarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 623DE38C88FED64C2371FD12 /* SidebarTests.swift */; };
 		447B075F2FC34BAC77627E6F /* SocialBrainApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC44EC6EF398FFC22CB3058 /* SocialBrainApp.swift */; };
-		A34D99688ABEC06792FD7CDD /* SocialBrainTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F38A28EA239666AB10ACAEA3 /* SocialBrainTests.swift */; };
 		75539B434DACB5C3EF7CD801 /* SocialBrainUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB1A2B948DCADD6C6E537C09 /* SocialBrainUITests.swift */; };
 		AAB8502F1F7DC7636BBA245E /* SpikeDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209D38A7438EFED51026AFD6 /* SpikeDetector.swift */; };
 		03E57B365A3F826FDCAB8124 /* SpikeDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC45E6B188F3C9F6832156DD /* SpikeDetectorTests.swift */; };
@@ -234,6 +234,7 @@
 		DFF6DD23BAF88CD6436309C4 /* FeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedView.swift; sourceTree = "<group>"; };
 		D1692A0E6ABD9BB6C437B0BF /* FeedViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedViewModel.swift; sourceTree = "<group>"; };
 		51E3F715FA10EB4303470093 /* FeedViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedViewModelTests.swift; sourceTree = "<group>"; };
+		16FFA9B095681D002CCA71DD /* HistoryViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViewModelTests.swift; sourceTree = "<group>"; };
 		7E6758D8D65A4551938765BC /* FixtureRedactionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureRedactionTests.swift; sourceTree = "<group>"; };
 		1E51178C97A9FDB0FAB33FDA /* GoalBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalBadgeView.swift; sourceTree = "<group>"; };
 		07E6CC0A277E7F1ADDBE207F /* GoatCounterCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoatCounterCollector.swift; sourceTree = "<group>"; };
@@ -322,7 +323,6 @@
 		6CC44EC6EF398FFC22CB3058 /* SocialBrainApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialBrainApp.swift; sourceTree = "<group>"; };
 		AD67F6AB611F44A6B2DFB393 /* SocialBrainMCP */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = SocialBrainMCP; sourceTree = BUILT_PRODUCTS_DIR; };
 		3F93E5BF61C64447A11DB9FA /* SocialBrainMCPTests.xctest */ = {isa = PBXFileReference; explicitFileType = "wrapper.cfbundle"; includeInIndex = 0; path = SocialBrainMCPTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		F38A28EA239666AB10ACAEA3 /* SocialBrainTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialBrainTests.swift; sourceTree = "<group>"; };
 		A138063E53201FBC6A3C363C /* SocialBrainTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SocialBrainTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		AB1A2B948DCADD6C6E537C09 /* SocialBrainUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SocialBrainUITests.swift; sourceTree = "<group>"; };
 		EFD080AC051AC0A2A45C4782 /* SocialBrainUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SocialBrainUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -583,6 +583,7 @@
 				B015A26946841A23B6953364 /* FeedCardViewModelTests.swift */,
 				E83BC22CE0C5C53010A28382 /* FeedDatabaseTests.swift */,
 				51E3F715FA10EB4303470093 /* FeedViewModelTests.swift */,
+				16FFA9B095681D002CCA71DD /* HistoryViewModelTests.swift */,
 				F47A8E8E119F792F87DE78BB /* GoatCounterCollectorTests.swift */,
 				DA65B5FD9D46492280A38AFD /* HackerNewsCollectorTests.swift */,
 				C9BEBD8246564F5D8A48E556 /* BufferCollectorTests.swift */,
@@ -608,7 +609,6 @@
 				0036309E5766E343407C85AF /* PromptAssemblerTests.swift */,
 				4F7810A270CE8C2B6617FE4E /* SetupURLTests.swift */,
 				623DE38C88FED64C2371FD12 /* SidebarTests.swift */,
-				F38A28EA239666AB10ACAEA3 /* SocialBrainTests.swift */,
 				FC45E6B188F3C9F6832156DD /* SpikeDetectorTests.swift */,
 				387E3CA89E67464486E85CCC /* SpikeNotifierTests.swift */,
 				1795729F69DD454EBD2ECDFC /* RateParsingTests.swift */,
@@ -934,6 +934,7 @@
 				D6B785811F506594D8C129D6 /* FeedCardViewModelTests.swift in Sources */,
 				C740E7026EB2B18252077290 /* FeedDatabaseTests.swift in Sources */,
 				5A3BC438A6E27326D77E94DA /* FeedViewModelTests.swift in Sources */,
+				D24CF92F4284EF62951D3318 /* HistoryViewModelTests.swift in Sources */,
 				407889F33573100C2D412A63 /* GoatCounterCollectorTests.swift in Sources */,
 				4A501089521D41A593813A47 /* HackerNewsCollectorTests.swift in Sources */,
 				EC8225949ED847DEAAC013C6 /* BufferCollectorTests.swift in Sources */,
@@ -962,7 +963,6 @@
 				D49FB081330A71807BE4D981 /* PromptAssemblerTests.swift in Sources */,
 				B610EEBF361401A69ADD881F /* SetupURLTests.swift in Sources */,
 				201DD632FD1D2D7811D799F0 /* SidebarTests.swift in Sources */,
-				A34D99688ABEC06792FD7CDD /* SocialBrainTests.swift in Sources */,
 				03E57B365A3F826FDCAB8124 /* SpikeDetectorTests.swift in Sources */,
 				422D0B9930444F0D866F235D /* SpikeNotifierTests.swift in Sources */,
 				FE2D827788724FA9A4768B92 /* RateParsingTests.swift in Sources */,
