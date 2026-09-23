@@ -50,8 +50,12 @@ struct LinkedInImporter {
 
         let header = rows[0].map { $0.lowercased().trimmingCharacters(in: .whitespaces) }
 
-        // Require at least an impressions column to consider this a LinkedIn share stats file.
-        guard header.contains(MetricKey.impressions) else { throw ImportError.unrecognisedFormat }
+        // Literals, not `MetricKey`: these are LinkedIn's CSV column headers.
+        // They happen to read like two of Search Console's keys, and LinkedIn
+        // emits neither — it writes `total_impressions` and `avg_ctr`. Binding
+        // a header to another platform's constant means renaming that constant
+        // stops this importer recognising its own file, with nothing to say so.
+        guard header.contains("impressions") else { throw ImportError.unrecognisedFormat }
 
         let col = columnIndex(header)
         let dataRows = Array(rows.dropFirst()).filter { !$0.allSatisfy(\.isEmpty) }
@@ -65,8 +69,8 @@ struct LinkedInImporter {
         var ctrs: [Double]   = []
 
         for row in dataRows {
-            if let v = intValue(row[safe: col(MetricKey.impressions)])  { totalImpressions += v }
-            if let v = intValue(row[safe: col(MetricKey.clicks)])       { totalClicks      += v }
+            if let v = intValue(row[safe: col("impressions")])  { totalImpressions += v }
+            if let v = intValue(row[safe: col("clicks")])       { totalClicks      += v }
             if let v = intValue(row[safe: col("likes")])        { totalLikes       += v }
             if let v = intValue(row[safe: col("comments")])     { totalComments    += v }
             if let v = intValue(row[safe: col("shares")])       { totalShares      += v }
@@ -134,7 +138,7 @@ struct LinkedInImporter {
         // Percentage-valued headers first, then fraction-valued, then unknown.
         if let i = col("ctr (%)") { return (i, true) }
         if let i = col("click through rate (ctr)") { return (i, false) }
-        if let i = col(MetricKey.ctr) { return (i, false) }
+        if let i = col("ctr") { return (i, false) }
         return nil
     }
 

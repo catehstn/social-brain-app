@@ -258,6 +258,11 @@ struct MetricKeyOrphanTests {
 /// renaming the constant then moves the collector and leaves that reader
 /// asking for a key nobody writes, which is #114, #163 and #170.
 ///
+/// **Tests keep their literals on purpose.** `emitted` above, and the
+/// assertions in the collector suites, are the independent end: written
+/// through the same constants they would agree with a changed value rather
+/// than catch it. A sweep that "fixes" them removes the check.
+///
 /// Source-grepped rather than type-enforced. Making the dictionary key a type
 /// would carry into the JSON blob in `platformSnapshot.metrics` and every row
 /// already stored; that is a migration, not a rename. So the keys stay
@@ -277,13 +282,29 @@ struct MetricKeyLiteralTests {
         #"stringMetric\(\s*""#,
         #"metricDouble\(\s*""#,
         #"metricString\(\s*""#,
-        #"metrics\[\s*""#,
+        // Any dictionary, not one called `metrics`: collectors accumulate into
+        // `totals` and friends too.
+        #"\w*\[\s*"[a-z][a-z_0-9]+"\s*\]\s*=\s*\.(int|double|string)\("#,
         // A collector usually builds a dictionary literal rather than
         // assigning into one, so the key sits against a `MetricValue` case.
         #""[a-z][a-z_0-9]+"\s*:\s*\.(int|double|string)\("#,
-        #"Monitored\(key:\s*""#,
-        #"MetricSeries\(.*key:\s*""#,
-        #"\(key:\s*"[a-z_0-9]+",\s*label:"#
+        #"Monitored\(key:\s*""#
+    ]
+
+    /// Patterns that only make sense in one file.
+    ///
+    /// `DashboardViewModel.metricKeys` returns bare `(key, label)` tuples —
+    /// the largest consumer, and a shape the patterns above cannot see: all 24
+    /// of its sites could have been reverted to literals with the suite still
+    /// green.
+    ///
+    /// Scoped by file rather than matched everywhere, because a bare pair of
+    /// strings is far too common to flag globally — OAuth form fields are
+    /// written `("client_name", "Social Brain")`, and a detector that shouts
+    /// about those is one somebody turns off. A consumer that adopts the tuple
+    /// shape needs adding here.
+    private static let perFilePatterns = [
+        "DashboardViewModel.swift": [#"\(\s*"[a-z][a-z_0-9]+"\s*,\s*""#]
     ]
 
     @Test("No metric key is written as a literal outside MetricKey.swift")
@@ -308,7 +329,9 @@ struct MetricKeyLiteralTests {
                 for (number, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
                     let trimmed = line.trimmingCharacters(in: .whitespaces)
                     if trimmed.hasPrefix("//") { continue }
-                    for pattern in Self.patterns where trimmed.range(of: pattern, options: .regularExpression) != nil {
+                    let patterns = Self.patterns
+                        + (Self.perFilePatterns[file.lastPathComponent] ?? [])
+                    for pattern in patterns where trimmed.range(of: pattern, options: .regularExpression) != nil {
                         offenders.append("\(file.lastPathComponent):\(number + 1): \(trimmed)")
                     }
                 }

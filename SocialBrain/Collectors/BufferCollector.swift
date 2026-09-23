@@ -188,8 +188,11 @@ struct BufferCollector: Collector {
     /// present with a defaulted 0 because the network did not report it.
     /// Telling those apart needs live data from a key with insights access.
     static func engagementTotals(_ posts: [SentPost]) -> [String: MetricValue] {
+        // Our key on the left, Buffer's `PostMetricType` on the right. The
+        // right-hand side is their vocabulary and stays literal, even where it
+        // coincides with one of ours.
         let mapping: [(key: String, type: String)] = [
-            (MetricKey.totalClicks, MetricKey.clicks),
+            (MetricKey.totalClicks, "clicks"),
             (MetricKey.totalReach,  "reach"),
             (MetricKey.totalLikes,  "reactions")
         ]

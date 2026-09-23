@@ -224,8 +224,16 @@ app, and a documented test command that silently skipped and exited 0.
 
 **Every metric key is declared in `SocialBrain/Models/MetricKey.swift`**, and
 `MetricKeyLiteralTests` fails on a metric-shaped literal anywhere else in
-`SocialBrain/` or `SocialBrainMCP/` — in an accessor, a dictionary literal, a
-`Monitored` or a `MetricSeries`. Spelled at both ends, a rename moved one end
+`SocialBrain/` or `SocialBrainMCP/` — in an accessor, a dictionary literal or
+assignment, a `Monitored`, or one of `DashboardViewModel`'s `(key, label)`
+tuples. That last shape is matched **only in that file**: a bare pair of
+strings is too common to flag globally, and an OAuth form field looks
+identical.
+
+**A platform's own vocabulary stays a literal**, even where it coincides with
+ours: LinkedIn's CSV headers (`impressions`, `clicks`, `ctr`) and Buffer's
+`PostMetricType` values are theirs to rename, and binding them to our
+constants means renaming ours breaks an importer with nothing to say so. Spelled at both ends, a rename moved one end
 and left the other reading a key nobody writes: the import succeeded and the
 platform contributed nothing to the prompt, the charts, the Feed or spike
 detection, three times over (#114, #163, #170).
