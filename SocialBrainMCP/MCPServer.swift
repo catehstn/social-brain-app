@@ -3,10 +3,16 @@ import Foundation
 // MARK: - SnapshotStore protocol (injectable for tests)
 
 /// The subset of database operations the MCP server needs.
+/// Keyed by `PlatformInstance`, not `Platform`.
+///
+/// Two Mastodon accounts or two Buttondown newsletters are ordinary here
+/// (#29), and keying by platform collapsed them to whichever row won — so
+/// `list_platforms` showed one, `get_all_snapshots` reported one, and
+/// `generate_prompt` could never render an instance label because a label is
+/// only shown when a platform has more than one instance (#174, #183).
 protocol SnapshotStore: Sendable {
-    func latestSnapshot(for platform: Platform) throws -> PlatformSnapshot?
-    func snapshots(for platform: Platform, from: Date, to: Date) throws -> [PlatformSnapshot]
-    func latestSnapshots() throws -> [Platform: PlatformSnapshot]
+    func snapshots(for instance: PlatformInstance, from: Date, to: Date) throws -> [PlatformSnapshot]
+    func latestSnapshots() throws -> [PlatformInstance: PlatformSnapshot]
 }
 
 // MARK: - JSON-RPC types
@@ -123,27 +129,42 @@ struct AnyCodable: Codable {
 /// responses to stdout.  Each line must be a complete JSON object.
 actor MCPServer {
 
-    private let store: any SnapshotStore
+    private let openStore: @Sendable () throws -> any SnapshotStore
+    private var opened: (any SnapshotStore)?
     private let labels: InstanceLabels
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
-    /// No default store: constructing one can fail, and a default argument
-    /// cannot throw. `main.swift` builds it and reports the failure.
+    /// The store is opened on first use, not at startup.
+    ///
+    /// Opening it can fail — the app creates the database on its first
+    /// collection, so anyone who sets this server up from the README hits that
+    /// before they have run one. Failing at startup meant the process exited,
+    /// which Claude shows as "server disconnected", with the explanation only
+    /// in `~/Library/Logs/Claude/mcp-server-*.log` where nobody looks (#174).
+    /// Opened lazily, the same failure comes back as the answer to whatever
+    /// was asked — and the server starts working the moment the app writes the
+    /// file, with no restart.
     ///
     /// `labels` has no default either. It used to be `InstanceLabels.shared`,
     /// which reads `UserDefaults.standard` — this tool's own domain, not the
     /// app's, so prompts never carried a label the user had set (#183).
     /// `main.swift` passes the app's preferences.
     ///
-    /// That fix is **necessary but not yet sufficient**: a label is rendered
-    /// only for a platform with several instances, and `latestSnapshots()` is
-    /// keyed by `Platform`, so this server cannot present two instances of one
-    /// platform at all (#174). Until that lands, no label reaches a prompt
-    /// from here, whatever store is passed.
-    init(store: any SnapshotStore, labels: InstanceLabels) {
-        self.store = store
+    init(store: @escaping @Sendable () throws -> any SnapshotStore, labels: InstanceLabels) {
+        self.openStore = store
         self.labels = labels
+    }
+
+    /// The store, opened once and kept.
+    ///
+    /// A failure is not cached: the usual cause is a database that does not
+    /// exist yet, and it may exist by the next question.
+    private func store() throws -> any SnapshotStore {
+        if let opened { return opened }
+        let store = try openStore()
+        opened = store
+        return store
     }
 
     func run() async {
@@ -230,7 +251,7 @@ actor MCPServer {
         let tools: [[String: Any]] = [
             [
                 "name": "list_platforms",
-                "description": "Returns the list of platforms that have analytics data stored in the local database.",
+                "description": "Returns every platform instance that has analytics data stored in the local database — each account or newsletter separately, under the label the app stored for it.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [:] as [String: Any],
@@ -239,13 +260,17 @@ actor MCPServer {
             ],
             [
                 "name": "get_latest_snapshot",
-                "description": "Returns the most recent analytics metrics for a single platform.",
+                "description": "Returns the most recent analytics metrics for one platform instance.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
                         "platform": [
                             "type": "string",
                             "description": "Platform identifier (e.g. 'mastodon', 'bluesky', 'buttondown'). Use list_platforms to discover available platforms."
+                        ] as [String: Any],
+                        "instance": [
+                            "type": "string",
+                            "description": "Which instance of that platform, when there is more than one (e.g. a second Mastodon account). Omit when the platform has only one; list_platforms names them."
                         ] as [String: Any]
                     ] as [String: Any],
                     "required": ["platform"]
@@ -253,7 +278,7 @@ actor MCPServer {
             ],
             [
                 "name": "get_all_snapshots",
-                "description": "Returns the most recent analytics metrics for every platform that has data.",
+                "description": "Returns the most recent analytics metrics for every instance that has data.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [:] as [String: Any],
@@ -262,13 +287,17 @@ actor MCPServer {
             ],
             [
                 "name": "get_history",
-                "description": "Returns historical analytics snapshots for a platform within a date range.",
+                "description": "Returns historical analytics snapshots for one platform instance within a date range.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
                         "platform": [
                             "type": "string",
                             "description": "Platform identifier."
+                        ] as [String: Any],
+                        "instance": [
+                            "type": "string",
+                            "description": "Which instance of that platform, when there is more than one. Omit when the platform has only one."
                         ] as [String: Any],
                         "days": [
                             "type": "integer",
@@ -280,7 +309,7 @@ actor MCPServer {
             ],
             [
                 "name": "generate_prompt",
-                "description": "Assembles and returns a structured analytics prompt using the most recent snapshot for every platform. Pass the result to Claude for analysis.",
+                "description": "Assembles and returns a structured analytics prompt using the most recent snapshot for every instance. Pass the result to Claude for analysis.",
                 "inputSchema": [
                     "type": "object",
                     "properties": [
@@ -317,7 +346,8 @@ actor MCPServer {
                 guard let platform = args["platform"] as? String else {
                     return JSONRPCResponse(id: id, error: JSONRPCError(code: -32602, message: "Missing 'platform' argument"))
                 }
-                content = try toolGetLatestSnapshot(platform: platform)
+                content = try toolGetLatestSnapshot(platform: platform,
+                                                    instance: args["instance"] as? String)
             case "get_all_snapshots":
                 content = try toolGetAllSnapshots()
             case "get_history":
@@ -325,7 +355,9 @@ actor MCPServer {
                     return JSONRPCResponse(id: id, error: JSONRPCError(code: -32602, message: "Missing 'platform' argument"))
                 }
                 let days = args["days"] as? Int ?? 30
-                content = try toolGetHistory(platform: platform, days: days)
+                content = try toolGetHistory(platform: platform,
+                                             instance: args["instance"] as? String,
+                                             days: days)
             case "generate_prompt":
                 let periodLabel = args["period_label"] as? String ?? "Latest"
                 let days = args["days"] as? Int
@@ -354,52 +386,123 @@ actor MCPServer {
     // MARK: - Tool implementations
 
     private func toolListPlatforms() throws -> Any {
-        let snapshots = try store.latestSnapshots()
+        let snapshots = try store().latestSnapshots()
         if snapshots.isEmpty {
             return "No platforms have data yet. Run a collection in the Social Brain app first."
         }
-        let lines = snapshots.map { (platform, snapshot) in
-            "\(platform.displayName) (\(platform.rawValue)) — last collected \(isoDate(snapshot.collectedAt))"
+        // One line per instance, named by the label the app stored for it.
+        // Keyed by platform, two Mastodon accounts appeared as one (#174).
+        let lines = snapshots.map { (instance, snapshot) in
+            var line = "\(instance.displayName(using: labels)) (\(instance.platform.rawValue)"
+            if instance.instanceName != "default" {
+                line += ", instance: \(instance.instanceName)"
+            }
+            return line + ") — last collected \(isoDate(snapshot.collectedAt))"
         }.sorted()
         return lines.joined(separator: "\n")
     }
 
-    private func toolGetLatestSnapshot(platform platformRaw: String) throws -> Any {
+    /// Which instance a platform-level request means.
+    ///
+    /// Asking for "mastodon" is unambiguous until a second account exists, and
+    /// then silently answering for one of them is the bug this issue is about.
+    /// So: name it if you know it, and otherwise be told what the choices are.
+    /// The outcome of naming an instance: the instance, or what to tell the
+    /// caller. `Result` needs an `Error`, and "you have two Mastodon accounts"
+    /// is an answer rather than a failure.
+    private enum InstanceLookup {
+        case found(PlatformInstance)
+        case explain(String)
+    }
+
+    private func resolveInstance(
+        platform: Platform, requested: String?, among known: [PlatformInstance]
+    ) -> InstanceLookup {
+        let instances = known.filter { $0.platform == platform }
+        if let requested {
+            let match = instances.first { $0.instanceName == requested }
+            guard let match else {
+                let names = instances.map(\.instanceName).sorted()
+                return .explain(names.isEmpty
+                    ? "No data for \(platform.displayName). Run a collection in the Social Brain app first."
+                    : "No instance '\(requested)' for \(platform.displayName). Known: \(names.joined(separator: ", ")).")
+            }
+            return .found(match)
+        }
+        switch instances.count {
+        case 0:
+            return .explain("No data for \(platform.displayName). Run a collection in the Social Brain app first.")
+        case 1:
+            // `first`, not `[0]`: a subscript here would trap rather than fail.
+            guard let only = instances.first else {
+                return .explain("No data for \(platform.displayName).")
+            }
+            return .found(only)
+        default:
+            let names = instances.map(\.instanceName).sorted()
+            return .explain("""
+                \(platform.displayName) has \(instances.count) instances: \(names.joined(separator: ", ")). \
+                Pass `instance` to choose one.
+                """)
+        }
+    }
+
+    private func toolGetLatestSnapshot(platform platformRaw: String, instance instanceRaw: String?) throws -> Any {
         guard let platform = Platform(rawValue: platformRaw) else {
             return "Unknown platform '\(platformRaw)'. Use list_platforms to see available platforms."
         }
-        guard let snapshot = try store.latestSnapshot(for: platform) else {
-            return "No data for \(platform.displayName). Run a collection in the Social Brain app first."
+        // One query: `resolveInstance` only returns an instance that appears
+        // in this dictionary, so the snapshot is already in hand. Fetching it
+        // again would add a query and an unreachable `else`.
+        let latest = try store().latestSnapshots()
+        switch resolveInstance(platform: platform, requested: instanceRaw, among: Array(latest.keys)) {
+        case .explain(let message):
+            return message
+        case .found(let instance):
+            guard let snapshot = latest[instance] else {
+                return "No data for \(instance.displayName(using: labels)). Run a collection in the Social Brain app first."
+            }
+            let metrics = try snapshot.decodedMetrics()
+            return formatSnapshot(instance: instance, collectedAt: snapshot.collectedAt, metrics: metrics)
         }
-        let metrics = try snapshot.decodedMetrics()
-        return formatSnapshot(platform: platform, collectedAt: snapshot.collectedAt, metrics: metrics)
     }
 
     private func toolGetAllSnapshots() throws -> Any {
-        let snapshots = try store.latestSnapshots()
+        let snapshots = try store().latestSnapshots()
         if snapshots.isEmpty {
             return "No platforms have data yet. Run a collection in the Social Brain app first."
         }
         var lines: [String] = []
-        for platform in Platform.allCases {
-            guard let snapshot = snapshots[platform] else { continue }
+        // Every instance, ordered by what the user calls it. This iterated
+        // `Platform.allCases` and showed one snapshot per platform (#174).
+        for instance in snapshots.keys.sorted(by: {
+            $0.displayName(using: labels) < $1.displayName(using: labels)
+        }) {
+            guard let snapshot = snapshots[instance] else { continue }
             let metrics = try snapshot.decodedMetrics()
-            lines.append(formatSnapshot(platform: platform, collectedAt: snapshot.collectedAt, metrics: metrics))
+            lines.append(formatSnapshot(instance: instance, collectedAt: snapshot.collectedAt, metrics: metrics))
             lines.append("")
         }
         return lines.joined(separator: "\n")
     }
 
-    private func toolGetHistory(platform platformRaw: String, days: Int) throws -> Any {
+    private func toolGetHistory(platform platformRaw: String, instance instanceRaw: String?, days: Int) throws -> Any {
         guard let platform = Platform(rawValue: platformRaw) else {
             return "Unknown platform '\(platformRaw)'. Use list_platforms to see available platforms."
         }
-        let from = Calendar.current.date(byAdding: .day, value: -days, to: .now) ?? .distantPast
-        let history = try store.snapshots(for: platform, from: from, to: .now)
-        if history.isEmpty {
-            return "No history for \(platform.displayName) in the last \(days) days."
+        let known = Array(try store().latestSnapshots().keys)
+        let instance: PlatformInstance
+        switch resolveInstance(platform: platform, requested: instanceRaw, among: known) {
+        case .explain(let message): return message
+        case .found(let resolved): instance = resolved
         }
-        var lines: [String] = ["\(platform.displayName) — \(days)-day history (\(history.count) snapshots)"]
+        let name = instance.displayName(using: labels)
+        let from = Calendar.current.date(byAdding: .day, value: -days, to: .now) ?? .distantPast
+        let history = try store().snapshots(for: instance, from: from, to: .now)
+        if history.isEmpty {
+            return "No history for \(name) in the last \(days) days."
+        }
+        var lines: [String] = ["\(name) — \(days)-day history (\(history.count) snapshots)"]
         for snapshot in history {
             let metrics = try snapshot.decodedMetrics()
             let row = metrics.sorted(by: { $0.key < $1.key })
@@ -411,7 +514,7 @@ actor MCPServer {
     }
 
     private func toolGeneratePrompt(periodLabel: String, days: Int?) throws -> Any {
-        let allSnapshots = try store.latestSnapshots()
+        let allSnapshots = try store().latestSnapshots()
         if allSnapshots.isEmpty {
             return "No platforms have data yet. Run a collection in the Social Brain app first."
         }
@@ -424,10 +527,8 @@ actor MCPServer {
         // [PlatformData] until #47: the target had never compiled, so the app
         // changed the signature underneath it and nothing said so.
         var snapshotsByInstance: [PlatformInstance: PlatformSnapshot] = [:]
-        for (platform, snapshot) in allSnapshots {
+        for (instance, snapshot) in allSnapshots {
             if let cutoff, snapshot.collectedAt < cutoff { continue }
-            let instance = PlatformInstance(platform: platform,
-                                            instanceName: snapshot.instanceName)
             snapshotsByInstance[instance] = snapshot
         }
 
@@ -447,11 +548,11 @@ actor MCPServer {
     // MARK: - Formatting helpers
 
     private func formatSnapshot(
-        platform: Platform,
+        instance: PlatformInstance,
         collectedAt: Date,
         metrics: [String: MetricValue]
     ) -> String {
-        var lines = ["## \(platform.displayName) — \(isoDate(collectedAt))"]
+        var lines = ["## \(instance.displayName(using: labels)) — \(isoDate(collectedAt))"]
         for (key, value) in metrics.sorted(by: { $0.key < $1.key }) {
             lines.append("  \(key): \(metricString(value))")
         }

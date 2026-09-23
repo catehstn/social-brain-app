@@ -135,7 +135,8 @@ app, and a documented test command that silently skipped and exited 0.
   `MCPServer` was on this list until #183: it is an unsandboxed tool, so
   `UserDefaults.standard` is its own domain and `.shared` could not see the
   app's labels at all. It reads the app's container plist instead
-  (`AppPreferences`). Views are not under
+  (`AppPreferences`), and since #174 keeps instances apart, those labels now
+  reach a prompt. Views are not under
   test, so most of this is tolerated rather than wrong; `PlatformInstance` is
   not a view, which is why `displayName` has a `using:` form and tests must
   call it.

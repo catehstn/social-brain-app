@@ -179,6 +179,15 @@ Context Protocol, so you can ask about your own numbers directly. Tools:
 `list_platforms`, `get_latest_snapshot`, `get_all_snapshots`, `get_history` and
 `generate_prompt`.
 
+Everything is per **instance**, not per platform: two Mastodon accounts or two
+newsletters appear separately, under the labels the app stored for them. The
+tools that take a platform also take an optional `instance`; asked without one
+where there are several, they say which exist rather than picking.
+
+The database is opened on the first question. If the app has never run a
+collection, the tools say so in the conversation instead of the server failing
+to start.
+
 Build it:
 
 ```sh
