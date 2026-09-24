@@ -188,26 +188,26 @@ struct SpikeDetector: Sendable {
     static func monitored(for platform: Platform) -> [Monitored] {
         switch platform {
         case .mastodon:
-            return [Monitored(key: "followers_count", label: "Followers"),
-                    Monitored(key: "avg_favourites", label: "Avg Favourites", floor: averageFloor),
-                    Monitored(key: "avg_reblogs", label: "Avg Reblogs", floor: averageFloor)]
+            return [Monitored(key: MetricKey.followersCount, label: "Followers"),
+                    Monitored(key: MetricKey.avgFavourites, label: "Avg Favourites", floor: averageFloor),
+                    Monitored(key: MetricKey.avgReblogs, label: "Avg Reblogs", floor: averageFloor)]
         case .bluesky:
-            return [Monitored(key: "followers_count", label: "Followers"),
-                    Monitored(key: "avg_likes", label: "Avg Likes", floor: averageFloor),
-                    Monitored(key: "avg_reposts", label: "Avg Reposts", floor: averageFloor)]
+            return [Monitored(key: MetricKey.followersCount, label: "Followers"),
+                    Monitored(key: MetricKey.avgLikes, label: "Avg Likes", floor: averageFloor),
+                    Monitored(key: MetricKey.avgReposts, label: "Avg Reposts", floor: averageFloor)]
         case .buttondown:
-            return [Monitored(key: "subscriber_count", label: "Subscribers"),
-                    Monitored(key: "avg_open_rate", label: "Open Rate", floor: rateFloor),
-                    Monitored(key: "avg_click_rate", label: "Click Rate", floor: rateFloor)]
+            return [Monitored(key: MetricKey.subscriberCount, label: "Subscribers"),
+                    Monitored(key: MetricKey.avgOpenRate, label: "Open Rate", floor: rateFloor),
+                    Monitored(key: MetricKey.avgClickRate, label: "Click Rate", floor: rateFloor)]
         case .goatCounter:
-            return [Monitored(key: "total_visits", label: "Visits")]
+            return [Monitored(key: MetricKey.totalVisits, label: "Visits")]
         case .calendly:
-            return [Monitored(key: "events_count", label: "Events"),
-                    Monitored(key: "unique_invitees", label: "Invitees")]
+            return [Monitored(key: MetricKey.eventsCount, label: "Events"),
+                    Monitored(key: MetricKey.uniqueInvitees, label: "Invitees")]
         case .jetpack:
-            return [Monitored(key: "followers_blog", label: "Followers"),
-                    Monitored(key: "total_views", label: "Views"),
-                    Monitored(key: "total_visitors", label: "Visitors")]
+            return [Monitored(key: MetricKey.followersBlog, label: "Followers"),
+                    Monitored(key: MetricKey.totalViews, label: "Views"),
+                    Monitored(key: MetricKey.totalVisitors, label: "Visitors")]
         case .linkedin:
             // total_followers alongside the other two: spike alerts are the only
             // route by which a LinkedIn metric becomes a Feed card, and every
@@ -216,31 +216,31 @@ struct SpikeDetector: Sendable {
             // it LinkedIn follower growth produced no card while Jetpack's did.
             // total_likes never appears in an XLSX snapshot, so for that import
             // path total_followers is the only one of the three that fires.
-            return [Monitored(key: "total_impressions", label: "Impressions"),
-                    Monitored(key: "total_likes", label: "Likes"),
-                    Monitored(key: "total_followers", label: "Followers")]
+            return [Monitored(key: MetricKey.totalImpressions, label: "Impressions"),
+                    Monitored(key: MetricKey.totalLikes, label: "Likes"),
+                    Monitored(key: MetricKey.totalFollowers, label: "Followers")]
         case .oreilly:
-            return [Monitored(key: "total_page_views", label: "Page Views"),
-                    Monitored(key: "total_unique_users", label: "Unique Users")]
+            return [Monitored(key: MetricKey.totalPageViews, label: "Page Views"),
+                    Monitored(key: MetricKey.totalUniqueUsers, label: "Unique Users")]
         case .substack:
-            return [Monitored(key: "posts_published", label: "Posts Published"),
-                    Monitored(key: "avg_open_rate", label: "Avg Open Rate", floor: rateFloor)]
+            return [Monitored(key: MetricKey.postsPublished, label: "Posts Published"),
+                    Monitored(key: MetricKey.avgOpenRate, label: "Avg Open Rate", floor: rateFloor)]
         case .googleSearchConsole:
             // avg_position is a rank, so it gets no floor: small is the *best*
             // state, and a floor would mute exactly the good news (4 → 3) while
             // letting 60 → 45 through.
-            return [Monitored(key: "clicks", label: "Clicks"),
-                    Monitored(key: "impressions", label: "Impressions"),
-                    Monitored(key: "ctr", label: "CTR", floor: rateFloor),
-                    Monitored(key: "avg_position", label: "Avg Position",
+            return [Monitored(key: MetricKey.clicks, label: "Clicks"),
+                    Monitored(key: MetricKey.impressions, label: "Impressions"),
+                    Monitored(key: MetricKey.ctr, label: "CTR", floor: rateFloor),
+                    Monitored(key: MetricKey.avgPosition, label: "Avg Position",
                               rendering: .rank)]
         case .buffer:
-            return [Monitored(key: "sent_updates", label: "Sent Updates"),
-                    Monitored(key: "total_clicks", label: "Clicks"),
-                    Monitored(key: "total_reach", label: "Reach")]
+            return [Monitored(key: MetricKey.sentUpdates, label: "Sent Updates"),
+                    Monitored(key: MetricKey.totalClicks, label: "Clicks"),
+                    Monitored(key: MetricKey.totalReach, label: "Reach")]
         case .hackerNews:
-            return [Monitored(key: "mention_count", label: "Mentions"),
-                    Monitored(key: "total_points", label: "Points")]
+            return [Monitored(key: MetricKey.mentionCount, label: "Mentions"),
+                    Monitored(key: MetricKey.totalPoints, label: "Points")]
         }
     }
 }

@@ -131,8 +131,12 @@ app, and a documented test command that silently skipped and exited 0.
   own direct readers, not listed here): `PlatformCredentialSheet` and `PlatformDetailView`
   (`InstanceLabels.shared`, and the sheet's header through the bare `displayName`), `OnboardingView` (`AnalyticsGoalStore.shared`),
   `SocialBrainApp` (`PlatformVisibilityStore.shared.resetAll()`),
-  `PlatformInstance.displayName` (`displayName(using: .shared)`) and
-  `MCPServer` (`PromptAssembler(labels: .shared)` — #183). Views are not under
+  and `PlatformInstance.displayName` (`displayName(using: .shared)`).
+  `MCPServer` was on this list until #183: it is an unsandboxed tool, so
+  `UserDefaults.standard` is its own domain and `.shared` could not see the
+  app's labels at all. It reads the app's container plist instead
+  (`AppPreferences`), and since #174 keeps instances apart, those labels now
+  reach a prompt. Views are not under
   test, so most of this is tolerated rather than wrong; `PlatformInstance` is
   not a view, which is why `displayName` has a `using:` form and tests must
   call it.
@@ -148,18 +152,21 @@ app, and a documented test command that silently skipped and exited 0.
 
   **Nothing that reaches persistent state takes a production default.** That
   includes the initialisers of `PlatformsViewModel`, `RunViewModel`,
-  `DashboardViewModel`, `FeedViewModel`, `PromptAssembler`, `CollectionEngine`
-  and `SpikeNotifier`, `MastodonOAuth.authenticate`'s `registrations:`, and
-  three static functions: `FeedCardBuilder.build`, `CollectorRegistry.configured`
-  and `AppDelegate.runBackgroundRefresh`. The outermost production call sites
-  — views and the scheduler — pass `.shared` (or `SpikeNotifier.system`)
-  explicitly. The static functions are why "check the inits" is not enough
-  (#184). **One known exception**: `PlatformsViewModel.saveImport` reaches
-  `NotificationManager.shared` at call time to re-arm stale-export reminders.
-  `NotificationManager` has no seam to inject yet (#192); no test reaches it,
-  because the import path runs only from `NSOpenPanel`.
-  `PlatformsViewModel` says so in a comment recording the run where the suite destroyed real
-  credentials — and then grew `labels: InstanceLabels = .shared` anyway,
+  `DashboardViewModel`, `FeedViewModel`, `PromptAssembler`, `CollectionEngine`,
+  `SpikeNotifier` and `NotificationManager`, `MastodonOAuth.authenticate`'s
+  `registrations:`, and three static functions: `FeedCardBuilder.build`,
+  `CollectorRegistry.configured` and `AppDelegate.runBackgroundRefresh`. The
+  outermost production call sites — views and the scheduler — pass `.shared`
+  (or `SpikeNotifier.system`) explicitly. The static functions are why "check
+  the inits" is not enough (#184).
+
+  The last exception went in #192: `PlatformsViewModel.saveImport` reached
+  `NotificationManager.shared` at call time, so a test driving an import would
+  have scheduled a real reminder. `NotificationManager` takes a
+  `NotificationScheduling` now, which is also what gave it tests.
+
+  `PlatformsViewModel` carries a comment recording the run where the suite
+  destroyed real credentials — and then grew `labels: InstanceLabels = .shared` anyway,
   directly under that comment, in the branch that added the injection. Four
   tests silently held real preferences, and nothing exercised the parameter
   because the stub fetcher returned `nil`. It happened twice more in the same
@@ -213,7 +220,7 @@ app, and a documented test command that silently skipped and exited 0.
 | Change | Expected test |
 |---|---|
 | New collector | Mock `URLSession` (see `SocialBrainTests/TestSupport/MockURLSession.swift`, or `GraphQLMockSession.swift` beside it for a GraphQL API, where every query shares one URL): happy path, `since` filter, error propagation. **Also add its metric keys to `MetricKeyOrphanTests.emitted`** — see below |
-| New metric key on an existing collector | Add it to `MetricKeyOrphanTests.emitted`, and make some consumer read it |
+| New metric key on an existing collector | Declare it in `MetricKey` (never a literal), add it to `MetricKeyOrphanTests.emitted`, and make some consumer read it |
 | New database migration | Schema upgrade preserves existing rows |
 | New parser or file importer | Real fixture, plus malformed and empty input — these read untrusted files |
 | New model logic (detectors, prompt assembly, feed cards) | Unit test on the pure function |
@@ -222,11 +229,55 @@ app, and a documented test command that silently skipped and exited 0.
 | Refactor with no behaviour change | None required |
 | UI / view-layer change | UI test in `SocialBrainUITests/` if it changes a flow, not just appearance |
 
-**A metric nothing reads is a bug, and `MetricKeyOrphanTests` fails the build
-for it.** Keys are plain strings spread across five consumers, so a platform can
-be renamed into invisibility: the import succeeds and contributes nothing to the
-prompt, the charts, the Feed or spike detection. That has happened three times —
-#114, #163 and #170.
+**Every metric key is declared in `SocialBrain/Models/MetricKey.swift`**, and
+`MetricKeyLiteralTests` fails on a metric-shaped literal anywhere else in
+`SocialBrain/` or `SocialBrainMCP/` — in an accessor, a dictionary literal or
+assignment, a `Monitored`, or one of `DashboardViewModel`'s `(key, label)`
+tuples. That last shape is matched **only in that file**: a bare pair of
+strings is too common to flag globally, and an OAuth form field looks
+identical.
+
+**A platform's own vocabulary stays a literal**, even where it coincides with
+ours: LinkedIn's CSV headers (`impressions`, `clicks`, `ctr`) and Buffer's
+`PostMetricType` values are theirs to rename, and binding them to our
+constants means renaming ours breaks an importer with nothing to say so. Spelled at both ends, a rename moved one end
+and left the other reading a key nobody writes: the import succeeded and the
+platform contributed nothing to the prompt, the charts, the Feed or spike
+detection, three times over (#114, #163, #170).
+
+**The values are a wire format**, not just names: they are the keys inside the
+JSON blob in `platformSnapshot.metrics`, so every row ever collected holds the
+old spelling. Changing a constant's *value* orphans that history and no test
+can see it — the chart simply stops before today. Add a constant rather than
+rename one unless abandoning the history is the intent.
+
+The constants are `String`, not a key type, deliberately: a type would have to
+be encoded into that same blob, which is a migration rather than a rename.
+`MetricKeyLiteralTests` is what stands in for the type.
+
+**Every key also declares what it means**, in `MetricMeaning`: a concept
+(audience, views, engagement rate, open rate…), a unit (count, fraction, rank,
+text) and a scope (the period, or one item within it). `MetricMeaningTests`
+fails when a declared key has no meaning, or a meaning outlives its key.
+
+All three have to match before two metrics may be ranked or summed, and each
+line of that is a mistake someone has made: **unit**, because a count and a
+rate of one concept are not the same number; **scope**, because `avg_likes`
+(2.3 a post) and `total_likes` (1,400 a month) are both counts of reactions;
+**concept**, because the people you follow are not your audience, a cancelled
+meeting is already inside the booked count, and LinkedIn's `total_engagements`
+contains the likes you would be ranking it against.
+
+That exists because names are not enough. `avg_open_rate` and `engagement_rate`
+are both `Double` in 0–1, and the Feed ranked them against each other with
+`max`: a newsletter opens at 0.4–0.7 and a social account engages at 0.01–0.03,
+so the newsletter won every time and the card said nothing (#81). Two metrics
+are comparable only when concept **and** unit match — a count and a rate of one
+concept are not.
+
+**A metric nothing reads is still a bug, and `MetricKeyOrphanTests` fails the
+build for it.** Constants stop the two ends drifting apart; they do not make a
+key that nothing reads any more useful.
 
 It checks **one direction only**. A consumer reading a key that no collector
 emits is the mirror image, is not caught, and has also happened — #171.
@@ -237,7 +288,9 @@ LinkedIn is what emits it. "Is this key read anywhere?" is the wrong question.
 
 Its `emitted` table is hand-maintained, so **adding a key without adding it
 there makes it invisible to the detector** — the same shape as the bug. Hence
-the table rows above; #173 is about removing the need for them. An orphan you mean to keep goes in `knownOrphans` with an
+the table rows above; #173 is about removing the need for them. `MetricKey`
+does not solve it: the table says which *platform* emits what, and a shared
+constant carries no platform. An orphan you mean to keep goes in `knownOrphans` with an
 issue number; two further tests assert each listed orphan is still emitted and
 still unread, so the list shrinks rather than rots.
 

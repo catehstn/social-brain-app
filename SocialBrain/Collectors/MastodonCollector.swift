@@ -54,10 +54,10 @@ struct MastodonCollector: Collector {
         )
 
         var metrics: [String: MetricValue] = [
-            "followers_count": .int(account.followersCount),
-            "following_count": .int(account.followingCount),
-            "statuses_count":  .int(account.statusesCount),
-            "recent_posts":    .int(statuses.count)
+            MetricKey.followersCount: .int(account.followersCount),
+            MetricKey.followingCount: .int(account.followingCount),
+            MetricKey.statusesCount:  .int(account.statusesCount),
+            MetricKey.recentPosts:    .int(statuses.count)
         ]
 
         // Says so rather than presenting a truncated count as complete. The
@@ -70,7 +70,7 @@ struct MastodonCollector: Collector {
             // detectors for a single call site. The prompt is the consumer, and
             // a sentence is what it wants — `top_profile_1` sets the same
             // precedent.
-            metrics["posts_truncated"] =
+            metrics[MetricKey.postsTruncated] =
                 .string("stopped after \(Self.maximumPages * Self.pageSize) posts — the period holds more")
         }
 
@@ -79,9 +79,9 @@ struct MastodonCollector: Collector {
             let totalFavourites = statuses.map(\.favouritesCount).reduce(0, +)
             let totalReplies    = statuses.map(\.repliesCount).reduce(0, +)
             let n = Double(statuses.count)
-            metrics["avg_reblogs"]    = .double(Double(totalReblogs) / n)
-            metrics["avg_favourites"] = .double(Double(totalFavourites) / n)
-            metrics["avg_replies"]    = .double(Double(totalReplies) / n)
+            metrics[MetricKey.avgReblogs]    = .double(Double(totalReblogs) / n)
+            metrics[MetricKey.avgFavourites] = .double(Double(totalFavourites) / n)
+            metrics[MetricKey.avgReplies]    = .double(Double(totalReplies) / n)
         }
 
         return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)

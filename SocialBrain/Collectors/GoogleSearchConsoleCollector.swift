@@ -101,23 +101,23 @@ struct GoogleSearchConsoleCollector: Collector {
         var metrics: [String: MetricValue] = [:]
 
         if let row = totalsResp.rows?.first {
-            metrics["clicks"]       = .int(Int(row.clicks))
-            metrics["impressions"]  = .int(Int(row.impressions))
-            metrics["ctr"]          = .double(row.ctr)
-            metrics["avg_position"] = .double(row.position)
+            metrics[MetricKey.clicks]       = .int(Int(row.clicks))
+            metrics[MetricKey.impressions]  = .int(Int(row.impressions))
+            metrics[MetricKey.ctr]          = .double(row.ctr)
+            metrics[MetricKey.avgPosition] = .double(row.position)
         } else {
-            metrics["clicks"]       = .int(0)
-            metrics["impressions"]  = .int(0)
+            metrics[MetricKey.clicks]       = .int(0)
+            metrics[MetricKey.impressions]  = .int(0)
         }
 
         for (i, row) in (queriesResp.rows ?? []).prefix(5).enumerated() {
             let query = row.keys.first ?? "(unknown)"
-            metrics["top_query_\(i + 1)"] = .string("\(query) (\(Int(row.clicks)) clicks)")
+            metrics[MetricKey.topQuery(i + 1)] = .string("\(query) (\(Int(row.clicks)) clicks)")
         }
 
         for (i, row) in (pagesResp.rows ?? []).prefix(5).enumerated() {
             let page = row.keys.first.flatMap { URL(string: $0)?.path } ?? row.keys.first ?? "(unknown)"
-            metrics["top_page_\(i + 1)"] = .string("\(page) (\(Int(row.clicks)) clicks)")
+            metrics[MetricKey.topPage(i + 1)] = .string("\(page) (\(Int(row.clicks)) clicks)")
         }
 
         return PlatformData(platform: platform, instanceName: instanceName, metrics: metrics)

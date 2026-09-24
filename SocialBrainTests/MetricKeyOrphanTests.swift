@@ -64,6 +64,10 @@ struct MetricKeyOrphanTests {
         .substack: ["avg_click_rate", "avg_open_rate", "posts_published"]
     ]
 
+    /// Every emitted key, flattened — read by `MetricMeaningTests`, which
+    /// checks each one means something.
+    static var emittedForMeanings: Set<String> { emitted.values.reduce(into: []) { $0.formUnion($1) } }
+
     /// Emitted keys that nothing reads, each with the issue that owns it.
     ///
     /// Deliberately an allowlist: an orphan has to be written down, with a
@@ -247,4 +251,293 @@ struct MetricKeyOrphanTests {
         guard let family = numberedFamilies.first(where: { key.hasPrefix($0) }) else { return false }
         return read.contains { $0.hasPrefix(family) }
     }
+}
+
+// MARK: - Metric keys are spelled once (#63)
+
+/// Stops the keys drifting back into literals.
+///
+/// `MetricKey` is only worth having while both ends use it. One consumer
+/// written as `intMetric("total_clicks")` is enough to restore the old hazard:
+/// renaming the constant then moves the collector and leaves that reader
+/// asking for a key nobody writes, which is #114, #163 and #170.
+///
+/// **Tests keep their literals on purpose.** `emitted` above, and the
+/// assertions in the collector suites, are the independent end: written
+/// through the same constants they would agree with a changed value rather
+/// than catch it. A sweep that "fixes" them removes the check.
+///
+/// Source-grepped rather than type-enforced. Making the dictionary key a type
+/// would carry into the JSON blob in `platformSnapshot.metrics` and every row
+/// already stored; that is a migration, not a rename. So the keys stay
+/// `String` and this test is what keeps them spelled once.
+@Suite("Metric key literals")
+struct MetricKeyLiteralTests {
+
+    /// Where a metric key can be passed: the accessors, the dictionary, and
+    /// the two types that carry one.
+    ///
+    /// Deliberately not a bare `key:` — credentials are keyed by string too
+    /// (`invalidCredential(key: "site_url")`, `field(key: "api_key")`), and a
+    /// detector that cries about those gets switched off.
+    private static let patterns = [
+        #"intMetric\(\s*""#,
+        #"doubleMetric\(\s*""#,
+        #"stringMetric\(\s*""#,
+        #"metricDouble\(\s*""#,
+        #"metricString\(\s*""#,
+        // Any dictionary, not one called `metrics`: collectors accumulate into
+        // `totals` and friends too.
+        #"\w*\[\s*"[a-z][a-z_0-9]+"\s*\]\s*=\s*\.(int|double|string)\("#,
+        // A collector usually builds a dictionary literal rather than
+        // assigning into one, so the key sits against a `MetricValue` case.
+        #""[a-z][a-z_0-9]+"\s*:\s*\.(int|double|string)\("#,
+        #"Monitored\(key:\s*""#
+    ]
+
+    /// Patterns that only make sense in one file.
+    ///
+    /// `DashboardViewModel.metricKeys` returns bare `(key, label)` tuples —
+    /// the largest consumer, and a shape the patterns above cannot see: all 24
+    /// of its sites could have been reverted to literals with the suite still
+    /// green.
+    ///
+    /// Scoped by file rather than matched everywhere, because a bare pair of
+    /// strings is far too common to flag globally — OAuth form fields are
+    /// written `("client_name", "Social Brain")`, and a detector that shouts
+    /// about those is one somebody turns off. A consumer that adopts the tuple
+    /// shape needs adding here.
+    private static let perFilePatterns = [
+        "DashboardViewModel.swift": [#"\(\s*"[a-z][a-z_0-9]+"\s*,\s*""#]
+    ]
+
+    @Test("No metric key is written as a literal outside MetricKey.swift")
+    func metricKeysAreNotLiterals() throws {
+        let roots = ["SocialBrain", "SocialBrainMCP"].map {
+            URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .appendingPathComponent($0)
+        }
+
+        var offenders: [String] = []
+        var scanned = 0
+        for root in roots {
+            let files = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)
+            let swift = (files?.allObjects as? [URL] ?? []).filter { $0.pathExtension == "swift" }
+            #expect(!swift.isEmpty, "No Swift sources under \(root.lastPathComponent) — this would pass vacuously")
+
+            for file in swift where file.lastPathComponent != "MetricKey.swift" {
+                guard let text = try? String(contentsOf: file, encoding: .utf8) else { continue }
+                scanned += 1
+                for (number, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+                    let trimmed = line.trimmingCharacters(in: .whitespaces)
+                    if trimmed.hasPrefix("//") { continue }
+                    let patterns = Self.patterns
+                        + (Self.perFilePatterns[file.lastPathComponent] ?? [])
+                    for pattern in patterns where trimmed.range(of: pattern, options: .regularExpression) != nil {
+                        offenders.append("\(file.lastPathComponent):\(number + 1): \(trimmed)")
+                    }
+                }
+            }
+        }
+
+        #expect(scanned > 0)
+        let message: Comment = """
+            \(offenders.sorted().joined(separator: "\n")) \
+            — pass a `MetricKey` constant instead of a literal.
+            """
+        #expect(offenders.isEmpty, message)
+    }
+
+    @Test("No two metric keys share a value")
+    func metricKeyValuesAreUnique() throws {
+        // A duplicated value is one metric wearing two names: both consumers
+        // read the same column and one of them is wrong about what it means.
+        let file = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("SocialBrain/Models/MetricKey.swift")
+        let text = try String(contentsOf: file, encoding: .utf8)
+
+        let declarations = text
+            .split(separator: "\n")
+            .compactMap { line -> (name: String, value: String)? in
+                guard let match = line.range(of: #"static let (\w+)\s*=\s*"([^"]+)""#,
+                                             options: .regularExpression) else { return nil }
+                let parts = line[match].split(separator: "\"")
+                guard parts.count >= 2 else { return nil }
+                let name = parts[0].replacingOccurrences(of: "static let ", with: "")
+                    .trimmingCharacters(in: CharacterSet(charactersIn: " ="))
+                return (name, String(parts[1]))
+            }
+        #expect(declarations.count > 40, "Found \(declarations.count) constants — the parser has drifted")
+
+        let duplicates = Dictionary(grouping: declarations, by: \.value).filter { $0.value.count > 1 }
+        let message: Comment = "\(duplicates.map { "\($0.key): \($0.value.map(\.name))" }.sorted())"
+        #expect(duplicates.isEmpty, message)
+    }
+}
+
+// MARK: - Every key means something (#63)
+
+/// `MetricKey` made the spelling single-source; `MetricMeaning` says what each
+/// spelling means. A key with no meaning is invisible to anything that reasons
+/// about kinds — which is how an open rate came to be ranked against an
+/// engagement rate and won every time (#81).
+@Suite("Metric meanings")
+struct MetricMeaningTests {
+
+    /// Every `static let` in `MetricKey.swift`, read from source so a new
+    /// constant cannot be added without a meaning.
+    private static func declaredKeys() -> [String] {
+        let file = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("SocialBrain/Models/MetricKey.swift")
+        guard let text = try? String(contentsOf: file, encoding: .utf8),
+              let regex = try? NSRegularExpression(pattern: #"static let \w+\s*=\s*"([^"]+)""#)
+        else { return [] }
+        return regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+            .compactMap { Range($0.range(at: 1), in: text).map { String(text[$0]) } }
+    }
+
+    @Test("Every declared metric key has a meaning")
+    func everyKeyHasAMeaning() {
+        let declared = Self.declaredKeys()
+        #expect(declared.count > 40, "Found \(declared.count) keys — the parser has drifted")
+
+        let missing = declared.filter { MetricKey.meaning(of: $0) == nil }.sorted()
+        let message: Comment = "\(missing) have no entry in MetricKey.meanings"
+        #expect(missing.isEmpty, message)
+    }
+
+    @Test("No meaning is declared for a key that no longer exists")
+    func noMeaningOutlivesItsKey() {
+        // So the table shrinks with the keys rather than accumulating entries
+        // for spellings nothing writes.
+        let declared = Set(Self.declaredKeys())
+        let orphaned = MetricKey.meanings.keys.filter { !declared.contains($0) }.sorted()
+        let message: Comment = "\(orphaned) have meanings but are not declared in MetricKey"
+        #expect(orphaned.isEmpty, message)
+    }
+
+    @Test("Every key a collector emits has a meaning")
+    func everyEmittedKeyHasAMeaning() {
+        // The numbered families resolve through the `top_` prefix.
+        let emitted = MetricKeyOrphanTests.emittedForMeanings
+        let missing = emitted.filter { MetricKey.meaning(of: $0) == nil }.sorted()
+        let message: Comment = "\(missing) are emitted but mean nothing"
+        #expect(missing.isEmpty, message)
+    }
+
+    @Test("An open rate is not comparable with an engagement rate")
+    func ratesOfDifferentKindsAreNotComparable() throws {
+        // The distinction the type exists for. Both are fractions in 0...1,
+        // which is exactly why `Double` alone could not tell them apart.
+        let open = try #require(MetricKey.meaning(of: MetricKey.avgOpenRate))
+        let engagement = try #require(MetricKey.meaning(of: MetricKey.engagementRate))
+        #expect(!open.isComparable(with: engagement))
+        #expect(open.unit == .fraction)
+        #expect(engagement.unit == .fraction)
+    }
+
+    @Test("The same idea on two platforms is comparable")
+    func sameConceptIsComparable() throws {
+        let mastodon = try #require(MetricKey.meaning(of: MetricKey.followersCount))
+        let linkedin = try #require(MetricKey.meaning(of: MetricKey.totalFollowers))
+        #expect(mastodon.isComparable(with: linkedin))
+    }
+
+    @Test("A per-post average is not comparable with a period total")
+    func scopeMattersAsWellAsConcept() throws {
+        // 2.3 likes a post and 1,400 likes a month are both counts of
+        // reactions. Ranking them is #81's mistake in a second costume.
+        let perPost = try #require(MetricKey.meaning(of: MetricKey.avgLikes))
+        let total = try #require(MetricKey.meaning(of: MetricKey.totalLikes))
+        #expect(perPost.concept == total.concept)
+        #expect(perPost.unit == total.unit)
+        #expect(!perPost.isComparable(with: total))
+    }
+
+    @Test("Who you follow is not your audience")
+    func followingIsNotAudience() throws {
+        // Classified together, a cross-platform "audience" figure would add
+        // the people you follow to the people following you.
+        let audience = try #require(MetricKey.meaning(of: MetricKey.followersCount))
+        let following = try #require(MetricKey.meaning(of: MetricKey.followingCount))
+        #expect(!audience.isComparable(with: following))
+    }
+
+    @Test("A cancelled meeting is not summable with a booked one")
+    func cancellationsAreASubset() throws {
+        // Calendly's events_count already includes the cancelled ones.
+        let booked = try #require(MetricKey.meaning(of: MetricKey.eventsCount))
+        let cancelled = try #require(MetricKey.meaning(of: MetricKey.cancelledCount))
+        #expect(!booked.isComparable(with: cancelled))
+    }
+
+    @Test("A composite engagement figure is not comparable with one of its parts")
+    func compositeIsNotAPart() throws {
+        // LinkedIn's total_engagements is reactions + comments + shares + clicks.
+        let composite = try #require(MetricKey.meaning(of: MetricKey.totalEngagements))
+        let part = try #require(MetricKey.meaning(of: MetricKey.totalLikes))
+        #expect(!composite.isComparable(with: part))
+    }
+
+    @Test("A count and a rate of one concept are not comparable")
+    func unitMattersAsWellAsConcept() {
+        let count = MetricMeaning(concept: .clicks, unit: .count)
+        let rate = MetricMeaning(concept: .clicks, unit: .fraction)
+        #expect(!count.isComparable(with: rate))
+    }
+
+    @Test("Search position is a rank, where lower is better")
+    func positionIsARank() {
+        #expect(MetricKey.meaning(of: MetricKey.avgPosition)?.unit == .rank)
+    }
+}
+
+// MARK: - The Feed's two platform switches must agree
+
+@Suite("Feed rate concepts")
+struct FeedRateConceptTests {
+
+    @Test("Every platform with a rate has a name for what that rate is",
+          arguments: Platform.allCases)
+    func rateAndConceptStayInStep(platform: Platform) throws {
+        // `engagementRate(platform:data:)` and `rateConcept(for:)` both switch
+        // on `Platform` with a `default`. Adding a platform to the first only
+        // makes its rate vanish from the Feed — no card, no error. This is the
+        // pairing that would otherwise drift silently.
+        let hasRate = FeedCardBuilder.engagementRate(platform: platform, data: Self.everyRate) != nil
+        let hasConcept = FeedCardBuilder.rateConcept(for: platform) != nil
+        #expect(hasRate == hasConcept, "\(platform.rawValue) has one without the other")
+    }
+
+    @Test("Every rate concept the Feed can produce has a name")
+    func everyRateConceptIsNameable() {
+        for concept in FeedCardBuilder.rateConcepts {
+            #expect(FeedCardBuilder.rateName(concept) != nil, "\(concept.rawValue) has no wording")
+        }
+    }
+
+    @Test("Every concept a platform maps to is one the Feed iterates")
+    func everyPlatformConceptIsIterated() {
+        for platform in Platform.allCases {
+            guard let concept = FeedCardBuilder.rateConcept(for: platform) else { continue }
+            #expect(FeedCardBuilder.rateConcepts.contains(concept),
+                    "\(platform.rawValue) maps to \(concept.rawValue), which no card loop visits")
+        }
+    }
+
+    /// Metrics carrying every rate key a platform might read, so
+    /// `engagementRate` returns a value for any platform that looks for one.
+    private static let everyRate: Data = {
+        let metrics: [String: MetricValue] = [
+            MetricKey.engagementRate: .double(0.02),
+            MetricKey.avgOpenRate: .double(0.5)
+        ]
+        return (try? JSONEncoder().encode(metrics)) ?? Data()
+    }()
 }

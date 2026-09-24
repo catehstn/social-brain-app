@@ -74,7 +74,10 @@ xcodebuild test -scheme SocialBrainMCP -destination 'platform=macOS'
 
 One suite is opt-in: `SetupURLTests` checks the platform setup links against
 the live web, so it's skipped by default to keep the suite hermetic. Run it
-deliberately when you change a setup URL. The `TEST_RUNNER_` prefix is required —
+deliberately when you change a setup URL. (`SetupURLCoverageTests` is the
+hermetic half — it reads the credential sheet and the setup guide and fails if a
+URL either of them shows is neither checked by that suite nor excluded with a
+stated reason. It runs with everything else.) The `TEST_RUNNER_` prefix is required —
 xcodebuild strips it and forwards the rest to the test host; without it the
 variable never arrives and the suite silently skips:
 
@@ -175,6 +178,15 @@ Current state of the repo and the prioritised backlog:
 Context Protocol, so you can ask about your own numbers directly. Tools:
 `list_platforms`, `get_latest_snapshot`, `get_all_snapshots`, `get_history` and
 `generate_prompt`.
+
+Everything is per **instance**, not per platform: two Mastodon accounts or two
+newsletters appear separately, under the labels the app stored for them. The
+tools that take a platform also take an optional `instance`; asked without one
+where there are several, they say which exist rather than picking.
+
+The database is opened on the first question. If the app has never run a
+collection, the tools say so in the conversation instead of the server failing
+to start.
 
 Build it:
 

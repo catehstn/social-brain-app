@@ -65,13 +65,13 @@ struct SubstackImporter {
         let clickRates = dataRows.compactMap { RateParsing.rate(from: $0[safe: col("click_rate")], isPercentColumn: false) }
 
         var metrics: [String: MetricValue] = [
-            "posts_published": .int(dataRows.count)
+            MetricKey.postsPublished: .int(dataRows.count)
         ]
         if !openRates.isEmpty {
-            metrics["avg_open_rate"] = .double(openRates.reduce(0, +) / Double(openRates.count))
+            metrics[MetricKey.avgOpenRate] = .double(openRates.reduce(0, +) / Double(openRates.count))
         }
         if !clickRates.isEmpty {
-            metrics["avg_click_rate"] = .double(clickRates.reduce(0, +) / Double(clickRates.count))
+            metrics[MetricKey.avgClickRate] = .double(clickRates.reduce(0, +) / Double(clickRates.count))
         }
         // periodEnd, not collectedAt. The import happened now — that is what
         // orders snapshots and drives the staleness reminder — but the data
@@ -105,13 +105,13 @@ struct SubstackImporter {
         let clickRates = dataRows.compactMap { RateParsing.rate(from: $0[safe: col("click rate")], isPercentColumn: false) }
 
         var metrics: [String: MetricValue] = [
-            "posts_published": .int(dataRows.count)
+            MetricKey.postsPublished: .int(dataRows.count)
         ]
         if !openRates.isEmpty {
-            metrics["avg_open_rate"] = .double(openRates.reduce(0, +) / Double(openRates.count))
+            metrics[MetricKey.avgOpenRate] = .double(openRates.reduce(0, +) / Double(openRates.count))
         }
         if !clickRates.isEmpty {
-            metrics["avg_click_rate"] = .double(clickRates.reduce(0, +) / Double(clickRates.count))
+            metrics[MetricKey.avgClickRate] = .double(clickRates.reduce(0, +) / Double(clickRates.count))
         }
         // periodEnd, same as the current format. This path computed
         // publishedRows and then dropped it on the floor, so a legacy import was

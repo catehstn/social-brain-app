@@ -84,9 +84,9 @@ struct OReillyImporter {
 
         // Build an ordered list of metric keys from the column names.
         var orderedKeys: [String] = metricCols.map { part in
-            if part.contains("view")    { return "total_page_views" }
-            if part.contains("user")    { return "total_unique_users" }
-            if part.contains("complet") { return "total_completions" }
+            if part.contains("view")    { return MetricKey.totalPageViews }
+            if part.contains("user")    { return MetricKey.totalUniqueUsers }
+            if part.contains("complet") { return MetricKey.totalCompletions }
             return ""           // unknown column — will be skipped
         }
 
@@ -115,7 +115,7 @@ struct OReillyImporter {
 
         guard titlesCount > 0 else { return nil }
 
-        var metrics: [String: MetricValue] = ["titles_count": .int(titlesCount)]
+        var metrics: [String: MetricValue] = [MetricKey.titlesCount: .int(titlesCount)]
         for (key, total) in totals where !key.isEmpty {
             metrics[key] = .int(total)
         }
@@ -139,13 +139,13 @@ struct OReillyImporter {
 
             let key = parts[0].lowercased()
             if key.contains("page") && key.contains("view") {
-                metrics["total_page_views"] = .int(value)
+                metrics[MetricKey.totalPageViews] = .int(value)
             } else if key.contains("unique") && key.contains("user") {
-                metrics["total_unique_users"] = .int(value)
+                metrics[MetricKey.totalUniqueUsers] = .int(value)
             } else if key.contains("complet") {
-                metrics["total_completions"] = .int(value)
+                metrics[MetricKey.totalCompletions] = .int(value)
             } else if key == "titles" || key == "title count" {
-                metrics["titles_count"] = .int(value)
+                metrics[MetricKey.titlesCount] = .int(value)
             }
         }
 
