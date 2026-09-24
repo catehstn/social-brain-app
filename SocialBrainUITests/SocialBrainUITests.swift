@@ -73,12 +73,9 @@ final class SocialBrainUITests: XCTestCase {
     /// Clicks through the wizard when it appears. The wizard has four steps —
     /// welcome, goal, connect, ready — so this is three Nexts, then Get Started.
     /// Keep in step with `OnboardingView.Step`.
+    /// Shared with `FeedUITests` — see `OnboardingDismissal`.
     private func completeOnboardingIfPresent() {
-        guard app.staticTexts["Welcome to Social Brain"].waitForExistence(timeout: 3) else { return }
-        app.buttons["Next"].click()
-        app.buttons["Next"].click()
-        app.buttons["Next"].click()
-        app.buttons["Get Started"].click()
+        completeOnboardingIfPresent(in: app)
     }
 
     // MARK: - Main run flow
