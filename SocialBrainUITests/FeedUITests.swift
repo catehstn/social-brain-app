@@ -19,10 +19,29 @@ final class FeedUITests: XCTestCase {
         // the app module into a UI test target drags GRDB in with it and this
         // target does not link it. DatabaseLocationTests pins the two spellings.
         app.launchEnvironment["SOCIALBRAIN_USE_THROWAWAY_DATABASE"] = "1"
+        // The same reset `SocialBrainUITests` does. Without it this suite —
+        // which sorts first, so it runs first on a clean runner — met whatever
+        // onboarding state the machine happened to hold, and passed on the
+        // order tests ran in rather than on anything it asserted (#58).
+        app.launchArguments += ["-hasCompletedOnboarding", "0"]
+        app.launchArguments += ["-resetHiddenPlatforms"]
         app.launch()
     }
 
+    /// Clicks through the wizard when it is up.
+    ///
+    /// Required now that `setUp` resets onboarding: the sheet covers the
+    /// sidebar, so every test here has to get past it before looking for Feed.
+    private func completeOnboardingIfPresent() {
+        guard app.staticTexts["Welcome to Social Brain"].waitForExistence(timeout: 3) else { return }
+        app.buttons["Next"].click()
+        app.buttons["Next"].click()
+        app.buttons["Next"].click()
+        app.buttons["Get Started"].click()
+    }
+
     func testFeedItemExistsInSidebar() {
+        completeOnboardingIfPresent()
         // The sidebar list should contain a "Feed" item.
         let feedItem = app.outlines.firstMatch.cells
             .staticTexts["Feed"]
@@ -30,6 +49,7 @@ final class FeedUITests: XCTestCase {
     }
 
     func testTappingFeedDoesNotCrash() {
+        completeOnboardingIfPresent()
         let feedItem = app.outlines.firstMatch.cells
             .staticTexts["Feed"]
         guard feedItem.waitForExistence(timeout: 5) else {
@@ -41,16 +61,28 @@ final class FeedUITests: XCTestCase {
         XCTAssertTrue(app.exists)
     }
 
-    func testExpandControlVisibleWhenCardIsTruncated() {
+    /// **Asserts nothing on CI, by design — do not read this as coverage.**
+    ///
+    /// Every run here starts on a throwaway database, so the Feed has no
+    /// cards, so there is no expand control and the assertion below never
+    /// executes. It passes whether the control works, is broken, or has been
+    /// deleted. That is deliberate under the minimal UI-test strategy, and was
+    /// re-confirmed rather than quietly changed when #90 raised it: making it
+    /// able to fail needs a way to seed the launched app's database, which
+    /// does not exist, and the screens it drives are about to be replaced
+    /// (#40, #46).
+    ///
+    /// What it does buy: if the Feed ever does render a card here, a control
+    /// that exists but cannot be clicked fails the run. Named for that, so the
+    /// next person does not have to read the body to learn it is conditional.
+    func testExpandControlIsHittableIfAnyCardIsTruncated() {
+        completeOnboardingIfPresent()
         // Navigate to Feed
         let feedItem = app.outlines.firstMatch.cells
             .staticTexts["Feed"]
         guard feedItem.waitForExistence(timeout: 5) else { return }
         feedItem.click()
 
-        // If any expandToggle buttons exist, at least one should be hittable.
-        // (This test is a no-op if database is empty — that is acceptable per
-        //  the approved minimal UI test strategy.)
         let toggleButtons = app.buttons.matching(NSPredicate(
             format: "identifier BEGINSWITH 'expandToggle_'"))
         if toggleButtons.count > 0 {
