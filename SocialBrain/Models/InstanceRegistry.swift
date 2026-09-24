@@ -34,7 +34,16 @@ struct InstanceRegistry: @unchecked Sendable {
     func instances(for platform: Platform) -> [String] {
         let k = key(for: platform)
         if let stored = defaults.stringArray(forKey: k), !stored.isEmpty {
-            return stored
+            // Repair, not just read: a build before the guard below could
+            // remove `"default"`, and this only re-seeded when the key was
+            // *absent*, so the deletion stuck. Every platform-level API
+            // resolves to the default instance, so a list without it leaves
+            // them addressing a name nothing enumerates. Restoring it makes
+            // the guard total rather than only stopping new cases (#90).
+            guard !stored.contains("default") else { return stored }
+            let repaired = stored + ["default"]
+            defaults.set(repaired, forKey: k)
+            return repaired
         }
         // Auto-seed with "default".
         let seeded = ["default"]
@@ -60,8 +69,25 @@ struct InstanceRegistry: @unchecked Sendable {
     }
 
     /// Removes `instanceName` from the list for `platform`.
-    /// Does nothing if removal would leave the list empty.
+    ///
+    /// `"default"` cannot be removed, and neither can the last remaining
+    /// instance.
+    ///
+    /// The `"default"` rule is not a tidiness preference. Every
+    /// platform-level convenience API — `KeychainStore.save(for: Platform)`,
+    /// `hasCredentials(for: Platform)`, `AppDatabase.latestSnapshot(for:)` —
+    /// resolves to `PlatformInstance(platform:)`, which *is* the default
+    /// instance. Removing it left those writing to and reading from an
+    /// instance the registry no longer listed: credentials stored under a name
+    /// nothing enumerates, and `instances(for:)` re-seeding `["default"]` only
+    /// when the key is absent, so a deliberate delete stayed deleted and the
+    /// phantom persisted (#90).
+    ///
+    /// Renaming is what the user actually wants here, and labels already do
+    /// it: `InstanceLabels` changes the display name while `instanceName`
+    /// stays the key that the Keychain and the database are organised by.
     func remove(instanceName: String, from platform: Platform) {
+        guard instanceName != "default" else { return }
         var current = instances(for: platform)
         guard current.count > 1 else { return }  // never empty the list
         current.removeAll { $0 == instanceName }
