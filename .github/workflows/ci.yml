@@ -34,8 +34,16 @@ jobs:
           key: ${{ runner.os }}-spm-app-${{ hashFiles('**/Package.resolved') }}
           restore-keys: ${{ runner.os }}-spm-app-
 
-      - name: Resolve packages
-        run: xcodebuild -resolvePackageDependencies -scheme SocialBrain
+      # No explicit `Resolve packages` step: xcodebuild resolves what it needs
+      # on the way into the build, which is what MCP Server and Release Build
+      # have always relied on. The separate step cost 18-21s per run even on a
+      # cache hit.
+      #
+      # `-onlyUsePackageVersionsFromResolvedFile` on every invocation below
+      # pins resolution to the committed Package.resolved, so CI fails loudly
+      # on a resolved file that cannot satisfy the project rather than quietly
+      # building against something newer. It is not a speed measure: with the
+      # explicit step still in place it changed nothing (19s either way).
 
       # `shell: bash --noprofile --norc -eo pipefail {0}` is load-bearing — the
       # `pipefail` half especially. Without it, piping
@@ -50,6 +58,7 @@ jobs:
             -destination 'platform=macOS' \
             -only-testing:SocialBrainTests \
             -resultBundlePath TestResults-unit.xcresult \
+            -onlyUsePackageVersionsFromResolvedFile \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY=- \
             DEVELOPMENT_TEAM= \
@@ -85,9 +94,6 @@ jobs:
           key: ${{ runner.os }}-spm-app-${{ hashFiles('**/Package.resolved') }}
           restore-keys: ${{ runner.os }}-spm-app-
 
-      - name: Resolve packages
-        run: xcodebuild -resolvePackageDependencies -scheme SocialBrain-UITests
-
       - name: Run UI tests
         shell: bash --noprofile --norc -eo pipefail {0}
         run: |
@@ -95,6 +101,7 @@ jobs:
             -scheme SocialBrain-UITests \
             -destination 'platform=macOS' \
             -resultBundlePath TestResults-ui.xcresult \
+            -onlyUsePackageVersionsFromResolvedFile \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY=- \
             DEVELOPMENT_TEAM= \
@@ -154,6 +161,7 @@ jobs:
             -scheme SocialBrainMCP \
             -destination 'platform=macOS' \
             -resultBundlePath TestResults-mcp.xcresult \
+            -onlyUsePackageVersionsFromResolvedFile \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY=- \
             DEVELOPMENT_TEAM= \
@@ -166,6 +174,7 @@ jobs:
             -scheme SocialBrainMCP \
             -configuration Release \
             -derivedDataPath build \
+            -onlyUsePackageVersionsFromResolvedFile \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY=- \
             DEVELOPMENT_TEAM= \
@@ -216,6 +225,7 @@ jobs:
             -scheme SocialBrain \
             -destination 'platform=macOS' \
             -configuration Release \
+            -onlyUsePackageVersionsFromResolvedFile \
             CODE_SIGN_STYLE=Manual \
             CODE_SIGN_IDENTITY=- \
             DEVELOPMENT_TEAM= \
