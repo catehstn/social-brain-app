@@ -28,16 +28,11 @@ final class FeedUITests: XCTestCase {
         app.launch()
     }
 
-    /// Clicks through the wizard when it is up.
-    ///
     /// Required now that `setUp` resets onboarding: the sheet covers the
     /// sidebar, so every test here has to get past it before looking for Feed.
+    /// Shared with `SocialBrainUITests` — see `OnboardingDismissal`.
     private func completeOnboardingIfPresent() {
-        guard app.staticTexts["Welcome to Social Brain"].waitForExistence(timeout: 3) else { return }
-        app.buttons["Next"].click()
-        app.buttons["Next"].click()
-        app.buttons["Next"].click()
-        app.buttons["Get Started"].click()
+        completeOnboardingIfPresent(in: app)
     }
 
     func testFeedItemExistsInSidebar() {
@@ -61,7 +56,7 @@ final class FeedUITests: XCTestCase {
         XCTAssertTrue(app.exists)
     }
 
-    /// **Asserts nothing on CI, by design — do not read this as coverage.**
+    /// **Asserts nothing about the expand control on CI — not coverage of it.**
     ///
     /// Every run here starts on a throwaway database, so the Feed has no
     /// cards, so there is no expand control and the assertion below never
@@ -73,8 +68,10 @@ final class FeedUITests: XCTestCase {
     /// (#40, #46).
     ///
     /// What it does buy: if the Feed ever does render a card here, a control
-    /// that exists but cannot be clicked fails the run. Named for that, so the
-    /// next person does not have to read the body to learn it is conditional.
+    /// that exists but cannot be clicked fails the run. It also exercises the
+    /// wizard and the sidebar on the way, so it is not inert — it just says
+    /// nothing about the control it is named for. Named to be conditional, so
+    /// the next person does not have to read the body to find that out.
     func testExpandControlIsHittableIfAnyCardIsTruncated() {
         completeOnboardingIfPresent()
         // Navigate to Feed
