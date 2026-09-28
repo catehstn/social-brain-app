@@ -60,6 +60,7 @@
 		5A3BC438A6E27326D77E94DA /* FeedViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51E3F715FA10EB4303470093 /* FeedViewModelTests.swift */; };
 		25C1D3610D8679A0B55A8FF8 /* NotificationManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCDE9698CF96E8FAE426FE81 /* NotificationManagerTests.swift */; };
 		D24CF92F4284EF62951D3318 /* HistoryViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16FFA9B095681D002CCA71DD /* HistoryViewModelTests.swift */; };
+		BEBB548F1CCBE1AAACD2CF5B /* BackgroundRefreshSchedulerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9305F3E539A4ED5B0671FBC /* BackgroundRefreshSchedulerTests.swift */; };
 		D217FD4C0CAE4ECFBBA0872C /* FixtureRedactionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E6758D8D65A4551938765BC /* FixtureRedactionTests.swift */; };
 		671A13C339113B6931F39DCA /* GoalBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E51178C97A9FDB0FAB33FDA /* GoalBadgeView.swift */; };
 		9495992C98E7C36CE6A1EBC6 /* GoatCounterCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07E6CC0A277E7F1ADDBE207F /* GoatCounterCollector.swift */; };
@@ -243,6 +244,7 @@
 		51E3F715FA10EB4303470093 /* FeedViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedViewModelTests.swift; sourceTree = "<group>"; };
 		CCDE9698CF96E8FAE426FE81 /* NotificationManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManagerTests.swift; sourceTree = "<group>"; };
 		16FFA9B095681D002CCA71DD /* HistoryViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryViewModelTests.swift; sourceTree = "<group>"; };
+		C9305F3E539A4ED5B0671FBC /* BackgroundRefreshSchedulerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundRefreshSchedulerTests.swift; sourceTree = "<group>"; };
 		7E6758D8D65A4551938765BC /* FixtureRedactionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FixtureRedactionTests.swift; sourceTree = "<group>"; };
 		1E51178C97A9FDB0FAB33FDA /* GoalBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoalBadgeView.swift; sourceTree = "<group>"; };
 		07E6CC0A277E7F1ADDBE207F /* GoatCounterCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoatCounterCollector.swift; sourceTree = "<group>"; };
@@ -598,6 +600,7 @@
 				51E3F715FA10EB4303470093 /* FeedViewModelTests.swift */,
 				CCDE9698CF96E8FAE426FE81 /* NotificationManagerTests.swift */,
 				16FFA9B095681D002CCA71DD /* HistoryViewModelTests.swift */,
+				C9305F3E539A4ED5B0671FBC /* BackgroundRefreshSchedulerTests.swift */,
 				F47A8E8E119F792F87DE78BB /* GoatCounterCollectorTests.swift */,
 				DA65B5FD9D46492280A38AFD /* HackerNewsCollectorTests.swift */,
 				C9BEBD8246564F5D8A48E556 /* BufferCollectorTests.swift */,
@@ -953,6 +956,7 @@
 				5A3BC438A6E27326D77E94DA /* FeedViewModelTests.swift in Sources */,
 				25C1D3610D8679A0B55A8FF8 /* NotificationManagerTests.swift in Sources */,
 				D24CF92F4284EF62951D3318 /* HistoryViewModelTests.swift in Sources */,
+				BEBB548F1CCBE1AAACD2CF5B /* BackgroundRefreshSchedulerTests.swift in Sources */,
 				407889F33573100C2D412A63 /* GoatCounterCollectorTests.swift in Sources */,
 				4A501089521D41A593813A47 /* HackerNewsCollectorTests.swift in Sources */,
 				EC8225949ED847DEAAC013C6 /* BufferCollectorTests.swift in Sources */,

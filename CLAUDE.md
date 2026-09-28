@@ -150,14 +150,21 @@ app, and a documented test command that silently skipped and exited 0.
   `registrations:`), so the two cannot be
   told apart mechanically. Hence a list, not a total.
 
-  **Nothing that reaches persistent state takes a production default.** That
-  includes the initialisers of `PlatformsViewModel`, `RunViewModel`,
+  **Nothing that reaches persistent state or a system service takes a
+  production default.** The second half covers `NotificationManager` (which
+  posts real notifications) and `BackgroundRefreshScheduler` (which registers a
+  real activity with the OS): not storage, same hazard — a test that omits the
+  parameter reaches the machine.
+
+  That covers the initialisers of `PlatformsViewModel`, `RunViewModel`,
   `DashboardViewModel`, `FeedViewModel`, `PromptAssembler`, `CollectionEngine`,
-  `SpikeNotifier` and `NotificationManager`, `MastodonOAuth.authenticate`'s
-  `registrations:`, and three static functions: `FeedCardBuilder.build`,
-  `CollectorRegistry.configured` and `AppDelegate.runBackgroundRefresh`. The
-  outermost production call sites — views and the scheduler — pass `.shared`
-  (or `SpikeNotifier.system`) explicitly. The static functions are why "check
+  `SpikeNotifier`, `NotificationManager` and `BackgroundRefreshScheduler`,
+  `MastodonOAuth.authenticate`'s `registrations:`, and three static functions:
+  `FeedCardBuilder.build`, `CollectorRegistry.configured` and
+  `AppDelegate.runBackgroundRefresh`. The outermost production call sites —
+  views and the app delegate — pass `.shared`
+  (or `SpikeNotifier.system`, or `BackgroundRefreshScheduler.makeSystemActivity()`)
+  explicitly. The static functions are why "check
   the inits" is not enough (#184).
 
   The last exception went in #192: `PlatformsViewModel.saveImport` reached
