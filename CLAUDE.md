@@ -153,9 +153,10 @@ app, and a documented test command that silently skipped and exited 0.
   **Nothing that reaches persistent state takes a production default.** That
   includes the initialisers of `PlatformsViewModel`, `RunViewModel`,
   `DashboardViewModel`, `FeedViewModel`, `PromptAssembler`, `CollectionEngine`,
-  `SpikeNotifier` and `NotificationManager`, `MastodonOAuth.authenticate`'s
-  `registrations:`, and three static functions: `FeedCardBuilder.build`,
-  `CollectorRegistry.configured` and `AppDelegate.runBackgroundRefresh`. The
+  `SpikeNotifier`, `NotificationManager` and `BackgroundRefreshScheduler`,
+  `MastodonOAuth.authenticate`'s `registrations:`, and three static functions:
+  `FeedCardBuilder.build`, `CollectorRegistry.configured` and
+  `AppDelegate.runBackgroundRefresh`. The
   outermost production call sites — views and the scheduler — pass `.shared`
   (or `SpikeNotifier.system`) explicitly. The static functions are why "check
   the inits" is not enough (#184).
