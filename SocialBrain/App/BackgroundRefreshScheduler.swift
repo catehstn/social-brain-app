@@ -6,27 +6,24 @@ import Foundation
 /// `BackgroundRefreshScheduler` had no tests at all (#90): the only way to
 /// exercise it was to register a real activity with the system and wait up to a
 /// day for it to fire.
-protocol BackgroundActivityScheduling: AnyObject, Sendable {
+///
+/// The signature matches `NSBackgroundActivityScheduler`'s own `schedule`, so
+/// that class witnesses the requirement directly — no forwarding body, and no
+/// retroactive `Sendable` conformance, which a future SDK annotating the class
+/// would turn into a redundant-conformance build error.
+///
+/// Both closures are `@Sendable` because the real method's are, in this SDK:
+/// dropping them is a sendability mismatch, not a simplification.
+protocol BackgroundActivityScheduling: AnyObject {
     /// Whether the system wants the work postponed — thermal pressure, battery,
     /// or the user actively using the machine.
     var shouldDefer: Bool { get }
-    /// Named `scheduleActivity` rather than `schedule`: the latter would be
-    /// ambiguous with `NSBackgroundActivityScheduler`'s own method inside the
-    /// conformance below, and the forwarding call would recurse.
-    func scheduleActivity(
+    func schedule(
         _ block: @escaping @Sendable (@escaping @Sendable (NSBackgroundActivityScheduler.Result) -> Void) -> Void)
     func invalidate()
 }
 
-/// `@unchecked`: `NSBackgroundActivityScheduler` is an Objective-C class that is
-/// not annotated `Sendable`. Touched only from the app delegate's lifecycle.
-extension NSBackgroundActivityScheduler: BackgroundActivityScheduling, @unchecked @retroactive Sendable {
-    public func scheduleActivity(
-        _ block: @escaping @Sendable (@escaping @Sendable (NSBackgroundActivityScheduler.Result) -> Void) -> Void
-    ) {
-        schedule { completion in block(completion) }
-    }
-}
+extension NSBackgroundActivityScheduler: BackgroundActivityScheduling {}
 
 /// Manages the daily analytics auto-refresh using `NSBackgroundActivityScheduler`.
 ///
@@ -75,7 +72,7 @@ final class BackgroundRefreshScheduler: NSObject, @unchecked Sendable {
     ///
     /// Call once from `applicationDidFinishLaunching`.
     func start(handler: @Sendable @escaping () async -> Void) {
-        activity.scheduleActivity { [weak self] completion in
+        activity.schedule { [weak self] completion in
             // `shouldDefer` is read at wake time, not at schedule time: the
             // system sets it when it wants the work postponed, and reporting
             // `.deferred` is what makes it ask again later. Running the

@@ -22,6 +22,7 @@ struct BackgroundRefreshSchedulerTests {
         private var _invalidations = 0
         private var _scheduleCalls = 0
         private var _shouldDefer: Bool
+        private var _results: [NSBackgroundActivityScheduler.Result] = []
 
         init(shouldDefer: Bool = false) {
             self._shouldDefer = shouldDefer
@@ -31,7 +32,11 @@ struct BackgroundRefreshSchedulerTests {
         var invalidations: Int { lock.withLock { _invalidations } }
         var scheduleCalls: Int { lock.withLock { _scheduleCalls } }
 
-        func scheduleActivity(
+        /// Every completion reported, so a second one for the same wake is a
+        /// failed assertion rather than a crashed test host.
+        var results: [NSBackgroundActivityScheduler.Result] { lock.withLock { _results } }
+
+        func schedule(
             _ block: @escaping @Sendable (@escaping @Sendable (NSBackgroundActivityScheduler.Result) -> Void) -> Void
         ) {
             lock.withLock {
@@ -45,10 +50,34 @@ struct BackgroundRefreshSchedulerTests {
         /// Fires the scheduled block and waits for its completion result — the
         /// system's side of the contract, which is what the handler runs
         /// inside.
+        ///
+        /// Records every result and resumes only on the first. The API's
+        /// contract is exactly one completion per invocation, and
+        /// `withCheckedContinuation` traps on a second resume — which under
+        /// this suite's test host means "SocialBrain quit unexpectedly" and an
+        /// `.ips` file rather than a red test (CLAUDE.md). `results` is what
+        /// tests assert on, so a double completion fails instead.
         func wake() async -> NSBackgroundActivityScheduler.Result? {
             guard let block = lock.withLock({ _block }) else { return nil }
             return await withCheckedContinuation { continuation in
-                block { result in continuation.resume(returning: result) }
+                let resumed = Resumed()
+                block { [weak self] result in
+                    self?.lock.withLock { self?._results.append(result) }
+                    if resumed.claim() { continuation.resume(returning: result) }
+                }
+            }
+        }
+
+        /// One-shot latch, so only the first completion resumes.
+        private final class Resumed: @unchecked Sendable {
+            private let lock = NSLock()
+            private var taken = false
+            func claim() -> Bool {
+                lock.withLock {
+                    guard !taken else { return false }
+                    taken = true
+                    return true
+                }
             }
         }
     }
@@ -84,6 +113,32 @@ struct BackgroundRefreshSchedulerTests {
 
         #expect(ran.count == 1)
         #expect(result == .finished)
+        // Exactly one completion per wake, which is the API's contract.
+        #expect(activity.results == [.finished])
+        // Uses `scheduler` after the wake, deliberately: ARC may release an
+        // otherwise-unused local before the `await`, the block holds `self`
+        // weakly, and a released scheduler reports `.deferred` — so this test
+        // would fail and `deferredWakeDoesNotRun` would pass for the wrong
+        // reason. Debug builds hide that; `-O` need not.
+        scheduler.stop()
+        #expect(activity.invalidations == 1)
+    }
+
+    @Test("A repeating activity runs the refresh on every wake")
+    func everyWakeRuns() async {
+        // `repeats` is true, so the system invokes the block again and again;
+        // nothing pinned that the handler is not consumed by the first wake.
+        let activity = StubActivity(shouldDefer: false)
+        let ran = RanFlag()
+        let scheduler = BackgroundRefreshScheduler(activity: activity)
+        scheduler.start { ran.mark() }
+
+        _ = await activity.wake()
+        _ = await activity.wake()
+
+        #expect(ran.count == 2)
+        #expect(activity.results == [.finished, .finished])
+        scheduler.stop()   // keeps `scheduler` alive across both wakes
     }
 
     @Test("A wake the system wants deferred does not run the refresh")
@@ -101,6 +156,8 @@ struct BackgroundRefreshSchedulerTests {
 
         #expect(ran.count == 0)
         #expect(result == .deferred)
+        #expect(activity.results == [.deferred])
+        scheduler.stop()   // keeps `scheduler` alive across the wake
     }
 
     @Test("Stopping invalidates the activity")
