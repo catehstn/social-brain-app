@@ -28,7 +28,8 @@ Me (Cate). Weekly cadence, usually Saturday or Sunday morning with coffee. Also:
 - **Instance** — a platform can have multiple accounts (e.g. two Mastodon handles). Default instance is named `default`; extras are user-labelled.
 - **Snapshot** — one platform-instance's decoded metrics at a point in time. Compared against previous snapshots to detect spikes and high-reach signals.
 - **Collection run** — a run over selected platforms with a `since` window.
-- **Feed card** — a typed summary surfaced to the user. Types: `recentPost`, `metricHighlight`, `upcomingEvent`, `staleReminder`, `spikeAlert`, `highReach`. Each has a 280-char snippet + an expand action + a tap-navigation target.
+- **Feed card** — a typed summary surfaced to the user. Types: `recentPost`, `metricHighlight`, `staleReminder`, `spikeAlert`, `highReach`. Each has a 280-char snippet + an expand action + a tap-navigation target.
+  - **Three of those cannot appear on real collector output today**, and the design pass should start from that rather than from this list. `staleReminder`, `spikeAlert`, `highReach` and the *open-rate* half of `metricHighlight` work. `recentPost` needs `latest_post_text` / `latest_post_title` / `latest_subject_line`, and the engagement half of `metricHighlight` needs `engagement_rate` — no collector emits any of them (#171). `upcomingEvent` is gone: it decoded a shape `CalendlyCollector` has never written, so only test fixtures ever produced one (#90); whether to build it for real is #210.
 - **Analytics goal** — the user's stated priority (chosen during onboarding). Displayed as a badge in the sidebar. Colours the prompt.
 - **Prompt** — a Claude-shaped text blob assembled from the latest run.
 
@@ -65,7 +66,7 @@ The collect action screen.
 The reason to open the app most days.
 - Vertical `LazyVStack` of expandable cards. Each card:
   - Platform icon + name + instance label (if not default)
-  - Card type badge (Recent Post / Metric Highlight / Spike Alert / High Reach / Upcoming Event / Stale Reminder)
+  - Card type badge (Recent Post / Metric Highlight / Spike Alert / High Reach / Stale Reminder) — see the card-type note above for which of these a real collection can currently produce
   - 280-char snippet (word-boundary truncated); tap expands to full content
   - Tap-through navigates to the relevant Dashboard filter
 - Empty state: "Nothing yet — run a collection to populate your feed."

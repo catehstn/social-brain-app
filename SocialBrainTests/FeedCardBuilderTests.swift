@@ -57,7 +57,7 @@ struct FeedCardBuilderTests {
     @Test("build produces stale reminder for LinkedIn beyond 3-day threshold")
     func buildStaleReminderForLinkedInBeyondThreshold() throws {
         let staleDate = fixedNow.addingTimeInterval(-(4 * 24 * 3600))
-        let payload = try JSONEncoder().encode(LinkedInData(latestPostText: "old", totalImpressions: 0))
+        let payload = try metricsPayload(["latest_post_text": .string("old"), "total_impressions": .int(0)])
         let snapshots: [PlatformInstance: PlatformSnapshot] = [
             PlatformInstance(platform: .linkedin): PlatformSnapshot(runID: 1, platform: "linkedin",
                                         collectedAt: staleDate, metricsJSON: payload)
@@ -69,7 +69,7 @@ struct FeedCardBuilderTests {
     @Test("build does not produce stale reminder for LinkedIn within 3-day threshold")
     func buildNoStaleReminderForLinkedInWithinThreshold() throws {
         let freshDate = fixedNow.addingTimeInterval(-(1 * 24 * 3600))
-        let payload = try JSONEncoder().encode(LinkedInData(latestPostText: "fresh", totalImpressions: 10))
+        let payload = try metricsPayload(["latest_post_text": .string("fresh"), "total_impressions": .int(10)])
         let snapshots: [PlatformInstance: PlatformSnapshot] = [
             PlatformInstance(platform: .linkedin): PlatformSnapshot(runID: 1, platform: "linkedin",
                                         collectedAt: freshDate, metricsJSON: payload)
@@ -129,9 +129,7 @@ struct FeedCardBuilderTests {
         // the entry filter, since the block iterates the snapshots; the stale
         // reminders are caught by the exit filter, since that block walks a
         // fixed platform list. Neither filter covers both.
-        let payload = try JSONEncoder().encode(
-            LinkedInData(latestPostText: "a post that should not surface", totalImpressions: 500)
-        )
+        let payload = try metricsPayload(["latest_post_text": .string("a post that should not surface"), "total_impressions": .int(500)])
         let snapshots: [PlatformInstance: PlatformSnapshot] = [
             PlatformInstance(platform: .linkedin):
                 PlatformSnapshot(runID: 1, platform: "linkedin",
@@ -145,8 +143,11 @@ struct FeedCardBuilderTests {
         let filtered = FeedCardBuilder.build(snapshots: snapshots, now: fixedNow,
                                              visibility: hidden)
 
-        // Something was there to suppress, so this is not vacuous.
-        #expect(visible.contains { $0.platform == .linkedin })
+        // Names the card type, not just the platform: with a real
+        // `total_impressions` in the payload, `HighReachDetector` also emits a
+        // LinkedIn card, so a platform-only assertion would pass even if the
+        // recent-post card this test is about had stopped being built.
+        #expect(visible.contains { $0.platform == .linkedin && $0.cardType == .recentPost })
         #expect(!filtered.contains { $0.platform == .linkedin })
     }
 
@@ -157,12 +158,8 @@ struct FeedCardBuilderTests {
         // then get dropped — deleting "your best this period" from the feed
         // rather than awarding it to the best visible platform. That is why the
         // filter is applied to the inputs as well as the output.
-        let mastodon = try JSONEncoder().encode(
-            MastodonData(latestPostText: nil, followersCount: 100, engagementRate: 0.9)
-        )
-        let bluesky = try JSONEncoder().encode(
-            BlueskyData(latestPostText: nil, followersCount: 100, engagementRate: 0.5)
-        )
+        let mastodon = try metricsPayload(["followers_count": .int(100), "engagement_rate": .double(0.9)])
+        let bluesky = try metricsPayload(["followers_count": .int(100), "engagement_rate": .double(0.5)])
         let snapshots: [PlatformInstance: PlatformSnapshot] = [
             PlatformInstance(platform: .mastodon):
                 PlatformSnapshot(runID: 1, platform: "mastodon",
@@ -196,10 +193,8 @@ struct FeedCardBuilderTests {
         // point: the old code produced one card reading
         // "Buttondown engagement at 66.0%".
         let fixedNow = Date(timeIntervalSince1970: 1_700_000_000)
-        let mastodon = try JSONEncoder().encode(
-            MastodonData(latestPostText: nil, followersCount: 1_400, engagementRate: 0.03))
-        let buttondown = try JSONEncoder().encode(
-            ButtondownData(latestSubjectLine: nil, subscriberCount: 91, openRate: 0.66))
+        let mastodon = try metricsPayload(["followers_count": .int(1_400), "engagement_rate": .double(0.03)])
+        let buttondown = try metricsPayload(["subscriber_count": .int(91), "avg_open_rate": .double(0.66)])
         let snapshots: [PlatformInstance: PlatformSnapshot] = [
             PlatformInstance(platform: .mastodon):
                 PlatformSnapshot(runID: 1, platform: "mastodon", collectedAt: fixedNow, metricsJSON: mastodon),
@@ -222,10 +217,8 @@ struct FeedCardBuilderTests {
     @Test("The engagement card still picks the best of comparable platforms")
     func engagementCardStillRanksWithinItsKind() throws {
         let fixedNow = Date(timeIntervalSince1970: 1_700_000_000)
-        let mastodon = try JSONEncoder().encode(
-            MastodonData(latestPostText: nil, followersCount: 100, engagementRate: 0.02))
-        let bluesky = try JSONEncoder().encode(
-            BlueskyData(latestPostText: nil, followersCount: 100, engagementRate: 0.05))
+        let mastodon = try metricsPayload(["followers_count": .int(100), "engagement_rate": .double(0.02)])
+        let bluesky = try metricsPayload(["followers_count": .int(100), "engagement_rate": .double(0.05)])
         let snapshots: [PlatformInstance: PlatformSnapshot] = [
             PlatformInstance(platform: .mastodon):
                 PlatformSnapshot(runID: 1, platform: "mastodon", collectedAt: fixedNow, metricsJSON: mastodon),
@@ -250,8 +243,7 @@ struct FeedCardBuilderTests {
 
     @Test("build does not produce stale reminder for non-file-export platform even if old")
     func buildNoStaleReminderForNonFileExportPlatform() throws {
-        let payload = try JSONEncoder().encode(MastodonData(
-            latestPostText: "old", followersCount: 1, engagementRate: 0.01))
+        let payload = try metricsPayload(["latest_post_text": .string("old"), "followers_count": .int(1), "engagement_rate": .double(0.01)])
         let oldDate = fixedNow.addingTimeInterval(-(365 * 24 * 3600))
         let snapshots: [PlatformInstance: PlatformSnapshot] = [
             PlatformInstance(platform: .mastodon): PlatformSnapshot(runID: 1, platform: "mastodon",
@@ -292,7 +284,7 @@ struct FeedCardBuilderTests {
         // so the default-instance stale reminder fires.
         let nonDefaultInstance = PlatformInstance(platform: .linkedin, instanceName: "company")
         let freshDate = fixedNow.addingTimeInterval(-(1 * 24 * 3600))
-        let payload = try JSONEncoder().encode(LinkedInData(latestPostText: "post", totalImpressions: 10))
+        let payload = try metricsPayload(["latest_post_text": .string("post"), "total_impressions": .int(10)])
         let snap = PlatformSnapshot(runID: 1, platform: "linkedin",
                                     instanceName: "company", collectedAt: freshDate,
                                     metricsJSON: payload)

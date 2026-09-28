@@ -97,19 +97,14 @@ struct FeedCardBuilder {
             }
         }
 
-        // 2. Upcoming events from Calendly (default instance only)
-        let calendlyInstance = PlatformInstance(platform: .calendly)
-        if let snapshot = snapshots[calendlyInstance],
-           let data = try? JSONDecoder().decode(CalendlyData.self, from: snapshot.metricsJSON),
-           !data.upcomingEventTitles.isEmpty {
-            let titles = data.upcomingEventTitles.prefix(3).joined(separator: ", ")
-            cards.append(FeedCard(
-                platform: .calendly,
-                cardType: .upcomingEvent,
-                snippet: truncate("Upcoming: \(titles)"),
-                navigationTarget: .calendly
-            ))
-        }
+        // 2. Upcoming events from Calendly — removed, not forgotten.
+        //
+        // This decoded a `CalendlyData` carrying `upcomingEventTitles`, a
+        // shape no collector has ever written: `CalendlyCollector` emits
+        // counts and top event types. Only test fixtures built it, so the card
+        // could not appear in the app, and the fixtures made it look as though
+        // it did (#90). Reinstating it means deciding whether the collector
+        // should fetch upcoming events at all — #210.
 
         // 3. Recent posts — platforms with text content in latest snapshot
         let postPlatforms: [Platform] = [.mastodon, .bluesky, .buttondown, .jetpack,
@@ -197,42 +192,24 @@ struct FeedCardBuilder {
         return String(prefix) + "…"
     }
 
-    // Extracts a human-readable post/subject snippet from the raw metrics JSON.
-    // Supports both the typed FeedPlatformData structs (used in tests) and the
-    // production [String: MetricValue] format used by the real collectors.
+    /// A human-readable post or subject snippet from the stored metrics.
+    ///
+    /// One path: the dictionary the collectors actually write. It used to try
+    /// a typed struct first and fall back to this, and the structs were only
+    /// ever built by tests — so the decode branch was dead in production while
+    /// the tests exercised a shape the app never sees (#90).
+    ///
+    /// **No collector emits these keys today**, so this returns `nil` in
+    /// production and no recent-post card is ever built. That is #171, and it
+    /// stayed invisible while fixtures supplied the typed structs instead.
     private static func latestPostText(platform: Platform, data: Data) -> String? {
         switch platform {
-        case .mastodon:
-            // Try typed struct first (test fixtures), then production metric key
-            if let d = try? JSONDecoder().decode(MastodonData.self, from: data) {
-                return d.latestPostText
-            }
+        case .mastodon, .bluesky, .linkedin:
             return metricString(MetricKey.latestPostText, from: data)
-        case .bluesky:
-            if let d = try? JSONDecoder().decode(BlueskyData.self, from: data) {
-                return d.latestPostText
-            }
-            return metricString(MetricKey.latestPostText, from: data)
-        case .buttondown:
-            if let d = try? JSONDecoder().decode(ButtondownData.self, from: data) {
-                return d.latestSubjectLine
-            }
+        case .buttondown, .substack:
             return metricString(MetricKey.latestSubjectLine, from: data)
         case .jetpack:
-            if let d = try? JSONDecoder().decode(JetpackData.self, from: data) {
-                return d.latestPostTitle
-            }
             return metricString(MetricKey.latestPostTitle, from: data)
-        case .linkedin:
-            if let d = try? JSONDecoder().decode(LinkedInData.self, from: data) {
-                return d.latestPostText
-            }
-            return metricString(MetricKey.latestPostText, from: data)
-        case .substack:
-            if let d = try? JSONDecoder().decode(SubstackData.self, from: data) {
-                return d.latestSubjectLine
-            }
-            return metricString(MetricKey.latestSubjectLine, from: data)
         default:
             return nil
         }
@@ -266,28 +243,21 @@ struct FeedCardBuilder {
         }
     }
 
+    /// The rate this platform contributes to a highlight card.
+    ///
+    /// Buttondown's is an **open** rate, which `rateConcept(for:)` records —
+    /// the name of this function has always been a lie about that branch.
+    ///
+    /// Only Buttondown's key is emitted by a collector: `engagement_rate` is
+    /// read here and written by nobody (#171), so the engagement half of the
+    /// highlight card never renders in production. The typed structs that hid
+    /// that are gone (#90).
     static func engagementRate(platform: Platform, data: Data) -> Double? {
         switch platform {
-        case .mastodon:
-            if let d = try? JSONDecoder().decode(MastodonData.self, from: data) {
-                return d.engagementRate
-            }
-            return metricDouble(MetricKey.engagementRate, from: data)
-        case .bluesky:
-            if let d = try? JSONDecoder().decode(BlueskyData.self, from: data) {
-                return d.engagementRate
-            }
+        case .mastodon, .bluesky, .jetpack:
             return metricDouble(MetricKey.engagementRate, from: data)
         case .buttondown:
-            if let d = try? JSONDecoder().decode(ButtondownData.self, from: data) {
-                return d.openRate
-            }
             return metricDouble(MetricKey.avgOpenRate, from: data)
-        case .jetpack:
-            if let d = try? JSONDecoder().decode(JetpackData.self, from: data) {
-                return d.engagementRate
-            }
-            return metricDouble(MetricKey.engagementRate, from: data)
         default:
             return nil
         }

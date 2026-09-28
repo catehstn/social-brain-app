@@ -68,10 +68,25 @@ Numbering is stable: don't renumber.
 30. **No test migrates a populated v1 database** — `CLAUDE.md:101` and `repo-cleanup-plan.md:34` say the rule is enforced; every DB test starts from a fresh in-memory migrator. Confirmed.
 31. **`MockURLSession` matches path only and records nothing** (`:24-28`), so no collector test can assert the request URL, headers or `since` parameter. 5 of 7 collector suites have no `since` test despite `CLAUDE.md:100`. Item 4 is exactly what a request-URL assertion would have caught. Confirmed.
 32. **`InstanceRegistry.defaults` has the same cross-suite race `PlatformVisibilityStore` was fixed for** (`InstanceRegistryTests.swift:5-14` reassigns a global while other suites read it). Beyond #58's general statement. Suspected intermittent.
+
+    > **Correction (2026-09-24, #181/#208).** Fixed. `InstanceRegistry` takes an
+    > injected `KeyValueStore` with no global to reassign, and `InstanceRegistryTests`
+    > builds its own per test, so the cross-suite race is structural rather than
+    > contained.
 33. **`FeedUITests.swift:32-47` cannot fail** (assertion inside `if count > 0`, CI DB is empty); `:7-11` depends on `SocialBrainUITests` having persisted onboarding state into the host's real defaults. Confirmed.
 
     > **Correction (2026-09-24, #207).** The second half is fixed: `FeedUITests.setUp()` now passes `-hasCompletedOnboarding 0` and `-resetHiddenPlatforms` like the other suite, so it no longer depends on state another suite left behind. The first half stands and is now deliberate — the test is renamed to say it is conditional, and its doc comment says plainly that it asserts nothing about the expand control on an empty database. Seeding the launched app has no mechanism, and #46 rewrites these tests with the redesign.
 34. **Zero tests and not tracked anywhere**: `RunViewModel`, `HistoryViewModel`, `NotificationManager`, `BackgroundRefreshScheduler`, `AnalyticsGoal`, `InstanceLabels` (the last two write `UserDefaults.standard` directly). `SocialBrainTests.swift` is an empty placeholder. `FeedPlatformData` typed structs exist only for fixtures; production always takes the dictionary path, so those tests exercise code production never runs (`FeedCardBuilder.swift:159-221`). Confirmed.
+
+    > **Correction (2026-09-28, #90).** All of it is now addressed. Every type
+    > listed has tests — `RunViewModel`, `HistoryViewModel` (#203),
+    > `NotificationManager` (#204), `BackgroundRefreshScheduler` (#209),
+    > `AnalyticsGoal` and `InstanceLabels` (#181, which also stopped the last
+    > two writing `UserDefaults.standard`). `SocialBrainTests.swift` is
+    > deleted. The `FeedPlatformData` structs are deleted too, and the Feed
+    > suites seed the dictionary the collectors write — which exposed that the
+    > readers those fixtures were feeding have no writer at all, now recorded
+    > on #171 and #210.
 35. `SetupURLTests.swift:33-45` hand-maintains the URL list instead of reading `PlatformCredentialSheet`'s literals. (#60.)
 
 ## P2 — CI
@@ -94,6 +109,13 @@ Numbering is stable: don't renumber.
 45. **Importers stamp `collectedAt = .now`** and ignore the export's own dates (LinkedIn rows, KDP `Royalty Date`, Substack `post_date`); a last-quarter export imported today becomes today's snapshot.
 46. **Keychain used as a boolean flag** (`PlatformsViewModel.swift:189` stores `["imported": "true"]`), which `RunViewModel`, `SettingsView` and `CollectorRegistry.configured()` then depend on; `hasCredentials` also returns false on any ACL denial, turning a dismissed Keychain prompt into "not configured".
 47. **`nonisolated(unsafe) static var defaults`** test hooks in `InstanceRegistry` and `PlatformVisibilityStore`, while `InstanceLabels` and `AnalyticsGoal` hit `UserDefaults.standard` directly; `InstanceRegistry.remove` will happily remove `"default"`, which several call sites assume exists.
+
+    > **Correction (2026-09-24, #181).** Fixed, and structurally: there are no
+    > `static var` test hooks left. All four stores — `InstanceRegistry`,
+    > `PlatformVisibilityStore`, `InstanceLabels` and `AnalyticsGoalStore` —
+    > take a `KeyValueStore` through their initialiser with a `static let
+    > shared` for production, and `InjectedDefaultsTests` fails the build on a
+    > fifth use of `UserDefaults.standard` anywhere in the app or MCP sources.
 48. **`since == nil` means five different things** (30 days, 28 days, first page, all time…) and GSC formats dates in local time while Buttondown/GoatCounter use UTC.
 49. **`PlatformCredentialSheet.swift`** hard-codes per-platform field keys, help URLs, permission notes and required keys that the collectors are the real consumers of; a `Platform.credentialSpec` would let the redesign render forms generically and let `SetupURLTests` read the source of truth. GSC Client ID is marked `secure` (it isn't a secret). Buttondown help URL `buttondown.com/keys` suspected stale.
 50. `print` for error reporting in three places; SQL trace prints every statement including `latest_post_text` in DEBUG; `NSUserNotificationAlertStyle` is a dead Info.plist key; no `LSApplicationCategoryType`; hard-coded `0.1.0` version.
