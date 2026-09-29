@@ -38,8 +38,7 @@ struct FeedDatabaseTests {
 
         let runID = try await makeRun(in: db)
 
-        let payload = try JSONEncoder().encode(MastodonData(
-            latestPostText: "hello", followersCount: 100, engagementRate: 0.05))
+        let payload = try metricsPayload(["latest_post_text": .string("hello"), "followers_count": .int(100), "engagement_rate": .double(0.05)])
 
         var snap1 = PlatformSnapshot(runID: runID, platform: "mastodon",
                                      collectedAt: older, metricsJSON: payload)
@@ -70,12 +69,9 @@ struct FeedDatabaseTests {
         let twoHoursAgo = base.addingTimeInterval(-7200)
         let runID = try await makeRun(in: db)
 
-        let mastodonPayload = try JSONEncoder().encode(MastodonData(
-            latestPostText: "hello", followersCount: 100, engagementRate: 0.05))
-        let blueskyPayload = try JSONEncoder().encode(BlueskyData(
-            latestPostText: "hi", followersCount: 200, engagementRate: 0.03))
-        let buttondownPayload = try JSONEncoder().encode(ButtondownData(
-            latestSubjectLine: "Newsletter", subscriberCount: 500, openRate: 0.4))
+        let mastodonPayload = try metricsPayload(["latest_post_text": .string("hello"), "followers_count": .int(100), "engagement_rate": .double(0.05)])
+        let blueskyPayload = try metricsPayload(["latest_post_text": .string("hi"), "followers_count": .int(200), "engagement_rate": .double(0.03)])
+        let buttondownPayload = try metricsPayload(["latest_subject_line": .string("Newsletter"), "subscriber_count": .int(500), "avg_open_rate": .double(0.4)])
 
         var s1 = PlatformSnapshot(runID: runID, platform: "mastodon",
                                    collectedAt: now, metricsJSON: mastodonPayload)
@@ -102,8 +98,11 @@ struct FeedDatabaseTests {
         let db = try makeDB()
         let runID = try await makeRun(in: db)
 
-        let original = BlueskyData(latestPostText: "test", followersCount: 50, engagementRate: 0.07)
-        let encoded = try JSONEncoder().encode(original)
+        let encoded = try metricsPayload([
+            "latest_post_text": .string("test"),
+            "followers_count": .int(50),
+            "engagement_rate": .double(0.07)
+        ])
 
         var snap = PlatformSnapshot(runID: runID, platform: "bluesky",
                                     collectedAt: Date(), metricsJSON: encoded)
@@ -113,8 +112,11 @@ struct FeedDatabaseTests {
         let data = try #require(result[PlatformInstance(platform: .bluesky)]?.metricsJSON)
         #expect(!data.isEmpty)
 
-        let decoded = try JSONDecoder().decode(BlueskyData.self, from: data)
-        #expect(decoded.latestPostText == "test")
+        // Decoded as the dictionary the collectors write, which is the only
+        // shape the database ever holds.
+        let decoded = try JSONDecoder().decode([String: MetricValue].self, from: data)
+        #expect(decoded["latest_post_text"] == .string("test"))
+        #expect(decoded["followers_count"] == .int(50))
     }
 
     // MARK: - Suite 10.3 — DashboardViewModel uses instanceName

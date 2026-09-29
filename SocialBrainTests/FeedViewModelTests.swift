@@ -31,8 +31,7 @@ struct FeedViewModelTests {
     func loadsCards() async throws {
         let db = try makeDB()
         let runID = try await makeRun(in: db)
-        let payload = try JSONEncoder().encode(MastodonData(
-            latestPostText: "Test post", followersCount: 200, engagementRate: 0.1))
+        let payload = try metricsPayload(["latest_post_text": .string("Test post"), "followers_count": .int(200), "engagement_rate": .double(0.1)])
         var snap = PlatformSnapshot(runID: runID, platform: "mastodon",
                                     collectedAt: Date(), metricsJSON: payload)
         try await db.saveSnapshot(&snap)
@@ -69,8 +68,7 @@ struct FeedViewModelTests {
         let fixedNow = Date()
         let staleDate = fixedNow.addingTimeInterval(-(4 * 24 * 3600)) // 4 days ago
         let runID = try await makeRun(in: db)
-        let payload = try JSONEncoder().encode(LinkedInData(
-            latestPostText: "old post", totalImpressions: 50))
+        let payload = try metricsPayload(["latest_post_text": .string("old post"), "total_impressions": .int(50)])
         var snap = PlatformSnapshot(runID: runID, platform: "linkedin",
                                     collectedAt: staleDate, metricsJSON: payload)
         try await db.saveSnapshot(&snap)
@@ -90,8 +88,7 @@ struct FeedViewModelTests {
         let fixedNow = Date()
         let freshDate = fixedNow.addingTimeInterval(-(1 * 24 * 3600)) // 1 day ago
         let runID = try await makeRun(in: db)
-        let payload = try JSONEncoder().encode(LinkedInData(
-            latestPostText: "fresh", totalImpressions: 10))
+        let payload = try metricsPayload(["latest_post_text": .string("fresh"), "total_impressions": .int(10)])
         var snap = PlatformSnapshot(runID: runID, platform: "linkedin",
                                     collectedAt: freshDate, metricsJSON: payload)
         try await db.saveSnapshot(&snap)
@@ -109,8 +106,7 @@ struct FeedViewModelTests {
     func navigationTarget() async throws {
         let db = try makeDB()
         let runID = try await makeRun(in: db)
-        let payload = try JSONEncoder().encode(MastodonData(
-            latestPostText: "nav test", followersCount: 10, engagementRate: 0.02))
+        let payload = try metricsPayload(["latest_post_text": .string("nav test"), "followers_count": .int(10), "engagement_rate": .double(0.02)])
         var snap = PlatformSnapshot(runID: runID, platform: "mastodon",
                                     collectedAt: Date(), metricsJSON: payload)
         try await db.saveSnapshot(&snap)
@@ -128,8 +124,7 @@ struct FeedViewModelTests {
     func feedViewModelLoadsDefaultInstances() async throws {
         let db = try makeDB()
         let runID = try await makeRun(in: db)
-        let payload = try JSONEncoder().encode(MastodonData(
-            latestPostText: "default post", followersCount: 100, engagementRate: 0.05))
+        let payload = try metricsPayload(["latest_post_text": .string("default post"), "followers_count": .int(100), "engagement_rate": .double(0.05)])
         var snap = PlatformSnapshot(runID: runID, platform: "mastodon",
                                     instanceName: "default", collectedAt: Date(),
                                     metricsJSON: payload)
@@ -146,10 +141,8 @@ struct FeedViewModelTests {
     func feedViewModelLoadsMultipleInstancesForSamePlatform() async throws {
         let db = try makeDB()
         let runID = try await makeRun(in: db)
-        let personalPayload = try JSONEncoder().encode(MastodonData(
-            latestPostText: "personal post", followersCount: 100, engagementRate: 0.05))
-        let workPayload = try JSONEncoder().encode(MastodonData(
-            latestPostText: "work post", followersCount: 500, engagementRate: 0.08))
+        let personalPayload = try metricsPayload(["latest_post_text": .string("personal post"), "followers_count": .int(100), "engagement_rate": .double(0.05)])
+        let workPayload = try metricsPayload(["latest_post_text": .string("work post"), "followers_count": .int(500), "engagement_rate": .double(0.08)])
         var snap1 = PlatformSnapshot(runID: runID, platform: "mastodon",
                                      instanceName: "personal", collectedAt: Date(),
                                      metricsJSON: personalPayload)
