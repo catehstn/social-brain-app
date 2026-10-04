@@ -412,12 +412,16 @@ string to its allowlist is a deliberate act; that is the point.
 
 **Doc updates go in the same PR as the code change, never a follow-up.**
 
-`docs/design-brief.md` and `docs/repo-cleanup-plan.md` are living docs referenced
-from here and from the README. When a change makes one of them wrong, fix it in
-the same PR. They go stale fast, and a stale doc is worse than no doc because it
-gets trusted: #61 exists because the design brief promised a mentions synthesis
-the code has never had, and the design pass was about to be planned from it.
-(The line was cut in #123, so #61 is now about whether to build one at all.)
+`docs/design-brief.md` is a living doc referenced from here and from the README.
+When a change makes it wrong, fix it in the same PR. It goes stale fast, and a
+stale doc is worse than no doc because it gets trusted: #61 exists because the
+design brief promised a mentions synthesis the code has never had, and the
+design pass was about to be planned from it. (The line was cut in #123, so #61
+is now about whether to build one at all.)
+
+`docs/repo-cleanup-plan.md` is a historical record of the first cleanup pass,
+not a living doc — do not act on its imperatives. The current state of the
+repo lives here (CLAUDE.md) and in GitHub milestones.
 
 ## README
 

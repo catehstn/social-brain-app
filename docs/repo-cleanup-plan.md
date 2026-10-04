@@ -1,15 +1,14 @@
 # Repo cleanup plan — proposal
 
-> **Historical.** Snapshot from 2026-09-01. Kept for the restart decision in §1
-> and the CI postmortem in §3 — the reasoning there is still live. The §4
-> hygiene list reads as open to-dos, but every item was carried out and is
-> recorded in §6; follow §6 rather than acting on §4. The §6 branch table and
-> the M1 issue list in §5 are frozen as of 2026-09-01 and have since moved —
-> use `git branch -r` and GitHub milestones for the live state. CLAUDE.md and
-> the issue tracker are the current sources of truth; this file is kept for
-> the record.
-
-Written 2026-09-01.
+> **Historical.** Written 2026-09-01, kept as a record of the first-pass
+> reasoning. The restart decision in §1, the CI postmortem in §3, and the
+> open decisions in §7 (GitHub Pages / #28) are still live. The §4 hygiene
+> list is struck through — all but the Pages item shipped, in §6, in #93, or
+> in the issue tracker. The §6 branch table was deleted (stale); use
+> `git branch -r` for live state. §5's M1 issue list has drifted since
+> 2026-09-01 and now carries later annotations and new issue references
+> (#58/#59/#60/#97) — treat it as a palimpsest, not a current list. CLAUDE.md
+> and GitHub milestones are the current sources of truth.
 
 **Status:** sections 1–4 are done, in PR #44 — the repo builds again and all three
 CI jobs are green on both Xcode 16.4 (CI) and 26.6 (local). PR #34 was closed as
@@ -60,6 +59,13 @@ The five "Design pass" issues (#38–#42) are the real work, and they are view-s
 ---
 
 ## 2. Blockers to fix before any design work
+
+*Historical. All four blockers are resolved: the P0 project-file conflict is
+marked RESOLVED below; PR #34 was closed as superseded by the design pass
+(see the top status paragraph); `SocialBrainMCP` was wired up as a real
+target in #47 (see §5 Suggested Order); and the P1 test-gap list is settled
+in-section below. Kept for the diagnostic reasoning; do not act on the
+imperatives.*
 
 ### P0 — Two sources of truth for the Xcode project ✅ RESOLVED
 
@@ -142,13 +148,14 @@ auto-creating one), no release-configuration build, no concurrency cancellation,
 and `CODE_SIGN_STYLE = Automatic` with an empty `DEVELOPMENT_TEAM` (which cannot
 succeed on a runner with no Apple account).
 
-## 4. Repo hygiene — done (see §6)
+## 4. Repo hygiene — mostly done
 
-*The items below are the original to-do list from 2026-09-01, kept as a record
-of what the first pass found. Each is now settled in §6, in the issue tracker,
-or in #93, which is the follow-up pass that fixed CLAUDE.md and the plan files.
-`trycycle-plan.md` was moved and later superseded — the convention is
-`docs/plans/YYYY-MM-DD-<feature>.md`. GitHub Pages (#28) is the one open item.*
+*The items below are the original to-do list from 2026-09-01, kept as a
+record of what the first pass found. The xcuserstate removal and the
+`trycycle-plan.md` move were carried out in #44 and #93 respectively (the
+plan-file convention `docs/plans/YYYY-MM-DD-<feature>.md` is set in #93).
+The merged-branches and description items are recorded in §6. GitHub Pages
+(#28) is still the one open item — see §7.*
 
 - ~~`SocialBrain.xcodeproj/.../xcuserdata/UserInterfaceState.xcuserstate` is tracked in git despite `.gitignore` — needs `git rm --cached`.~~
 - ~~`trycycle-plan.md` (23KB) sits at the repo root; it planned the platforms redesign already shipped in #31. Move to `docs/plans/` or delete.~~
