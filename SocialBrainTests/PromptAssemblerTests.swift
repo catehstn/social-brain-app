@@ -199,19 +199,21 @@ struct PromptAssemblerTests {
         #expect(!prompt.contains("## O'Reilly"))
     }
 
-    @Test("Substack section formats posts and open rate")
+    @Test("Substack section formats posts, open rate, and click rate")
     func substackSection() throws {
         let data = PlatformData(
             platform: .substack,
             metrics: [
                 "posts_published": .int(4),
-                "avg_open_rate":   .double(0.47)
+                "avg_open_rate":   .double(0.47),
+                "avg_click_rate":  .double(0.08)
             ]
         )
         let prompt = assembler.assemble(makeInput(snapshots: try snaps(data)))
         #expect(prompt.contains("## Substack"))
         #expect(prompt.contains("Posts published: 4"))
-        #expect(prompt.contains("47.0%"))
+        #expect(prompt.contains("Average open rate: 47.0%"))
+        #expect(prompt.contains("Average click rate: 8.0%"))
     }
 
     @Test("Calendly section formats events and invitees")

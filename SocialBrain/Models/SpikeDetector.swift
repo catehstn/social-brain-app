@@ -224,7 +224,8 @@ struct SpikeDetector: Sendable {
                     Monitored(key: MetricKey.totalUniqueUsers, label: "Unique Users")]
         case .substack:
             return [Monitored(key: MetricKey.postsPublished, label: "Posts Published"),
-                    Monitored(key: MetricKey.avgOpenRate, label: "Avg Open Rate", floor: rateFloor)]
+                    Monitored(key: MetricKey.avgOpenRate, label: "Avg Open Rate", floor: rateFloor),
+                    Monitored(key: MetricKey.avgClickRate, label: "Avg Click Rate", floor: rateFloor)]
         case .googleSearchConsole:
             // avg_position is a rank, so it gets no floor: small is the *best*
             // state, and a floor would mute exactly the good news (4 → 3) while

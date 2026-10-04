@@ -159,7 +159,8 @@ final class DashboardViewModel {
                     (MetricKey.totalUniqueUsers, "Unique Users")]
         case .substack:
             return [(MetricKey.postsPublished, "Posts Published"),
-                    (MetricKey.avgOpenRate, "Avg Open Rate")]
+                    (MetricKey.avgOpenRate, "Avg Open Rate"),
+                    (MetricKey.avgClickRate, "Avg Click Rate")]
         default:
             return []
         }

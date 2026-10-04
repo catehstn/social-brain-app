@@ -55,7 +55,6 @@ enum MetricKey {
     static let eventsCount       = "events_count"       // Calendly
     static let cancelledCount    = "cancelled_count"    // Calendly
     static let uniqueInvitees    = "unique_invitees"    // Calendly
-    static let profilesCount     = "profiles_count"     // Buffer
     static let titlesCount       = "titles_count"       // O'Reilly
     static let mentionCount      = "mention_count"      // Hacker News
 
