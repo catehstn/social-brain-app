@@ -1,14 +1,18 @@
 # Repo cleanup plan — proposal
 
 > **Historical.** Written 2026-09-01, kept as a record of the first-pass
-> reasoning. The restart decision in §1, the CI postmortem in §3, and the
-> open decisions in §7 (GitHub Pages / #28) are still live. The §4 hygiene
-> list is struck through — all but the Pages item shipped, in §6, in #93, or
-> in the issue tracker. The §6 branch table was deleted (stale); use
-> `git branch -r` for live state. §5's M1 issue list has drifted since
-> 2026-09-01 and now carries later annotations and new issue references
-> (#58/#59/#60/#97) — treat it as a palimpsest, not a current list. CLAUDE.md
-> and GitHub milestones are the current sources of truth.
+> reasoning. §1 (restart decision) and §3 (CI postmortem) are reasoning
+> retained — the decisions were taken, and the writeups explain why. §7 is
+> the only section with items still open (#28 GitHub Pages, #61 mentions
+> synthesis). §4's hygiene list is struck through — xcuserstate (#44),
+> `trycycle-plan.md` (#93), merged-branch cleanup and the repo description
+> (§6) all shipped; GitHub Pages is the one still-open §4 item. The §6
+> branch table was deleted — see §6 for the two notes worth preserving.
+> §5's M1 list has drifted since 2026-09-01 (strike-throughs on closed
+> issues, 2026-09-22 annotation, references to issues filed later —
+> #58/#59/#60/#90/#97/#123/#173) — treat it as a palimpsest, not a current
+> list. CLAUDE.md and the P1/P2 labels on GitHub are the current sources
+> of truth for what to do next.
 
 **Status:** sections 1–4 are done, in PR #44 — the repo builds again and all three
 CI jobs are green on both Xcode 16.4 (CI) and 26.6 (local). PR #34 was closed as
@@ -151,14 +155,11 @@ succeed on a runner with no Apple account).
 ## 4. Repo hygiene — mostly done
 
 *The items below are the original to-do list from 2026-09-01, kept as a
-record of what the first pass found. The xcuserstate removal and the
-`trycycle-plan.md` move were carried out in #44 and #93 respectively (the
-plan-file convention `docs/plans/YYYY-MM-DD-<feature>.md` is set in #93).
-The merged-branches and description items are recorded in §6. GitHub Pages
-(#28) is still the one open item — see §7.*
+record of what the first pass found. GitHub Pages is still the one open
+item — see §7.*
 
-- ~~`SocialBrain.xcodeproj/.../xcuserdata/UserInterfaceState.xcuserstate` is tracked in git despite `.gitignore` — needs `git rm --cached`.~~
-- ~~`trycycle-plan.md` (23KB) sits at the repo root; it planned the platforms redesign already shipped in #31. Move to `docs/plans/` or delete.~~
+- ~~`SocialBrain.xcodeproj/.../xcuserdata/UserInterfaceState.xcuserstate` is tracked in git despite `.gitignore` — needs `git rm --cached`.~~ (#44)
+- ~~`trycycle-plan.md` (23KB) sits at the repo root; it planned the platforms redesign already shipped in #31. Move to `docs/plans/` or delete.~~ (#93; the convention is `docs/plans/YYYY-MM-DD-<feature>.md`)
 - ~~**15 merged branches** never deleted on origin. `delete_branch_on_merge` is **off** — turn it on.~~ (done, §6)
 - ~~Repo has **no description and no homepage** set.~~ (done, §6)
 - `docs/index.html` exists (the platform setup guide) but **GitHub Pages is not enabled** — tracked in #28, still open per §7.
@@ -233,10 +234,17 @@ deliberately.
   accumulating.
 - Repo description set.
 
-*Snapshot of branches as of 2026-09-01 removed — stale (two of the six listed
-have since been deleted, and the live count is in `git branch -r`). The point
-the table was making still holds: with `delete_branch_on_merge` on, branches
-left behind are either in-flight PRs or someone else's work.*
+*Snapshot of branches as of 2026-09-01 removed — stale (two of the six
+listed have since been deleted; the live count is in `git branch -r`).
+Two per-branch notes from the removed table are still useful and worth
+preserving:*
+
+- *`bas-questions-and-issues` — someone else's branch, from closed PR
+  #53. **Not ours to delete.** If it is still on origin, leave it there.*
+- *`linkedin-xlsx-oauth-fixes` — squash-merged as #33, so git reports it
+  unmerged. Don't judge from the diff (`gh api
+  repos/catehstn/social-brain-app/pulls/33` returns `merged: true`), and
+  don't re-merge it. Safe to delete.*
 
 ## 7. Still needing a decision
 

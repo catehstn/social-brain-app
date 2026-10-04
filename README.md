@@ -169,9 +169,10 @@ turned on (#28). Edit the bundled one.
 See [CLAUDE.md](CLAUDE.md) for the working conventions: branch per change, tests for
 every collector and every migration, one PR per logical change.
 
-Current state of the repo lives in [CLAUDE.md](CLAUDE.md) and in GitHub
-milestones. `docs/repo-cleanup-plan.md` is a historical record of the first
-cleanup pass, not a current one.
+Current state of the repo lives in [CLAUDE.md](CLAUDE.md). The prioritised
+backlog is the [P1-labelled open issues](https://github.com/catehstn/social-brain-app/issues?q=is%3Aissue+is%3Aopen+label%3AP1);
+milestones (M1/M2/M3) group it by phase. `docs/repo-cleanup-plan.md` is a
+historical record of the first cleanup pass, not a current one.
 
 ## MCP server
 
