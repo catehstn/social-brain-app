@@ -1,5 +1,14 @@
 # Repo cleanup plan — proposal
 
+> **Historical.** Snapshot from 2026-09-01. Kept for the restart decision in §1
+> and the CI postmortem in §3 — the reasoning there is still live. The §4
+> hygiene list reads as open to-dos, but every item was carried out and is
+> recorded in §6; follow §6 rather than acting on §4. The §6 branch table and
+> the M1 issue list in §5 are frozen as of 2026-09-01 and have since moved —
+> use `git branch -r` and GitHub milestones for the live state. CLAUDE.md and
+> the issue tracker are the current sources of truth; this file is kept for
+> the record.
+
 Written 2026-09-01.
 
 **Status:** sections 1–4 are done, in PR #44 — the repo builds again and all three
@@ -133,13 +142,19 @@ auto-creating one), no release-configuration build, no concurrency cancellation,
 and `CODE_SIGN_STYLE = Automatic` with an empty `DEVELOPMENT_TEAM` (which cannot
 succeed on a runner with no Apple account).
 
-## 4. Repo hygiene (low risk, I can do these immediately)
+## 4. Repo hygiene — done (see §6)
 
-- `SocialBrain.xcodeproj/.../xcuserdata/UserInterfaceState.xcuserstate` is **tracked in git** despite `.gitignore` — needs `git rm --cached` (gitignore doesn't apply retroactively).
-- `trycycle-plan.md` (23KB) sits at the repo root; it planned the platforms redesign already shipped in #31. Move to `docs/plans/` or delete.
-- **15 merged branches** never deleted on origin. `delete_branch_on_merge` is **off** — turn it on.
-- Repo has **no description and no homepage** set.
-- `docs/index.html` exists (the platform setup guide, 174 lines) but **GitHub Pages is not enabled** — which is exactly what issue #28 asks for. It's one settings toggle away from being done.
+*The items below are the original to-do list from 2026-09-01, kept as a record
+of what the first pass found. Each is now settled in §6, in the issue tracker,
+or in #93, which is the follow-up pass that fixed CLAUDE.md and the plan files.
+`trycycle-plan.md` was moved and later superseded — the convention is
+`docs/plans/YYYY-MM-DD-<feature>.md`. GitHub Pages (#28) is the one open item.*
+
+- ~~`SocialBrain.xcodeproj/.../xcuserdata/UserInterfaceState.xcuserstate` is tracked in git despite `.gitignore` — needs `git rm --cached`.~~
+- ~~`trycycle-plan.md` (23KB) sits at the repo root; it planned the platforms redesign already shipped in #31. Move to `docs/plans/` or delete.~~
+- ~~**15 merged branches** never deleted on origin. `delete_branch_on_merge` is **off** — turn it on.~~ (done, §6)
+- ~~Repo has **no description and no homepage** set.~~ (done, §6)
+- `docs/index.html` exists (the platform setup guide) but **GitHub Pages is not enabled** — tracked in #28, still open per §7.
 
 ---
 
@@ -211,16 +226,10 @@ deliberately.
   accumulating.
 - Repo description set.
 
-Six branches remain besides `main`, all deliberately:
-
-| Branch | Why it's still there |
-|---|---|
-| `oreilly-eml-parser` | PR #45 |
-| `claude-md-conventions` | PR #52 |
-| `oauth-callback-isolation` | PR #54 |
-| `platforms-inspector-run-labels` | **Kept as reference.** Holds the inspector-drawer UI work from closed PR #34, useful during #40. Delete after the Platforms redesign lands. |
-| `linkedin-xlsx-oauth-fixes` | Squash-merged as #33, so git reports it unmerged — `gh api repos/catehstn/social-brain-app/pulls/33` returns `merged: true`, which is the evidence. Its diff against `main` is *not* purely subtractive (it re-adds the deleted `project.yml`), so don't judge it from the diff. Safe to delete; flagged rather than deleted because "merged" isn't provable from the commit graph. |
-| `bas-questions-and-issues` | Someone else's branch, from closed PR #53. Not ours to delete. |
+*Snapshot of branches as of 2026-09-01 removed — stale (two of the six listed
+have since been deleted, and the live count is in `git branch -r`). The point
+the table was making still holds: with `delete_branch_on_merge` on, branches
+left behind are either in-flight PRs or someone else's work.*
 
 ## 7. Still needing a decision
 
