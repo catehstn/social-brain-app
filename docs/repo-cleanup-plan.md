@@ -1,6 +1,18 @@
 # Repo cleanup plan — proposal
 
-Written 2026-09-01.
+> **Historical.** Written 2026-09-01, kept as a record of the first-pass
+> reasoning. §1 (restart decision) and §3 (CI postmortem) are reasoning
+> retained — the decisions were taken, and the writeups explain why. §7 is
+> the only section with items still open (#28 GitHub Pages, #61 mentions
+> synthesis). §4's hygiene list is struck through — xcuserstate (#44),
+> `trycycle-plan.md` (#93), merged-branch cleanup and the repo description
+> (§6) all shipped; GitHub Pages is the one still-open §4 item. The §6
+> branch table was deleted — see §6 for the two notes worth preserving.
+> §5's M1 list has drifted since 2026-09-01 (strike-throughs on closed
+> issues, 2026-09-22 annotation, references to issues filed later —
+> #58/#59/#60/#90/#97/#123/#173) — treat it as a palimpsest, not a current
+> list. CLAUDE.md and the P1/P2 labels on GitHub are the current sources
+> of truth for what to do next.
 
 **Status:** sections 1–4 are done, in PR #44 — the repo builds again and all three
 CI jobs are green on both Xcode 16.4 (CI) and 26.6 (local). PR #34 was closed as
@@ -51,6 +63,13 @@ The five "Design pass" issues (#38–#42) are the real work, and they are view-s
 ---
 
 ## 2. Blockers to fix before any design work
+
+*Historical. All four blockers are resolved: the P0 project-file conflict is
+marked RESOLVED below; PR #34 was closed as superseded by the design pass
+(see the top status paragraph); `SocialBrainMCP` was wired up as a real
+target in #47 (see §5 Suggested Order); and the P1 test-gap list is settled
+in-section below. Kept for the diagnostic reasoning; do not act on the
+imperatives.*
 
 ### P0 — Two sources of truth for the Xcode project ✅ RESOLVED
 
@@ -133,13 +152,17 @@ auto-creating one), no release-configuration build, no concurrency cancellation,
 and `CODE_SIGN_STYLE = Automatic` with an empty `DEVELOPMENT_TEAM` (which cannot
 succeed on a runner with no Apple account).
 
-## 4. Repo hygiene (low risk, I can do these immediately)
+## 4. Repo hygiene — mostly done
 
-- `SocialBrain.xcodeproj/.../xcuserdata/UserInterfaceState.xcuserstate` is **tracked in git** despite `.gitignore` — needs `git rm --cached` (gitignore doesn't apply retroactively).
-- `trycycle-plan.md` (23KB) sits at the repo root; it planned the platforms redesign already shipped in #31. Move to `docs/plans/` or delete.
-- **15 merged branches** never deleted on origin. `delete_branch_on_merge` is **off** — turn it on.
-- Repo has **no description and no homepage** set.
-- `docs/index.html` exists (the platform setup guide, 174 lines) but **GitHub Pages is not enabled** — which is exactly what issue #28 asks for. It's one settings toggle away from being done.
+*The items below are the original to-do list from 2026-09-01, kept as a
+record of what the first pass found. GitHub Pages is still the one open
+item — see §7.*
+
+- ~~`SocialBrain.xcodeproj/.../xcuserdata/UserInterfaceState.xcuserstate` is tracked in git despite `.gitignore` — needs `git rm --cached`.~~ (#44)
+- ~~`trycycle-plan.md` (23KB) sits at the repo root; it planned the platforms redesign already shipped in #31. Move to `docs/plans/` or delete.~~ (#93; the convention is `docs/plans/YYYY-MM-DD-<feature>.md`)
+- ~~**15 merged branches** never deleted on origin. `delete_branch_on_merge` is **off** — turn it on.~~ (done, §6)
+- ~~Repo has **no description and no homepage** set.~~ (done, §6)
+- `docs/index.html` exists (the platform setup guide) but **GitHub Pages is not enabled** — tracked in #28, still open per §7.
 
 ---
 
@@ -211,16 +234,17 @@ deliberately.
   accumulating.
 - Repo description set.
 
-Six branches remain besides `main`, all deliberately:
+*Snapshot of branches as of 2026-09-01 removed — stale (two of the six
+listed have since been deleted; the live count is in `git branch -r`).
+Two per-branch notes from the removed table are still useful and worth
+preserving:*
 
-| Branch | Why it's still there |
-|---|---|
-| `oreilly-eml-parser` | PR #45 |
-| `claude-md-conventions` | PR #52 |
-| `oauth-callback-isolation` | PR #54 |
-| `platforms-inspector-run-labels` | **Kept as reference.** Holds the inspector-drawer UI work from closed PR #34, useful during #40. Delete after the Platforms redesign lands. |
-| `linkedin-xlsx-oauth-fixes` | Squash-merged as #33, so git reports it unmerged — `gh api repos/catehstn/social-brain-app/pulls/33` returns `merged: true`, which is the evidence. Its diff against `main` is *not* purely subtractive (it re-adds the deleted `project.yml`), so don't judge it from the diff. Safe to delete; flagged rather than deleted because "merged" isn't provable from the commit graph. |
-| `bas-questions-and-issues` | Someone else's branch, from closed PR #53. Not ours to delete. |
+- *`bas-questions-and-issues` — someone else's branch, from closed PR
+  #53. **Not ours to delete.** If it is still on origin, leave it there.*
+- *`linkedin-xlsx-oauth-fixes` — squash-merged as #33, so git reports it
+  unmerged. Don't judge from the diff (`gh api
+  repos/catehstn/social-brain-app/pulls/33` returns `merged: true`), and
+  don't re-merge it. Safe to delete.*
 
 ## 7. Still needing a decision
 
