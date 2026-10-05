@@ -30,7 +30,6 @@ struct MetricMeaning: Sendable, Equatable {
         case audience          // followers, subscribers — people who chose to hear from you
         case accountsFollowed  // who *you* follow. Not an audience, and dividing
                                // one by the other is a ratio, not a sum
-        case channels          // connected accounts in a tool, not people
         case audienceChange    // new followers or subscribers in the period
         case published         // posts, emails, updates you sent
         case mentions          // times others posted about you — not yours
@@ -113,7 +112,6 @@ extension MetricKey {
         followersBlog:    .init(concept: .audience, unit: .count),
         followersComment: .init(concept: .audience, unit: .count),
         subscriberCount:  .init(concept: .audience, unit: .count),
-        profilesCount:    .init(concept: .channels, unit: .count),
         newFollowers:     .init(concept: .audienceChange, unit: .count),
         newSubscribers:   .init(concept: .audienceChange, unit: .count),
         membersReached:   .init(concept: .uniquePeople, unit: .count),

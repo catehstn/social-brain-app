@@ -96,7 +96,6 @@ struct BufferCollectorTests {
     func aggregates() async throws {
         let data = try await collect(session())
 
-        #expect(data.metrics["profiles_count"] == .int(2))
         #expect(data.metrics["sent_updates"] == .int(3))
         #expect(data.metrics["scheduled_updates"] == .int(3))
         #expect(data.metrics["total_clicks"] == .int(20))

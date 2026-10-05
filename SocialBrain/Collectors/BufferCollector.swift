@@ -41,7 +41,6 @@ import Foundation
 ///   Give it insights access to collect clicks, reach and likes.
 ///
 /// Metrics returned:
-/// - `profiles_count`         – number of connected channels
 /// - `sent_updates`           – posts sent in the period
 /// - `scheduled_updates`      – posts currently in the queue
 /// - `total_clicks`           – sum of clicks across sent posts   } only with
@@ -140,7 +139,6 @@ struct BufferCollector: Collector {
         }
 
         var metrics: [String: MetricValue] = [
-            MetricKey.profilesCount:    .int(channels.count),
             MetricKey.sentUpdates:      .int(inWindow.count),
             MetricKey.scheduledUpdates: .int(scheduled)
         ]

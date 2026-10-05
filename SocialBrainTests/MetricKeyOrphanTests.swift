@@ -41,7 +41,7 @@ struct MetricKeyOrphanTests {
     private static let emitted: [Platform: Set<String>] = [
         .bluesky: ["avg_likes", "avg_replies", "avg_reposts", "followers_count",
                    "follows_count", "posts_count", "posts_truncated", "recent_posts"],
-        .buffer: ["engagement_unavailable", "posts_sampled", "profiles_count", "scheduled_updates",
+        .buffer: ["engagement_unavailable", "posts_sampled", "scheduled_updates",
                   "sent_updates", "total_clicks", "total_likes", "total_reach", "top_profile_1"],
         .buttondown: ["avg_click_rate", "avg_open_rate", "emails_sampled", "emails_sent",
                       "new_subscribers", "subscriber_count"],
@@ -74,15 +74,7 @@ struct MetricKeyOrphanTests {
     /// reason, rather than quietly tolerated.
     private static let knownOrphans: [Platform: Set<String>] = [
         // #163 — written by LinkedInImporter; only Buffer's consumers read it.
-        .linkedin: ["total_clicks"],
-        // #170, both found by this test on its first run.
-        // Substack computes a click rate at two sites and shows it nowhere;
-        // the three consumers that read the key are all in the .buttondown
-        // branch, which is the #163 shape again.
-        .substack: ["avg_click_rate"],
-        // Describes the account setup rather than the period, so "stop
-        // collecting it" may be the better answer for this one.
-        .buffer: ["profiles_count"]
+        .linkedin: ["total_clicks"]
     ]
 
     // MARK: - The detector

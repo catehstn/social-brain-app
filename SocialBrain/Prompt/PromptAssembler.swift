@@ -302,6 +302,7 @@ struct PromptAssembler {
         }
         if let v = data.intMetric(MetricKey.postsPublished) { lines.append("Posts published: \(v)") }
         if let open = data.doubleMetric(MetricKey.avgOpenRate) { lines.append("Average open rate: \(pct(open))") }
+        if let click = data.doubleMetric(MetricKey.avgClickRate) { lines.append("Average click rate: \(pct(click))") }
         return lines
     }
 
